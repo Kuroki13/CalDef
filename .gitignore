@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — everything ignored by default.
+# .env.example is the ONE exception: it contains variable names only,
+# never values. Never add another exception here.
 .env*
+!.env.example
 
 # vercel
 .vercel
