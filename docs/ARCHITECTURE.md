@@ -97,7 +97,7 @@ src/
     llm/               types.ts · provider.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
-    tdee/              bmr.ts · trend.ts · adaptive.ts
+    tdee/              constants.ts · bmr.ts · trend.ts · adaptive.ts
                        feasibility.ts · milestones.ts
     rate-limit.ts
   types/
@@ -192,7 +192,18 @@ food_logs ─────────► observed mean intake
   read as expenditure (spec 8.9).
 
 `7700 kcal/kg` is the energy-density constant used throughout; it lives
-in one place in `src/lib/tdee/`.
+in one place, `src/lib/tdee/constants.ts`, alongside the rate bands and
+calorie floors. Feasibility, the guardrail and the milestone generator
+all read the same thresholds from there, so the app cannot classify a
+rate one way on the phase screen and another way on the dashboard.
+
+Two floors exist and they mean different things. `CALORIE_FLOOR.absolute`
+(1200 kcal) is the lowest intake that is a diet at all, and it decides
+whether a requested target is *possible*. `CALORIE_FLOOR.fractionOfTdee`
+(60% of expenditure) is the lowest intake the app is willing to *suggest*.
+The spec's 99 kg example clears the first and fails the second, which is
+exactly why it is reported honestly as very aggressive and then overridden
+by a gentler recommendation.
 
 ## 7. Safety logic
 

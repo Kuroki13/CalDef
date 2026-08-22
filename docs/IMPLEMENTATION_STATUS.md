@@ -18,7 +18,7 @@ Last updated: 2026-08-22
 | 0 | Scaffold, docs, env, git | DONE |
 | 1 | Database schema and RLS | DONE |
 | 2 | Auth and app shell | DONE |
-| 3 | Nutrition and TDEE domain logic | IN PROGRESS |
+| 3 | Nutrition and TDEE domain logic | DONE |
 | 4 | Food providers (USDA, OFF, cache) | TODO |
 | 5 | Food logging and diary | TODO |
 | 6 | Weight tracking and adaptive TDEE | TODO |
@@ -107,12 +107,74 @@ Written in the session of 2026-08-10, verified and committed 2026-08-22.
 - Navigation is grown one phase at a time — `src/lib/nav.ts` lists only
   routes that render something real, so there are no dead links.
 
+### Phase 3 — nutrition and TDEE domain logic
+
+Pure functions, no I/O, 130 unit tests. This is the layer the spec's
+worked examples are encoded against.
+
+`src/lib/nutrition/`
+
+- `units.ts` — portion units (g / ml / serving) to grams. A serving
+  amount with no serving attached throws rather than guessing; inventing
+  a weight here would put a fabricated number in the diary. `ml` falls
+  back to 1 g/ml, and a food's own `food_servings` row always wins over
+  that fallback.
+- `macros.ts` — every calorie figure in the app is produced here, by
+  scaling a per-100 g `food_nutrients` row to a gram weight. Also macro
+  targets (protein fixed from bodyweight first, fat floored at 20% of
+  calories, carbohydrate taking the remainder) and a plausibility check
+  that flags rows whose stated calories contradict their macros, which
+  community-contributed data frequently does.
+- `totals.ts` — diary aggregation. Sums stored values and never
+  recomputes them from a food, so a later provider revision cannot
+  silently rewrite yesterday's diary. `meanDailyIntake` divides by
+  elapsed days rather than logged days: dividing by logged days would
+  inflate apparent intake and corrupt the expenditure estimate.
+
+`src/lib/tdee/`
+
+- `constants.ts` — `KCAL_PER_KG = 7700`, the rate bands, the recommended
+  band (0.75–1.0% of bodyweight/week) and both calorie floors, in one
+  place per ARCHITECTURE §6.
+- `bmr.ts` — Mifflin-St Jeor plus activity multipliers. A seed only.
+  `sex: other` takes the mean of the two constants rather than defaulting
+  to either.
+- `trend.ts` — EWMA smoothing, alpha 0.1 (~19-day centre of mass). Gaps
+  hold the previous value rather than interpolating, because
+  interpolation would invent readings. Verified to barely move for a
+  single 2 kg anomalous weigh-in.
+- `adaptive.ts` — the expenditure estimate,
+  `intake + (trend_change × 7700) / days`. The arithmetic is trivial; the
+  substance is the refusal to publish. Gated on 14 days, 8 weigh-ins and
+  10 logged days; blended toward the prior at 0–40% by confidence;
+  damped a further 70% inside a phase's first fortnight (spec 8.9); and
+  rejected outright if the observation falls outside 800–10000 kcal.
+  A low-confidence estimate is shown but cannot move a target.
+- `feasibility.ts` — the two-function split ARCHITECTURE §7 requires.
+  `assessTarget` reports what a target demands, however unflattering.
+  `recommendPlan` decides what the app will actually recommend, and
+  cannot return a rate above the band or a figure below the floor.
+  Calorie targets round **up**, never down, so rounding can never push
+  the resulting rate past the top of the band.
+- `milestones.ts` — the weekly roadmap, generated from a bodyweight-
+  relative rate rather than a flat subtraction, with the stretch path
+  produced separately and never feeding a calorie target.
+
+Both of spec 8.2's worked examples are pinned by tests:
+
+| Target | Required | Classification | App recommends |
+|--------|----------|----------------|----------------|
+| 111.8 → 99 kg / 56 d | 1.6 kg/wk, ~1760 kcal deficit, ~1597 kcal intake | Very aggressive | ~2128 kcal, projecting ~103 kg |
+| 111.8 → 90 kg / 56 d | 2.7 kg/wk, ~2998 kcal deficit, ~359 kcal intake | Not realistic for the timeframe | 90 kg stays the long-term goal |
+
+The milestone generator reproduces the spec's illustrative roadmap
+(111.8 · 110.7 · 109.6 · 108.5 · 107.4 · 106.3 · 105.2 · 104.1 · 103)
+and the ~103–105 kg recommended end-of-phase range, both of which fall
+out of the 0.75–1.0%/week band rather than being hardcoded.
+
 ## IN PROGRESS
 
-- Phase 3: nutrition and TDEE domain logic. `src/lib/nutrition/**` and
-  `src/lib/tdee/**` do not exist yet. The `units.ts` and `dates.ts`
-  helpers above landed early as Phase 2 support; portion units
-  (g / ml / serving) are a separate module still to be written.
+- Nothing. Phase 4 is the next start.
 
 ## TODO
 
@@ -177,7 +239,10 @@ and is not restated here.
 | 2026-08-10 | `supabase/tests/rls_isolation.sql` §3 forged ownership | PASS — inserts claiming another user rejected |
 | 2026-08-10 | `supabase/tests/rls_isolation.sql` §4 anon access | PASS — anon denied on every probed table |
 | 2026-08-10 | `handle_new_user` trigger | PASS — profile auto-created for both test users |
-| 2026-08-22 | `npm run test` | PASS — 18 tests, 2 files (`units`, `dates`) |
+| 2026-08-22 | `npm run test` (Phase 2) | PASS — 18 tests, 2 files (`units`, `dates`) |
+| 2026-08-22 | `npm run test` (Phase 3) | PASS — 148 tests, 10 files |
+| 2026-08-22 | Spec 8.2 worked examples | PASS — both encoded as tests; 99 kg classified very aggressive, 90 kg not realistic |
+| 2026-08-22 | Spec 8.5 milestone roadmap | PASS — generated path matches 111.8 → ~103 kg to within 0.1 kg |
 | 2026-08-22 | `npm run typecheck` | PASS |
 | 2026-08-22 | `npm run lint` | PASS — 0 problems |
 | 2026-08-22 | `npm run build` | PASS — 8 routes, proxy compiled |
