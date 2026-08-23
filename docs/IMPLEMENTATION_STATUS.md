@@ -7,7 +7,7 @@ true.
 A feature belongs under DONE only if it was **tested and verified**, not
 merely written. "It compiles" is not done.
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 ---
 
@@ -19,9 +19,9 @@ Last updated: 2026-08-22
 | 1 | Database schema and RLS | DONE |
 | 2 | Auth and app shell | DONE |
 | 3 | Nutrition and TDEE domain logic | DONE |
-| 4 | Food providers (USDA, OFF, cache) | IN PROGRESS |
-| 5 | Food logging and diary | IN PROGRESS |
-| 6 | Weight tracking and adaptive TDEE | TODO |
+| 4 | Food providers (USDA, OFF, cache) | DONE |
+| 5 | Food logging and diary | DONE |
+| 6 | Weight tracking and adaptive TDEE | IN PROGRESS |
 | 7 | 2-Month Cut phase mode | TODO |
 | 8 | Recipes, saved meals, favorites, barcode | TODO |
 | 9 | AI layer | TODO |
@@ -172,13 +172,10 @@ The milestone generator reproduces the spec's illustrative roadmap
 and the ~103–105 kg recommended end-of-phase range, both of which fall
 out of the 0.75–1.0%/week band rather than being hardcoded.
 
-## IN PROGRESS
-
 ### Phase 4 — food providers
 
-Written and unit-tested (42 tests); **not yet verified end to end**,
-because nothing calls the cache yet. The API routes that exercise it are
-Phase 5.
+Verified end to end against the live APIs and the real database on
+2026-08-23.
 
 - `types.ts` — the neutral `Food` / `FoodServing` / `ProviderResult`
   shapes. No provider payload escapes `src/lib/food`.
@@ -186,34 +183,32 @@ Phase 5.
   timeout and the descriptive User-Agent Open Food Facts asks for, and
   `safeProviderCall`, which turns a failure into a value. Error text is
   sanitised in one place because a USDA request URL contains the API key.
-- `usda.ts` — search only, restricted to Foundation / SR Legacy /
-  Survey, which is what "generic whole food" means. Nutrients are matched
-  on stable numeric ids rather than names. A row missing energy has it
-  derived from its macros; a row with neither is dropped rather than
-  logged as zero. Only Foundation and SR Legacy are marked verified.
+- `usda.ts` — search only, restricted to Foundation and SR Legacy, which
+  is what "generic whole food" means. Nutrients are matched on stable
+  numeric ids rather than names. A row missing energy has it derived from
+  its macros; a row with neither is dropped rather than logged as zero.
+  Only Foundation and SR Legacy are marked verified.
 - `off.ts` — v3 for barcode lookup as the spec directs, v2 for search
   because v3 has no search endpoint. Nothing from here is ever marked
   verified. Sodium is converted from g to mg. A product with no energy
   value, or a serving whose gram weight will not parse, is skipped rather
   than guessed.
 - `cache.ts` — reads and writes `foods` / `food_servings` /
-  `food_nutrients`.
+  `food_nutrients`. Cache search matches each whitespace/comma-separated
+  term independently rather than the whole query as one substring:
+  provider names are punctuated in ways nobody types ("Chicken, breast,
+  boneless, skinless, raw"), so a single-substring match missed the cache
+  on essentially every multi-word query and sent us back to the provider
+  for a food we already held.
 - `registry.ts` — concurrent fan-out across cache, USDA and OFF, with
   per-source success reported so the UI can say a result set is
   incomplete. Deduplicates within a source but deliberately not across
   sources, since the same food from two providers has two provenances.
 
-Remaining before this phase is DONE:
-
-- Exercise `cacheFood` / `searchCache` against the real database with an
-  authenticated session. The Phase 5 diary now calls them, but nobody has
-  been able to sign in yet (see BLOCKED), so the RLS interaction is
-  reasoned about and unit-tested rather than observed.
-
 ### Phase 5 — food logging and diary
 
-Written and tested; **the authenticated path has not been exercised
-against a live session**, for the same reason as Phase 4.
+Verified end to end against the production build with a real signed-in
+session on 2026-08-23.
 
 - `rate-limit.ts` — fixed-window counter keyed on the user id. Honest
   limitation documented in the module: serverless instances do not share
@@ -246,16 +241,21 @@ against a live session**, for the same reason as Phase 4.
   inline amount editing and removal. Source badges distinguish USDA
   verified from community-contributed data, as the spec requires.
 
-Remaining before this phase is DONE:
+Not in this phase, by design: barcode scanning has no camera UI yet. The
+route exists and is tested, but nothing calls it — that is Phase 8.
 
-- Sign in and actually log a food, then confirm the row, its computed
-  macros and the cached food records.
-- Barcode scanning has no camera UI yet — the route exists and is
-  tested, but nothing calls it. That is Phase 8.
+## IN PROGRESS
+
+- Phase 6: weight tracking and the adaptive TDEE engine. The domain
+  logic (`tdee/trend.ts`, `tdee/adaptive.ts`) landed in Phase 3 and is
+  unit-tested; what is missing is the weigh-in UI, the estimate
+  persistence into `tdee_estimates`, the weekly check-in into
+  `weekly_checkins`, and swapping `targets.ts` off the formula estimate
+  and onto the adaptive one once it is publishable.
 
 ## TODO
 
-Phases 6–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
+Phases 7–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
 and is not restated here.
 
 ## KNOWN ISSUES
@@ -270,6 +270,14 @@ and is not restated here.
   delete it before any real use. The 2026-08-10 note claiming the
   database held "only the 4 seeded `meal_types` rows" was already stale
   when written — this user was created shortly afterwards.
+- **The onboarding form does not work without JavaScript.** `timezone` is
+  a hidden input populated on the client from
+  `Intl.DateTimeFormat().resolvedOptions()`, so a no-JS submission sends
+  it empty and fails validation. Noticed while driving the form through
+  its progressive-enhancement path during end-to-end testing. Harmless
+  for a PWA whose whole point is a JS runtime, but it means the
+  no-JS fallback React renders for free is not actually functional here.
+  Fix by defaulting to UTC server-side when the field is empty.
 - **The food cache cannot refresh a provider food.** Shared cache rows
   carry `user_id IS NULL`, and `foods_update_own` reads
   `auth.uid() = user_id`, which is never true for a null owner — so no
@@ -301,41 +309,30 @@ and is not restated here.
   - After these fixes `npm run test:live` passes, though roughly one run
     in four still fails on an upstream blip. A failing live run is not by
     itself evidence of a defect here — check the reported status code.
-- **Signup-to-session has not been exercised end to end.** Signup,
-  the confirmation email and `/auth/confirm` all demonstrably worked on
-  2026-08-10 (that is how the test user got confirmed), but no
-  password login has ever succeeded — `auth.users.last_sign_in_at` is
-  still null. Verify once email confirmation is switched off.
+- **The food cache never expires.** Nothing re-fetches a cached food, and
+  per the entry above nothing can update one either. Combined, a food
+  cached today is the food the app uses forever. Acceptable for now;
+  worth revisiting alongside the refresh question.
 
 ## DECISIONS
 
 - **Email confirmation on signup: DISABLED.** Settled 2026-08-22 by the
-  account owner. This is a single-user personal app; the free built-in
-  mailer is rate-limited to a handful of messages per hour, and
-  confirmation adds friction with no real benefit at this scale.
-  - Current state: still **ON** in the project. Verified from
-    `auth.users` — the existing test user has a `confirmation_sent_at`
-    and was confirmed 21 seconds later by a real email click.
-  - Enacting it needs one dashboard toggle by the account owner:
-    Authentication → Sign In / Providers → Email → **Confirm email**
-    off. The Supabase MCP server exposes no auth-configuration tool, so
-    this cannot be done from code.
-  - No code change is required. `signUp` already branches on whether a
-    session comes back, so it works under either setting, and
-    `/auth/confirm` stays in place for password-reset links later.
+  account owner, enacted in the dashboard and **confirmed live on
+  2026-08-23**: a signup now returns a session immediately and the user
+  arrives already confirmed. This is a single-user personal app; the
+  free built-in mailer is rate-limited to a handful of messages per
+  hour, and confirmation added friction with no real benefit at this
+  scale.
+  - No code change was needed. `signUp` branches on whether a session
+    comes back, so it works under either setting, and `/auth/confirm`
+    stays in place for password-reset links later.
 
 ## BLOCKED / NEEDS ACCOUNT OWNER
 
-- **Disable email confirmation** — the dashboard toggle described above.
-  Re-verified still ON on 2026-08-23 by a signup probe (the probe user
-  was deleted afterwards).
+Nothing currently blocked.
 
-  This is now the single thing blocking verification of everything
-  behind a login: the diary, the food cache, target creation and the
-  whole logged-in shell are written and unit-tested but have never been
-  run by a real signed-in user. Either flip the toggle, or supply the
-  password for `caldef.dev.tester@gmail.com`, which is already confirmed
-  and would work as a login fixture today.
+- **Email confirmation** — **RESOLVED 2026-08-23.** Toggle flipped; the
+  full signed-in path is now verified (see TEST RESULTS).
 - `GEMINI_API_KEY` — **RESOLVED 2026-08-22.** Present in `.env.local`
   and verified against the live API (HTTP 200, 50 models listed).
 - `USDA_API_KEY` — **RESOLVED 2026-08-22.** Present in `.env.local` and
@@ -376,8 +373,33 @@ and is not restated here.
 | 2026-08-23 | `npm run test` (Phase 5) | PASS — 242 tests, 18 files |
 | 2026-08-23 | API routes, unauthenticated (dev server) | PASS — `/api/foods/search` and `/api/foods/barcode` return JSON 401; page routes still 307 to `/login` |
 | 2026-08-23 | Route handlers with a stubbed session | PASS — 20 tests covering auth, validation, rate limiting, degradation and error sanitisation |
-| 2026-08-23 | Food cache round trip | NOT RUN — needs a live session (see BLOCKED) |
-| 2026-08-23 | Logging a food end to end | NOT RUN — needs a live session (see BLOCKED) |
+| 2026-08-23 | `npm run test` (Phase 5 complete) | PASS — 252 tests, 19 files |
+
+### End-to-end run, 2026-08-23 (production build, real Supabase session)
+
+Driven against `next start` with a genuine `@supabase/ssr` session
+cookie, exercising the real server actions rather than mocks.
+
+| Step | Result |
+|------|--------|
+| Signup returns a session | PASS — user auto-confirmed, confirmation is off |
+| `handle_new_user` trigger | PASS — `profiles` row created automatically |
+| Routing while signed in | PASS — `/`→`/dashboard`, `/login`→`/dashboard`, `/dashboard`→`/onboarding` while setup is incomplete |
+| Onboarding server action | PASS — 303 to `/dashboard`; `profiles`, `goals` and `weight_entries` all written correctly under RLS |
+| Dashboard render | PASS — 111.8 kg current, 90.0 kg goal, 21.8 kg to go, age 31 from birth date |
+| Daily target created | PASS — 2063 kcal, 179 g protein, basis TDEE 3292.7 (BMR 2124.25 × 1.55 moderate, minus a 1.118 kg/week deficit) |
+| Food search, authenticated | PASS — 200 with rate-limit headers; USDA returned 4 verified generic foods |
+| Degradation, live | PASS — with OFF down the response set `degraded: true` and still returned USDA results |
+| Log a food | PASS — 200 g of a 107.37 kcal/100 g food stored as 214.74 kcal, 45.00 P, 0 C, 3.86 F |
+| Cache round trip | PASS — `foods`, `food_nutrients` and `food_servings` written; entry computed from the stored row, not the payload |
+| Cache idempotency | PASS — logging the same food three times left exactly one `foods` row |
+| Cache hit on re-search | PASS — cached food returned first with its database id |
+| Edit amount | PASS — 200 g → 150 g recomputed to 161.06 kcal, 33.75 P, 2.90 F |
+| Delete entry | PASS — entry removed, shared cached food correctly retained |
+| RLS: cross-user read | PASS — only own profile visible; other user's profile and weigh-ins return `[]` |
+| RLS: forged insert | PASS — writing a row owned by another user rejected with `42501` |
+| RLS: anon access | PASS — `permission denied for table profiles` |
+| Teardown | PASS — test account and cached food deleted; cascades removed goals, weigh-ins, logs and targets |
 
 Phase 1 test data was torn down, but a later Phase 2 test user remains —
 see KNOWN ISSUES. The database otherwise holds only the 4 seeded

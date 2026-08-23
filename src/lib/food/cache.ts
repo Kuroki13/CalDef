@@ -18,6 +18,28 @@ import { createClient } from "@/lib/supabase/server";
 import type { CachedFood, Food, FoodSearchQuery } from "@/lib/food/types";
 
 /**
+ * Splits a query into terms for matching.
+ *
+ * Each term is matched independently against `search_text`, because provider
+ * names are punctuated in ways a user never types: USDA calls it "Chicken,
+ * breast, boneless, skinless, raw", so a search for "boneless skinless"
+ * matched nothing as a single substring and the cache was missed on every
+ * multi-word query — sending us back to the provider for a food we already
+ * held, which is precisely what the cache exists to prevent.
+ *
+ * `%` and `_` are stripped rather than escaped: they are wildcards in
+ * `ilike`, and a user typing them means the literal character, not a
+ * pattern.
+ */
+function searchTerms(text: string): string[] {
+  return text
+    .split(/[\s,]+/)
+    .map((term) => term.replace(/[%_]/g, "").trim())
+    .filter((term) => term.length > 0)
+    .slice(0, 6);
+}
+
+/**
  * Searches the local cache.
  *
  * Uses the generated `foods.search_text` column and its trigram GIN index.
@@ -28,9 +50,12 @@ export async function searchCache({
   text,
   limit = 15,
 }: FoodSearchQuery): Promise<CachedFood[]> {
+  const terms = searchTerms(text);
+  if (terms.length === 0) return [];
+
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("foods")
     .select(
       `id, source, source_id, name, brand, description, barcode, is_verified,
@@ -38,13 +63,21 @@ export async function searchCache({
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
-    )
-    .ilike("search_text", `%${text}%`)
-    .limit(limit);
+    );
+
+  // Every term must appear somewhere in the text, in any order.
+  for (const term of terms) {
+    query = query.ilike("search_text", `%${term}%`);
+  }
+
+  const { data, error } = await query.limit(limit);
 
   if (error) throw new Error(error.message);
   return (data ?? []).flatMap(rowToFood);
 }
+
+/** Exported for testing the term splitting in isolation. */
+export const __searchTerms = searchTerms;
 
 /** Finds a cached food by barcode, before any network call. */
 export async function findCachedByBarcode(
