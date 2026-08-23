@@ -22,7 +22,7 @@ Last updated: 2026-08-23
 | 4 | Food providers (USDA, OFF, cache) | DONE |
 | 5 | Food logging and diary | DONE |
 | 6 | Weight tracking and adaptive TDEE | DONE |
-| 7 | 2-Month Cut phase mode | IN PROGRESS |
+| 7 | 2-Month Cut phase mode | DONE |
 | 8 | Recipes, saved meals, favorites, barcode | TODO |
 | 9 | AI layer | TODO |
 | 10 | PWA, rate limiting, security hardening | TODO |
@@ -285,9 +285,72 @@ and both are fixed:
   have passed, which is what makes the schema's claim that targets change
   only at a check-in actually true.
 
+### Phase 7 — 2-Month Cut mode
+
+Built as six commits, each tested and verified live before the next.
+
+- **§8.1–8.3, 8.5 — planning** (`tdee/phase-plan.ts`, `lib/phase.ts`).
+  `planPhase` reproduces the spec's figures as consequences rather than
+  constants: a 102.9–105.1 kg recommended range and the roadmap
+  111.8 / 110.7 / … / 103 fall out of the 0.75–1.0%/week band. The
+  stretch target is the *ask* and never the prescription — the 99 kg line
+  implies ~1597 kcal and never becomes the calorie figure.
+  `phaseCoversDate` treats `end_date` as exclusive, so paging back to an
+  earlier diary day cannot pull a phase target onto a day it did not
+  govern.
+- **Target precedence.** Exactly one target is in force. An active phase
+  owns it; the everyday target resumes when no phase covers the day. The
+  UI names which is which ("2-Month Cut target" / "Daily target").
+  - The weekly cadence gate sits **above** the phase branch, so a phase
+    cannot recompute daily. Verified: a phase target dated six days
+    earlier held at 2222 kcal instead of recomputing.
+  - A change of régime is an event, not drift, so it applies at once —
+    starting a phase does not wait a week to matter, and an ended phase
+    stops governing immediately. The diary states why the number moved
+    rather than changing it silently.
+- **§8.4, 8.6 — dashboard and start flow** (`lib/phase-dashboard.ts`,
+  `/phase`). Keeps 8.1's four concepts visibly separate — recommended
+  range, projection, stretch, final goal. The projection sentence states
+  the gap factually and never characterises the user; when the trend is
+  flat or rising it says so instead of projecting.
+- **§8.7 — progress graph** (`components/phase-chart.tsx`,
+  `tdee/phase-series.ts`). Four series plus a final-goal marker, inline
+  SVG, no charting dependency. The visual hierarchy carries the meaning:
+  trend heaviest, recommended lighter, stretch dashed, weigh-ins faint.
+  Neither actual nor trend is drawn into the future — a projection in the
+  same ink as a measurement is a lie about what is known. The goal marker
+  is dropped when including it would stretch the axis far enough to
+  squash the real data into a sliver.
+- **§8.8 — adaptive calories inside a phase.** Each weekly adjustment
+  re-runs the guardrail against today's trend weight and expenditure.
+- **§8.9 — early-phase damping.** The rule existed in `adaptive.ts` from
+  Phase 3 but was inert: `expenditure.ts` never passed `phaseDayIndex`.
+  Now wired — day 1 of a phase moves the estimate to 3211 kcal where the
+  undamped path gave 3109. `refreshMilestoneActuals` was dormant in the
+  same way and is now called when a weigh-in is recorded.
+- **§8.10 — checkpoints and reports** (`tdee/checkpoints.ts`). Days 1, 7,
+  14, 28, 42, 56, with a report at the latest reached and a Phase 2
+  proposal once a phase ends. The proposal takes an adaptive timeframe
+  rather than another automatic eight weeks, and is offered only after a
+  phase finishes — proposing it midway would invite abandoning a phase
+  before its data means anything.
+
+Two deliberate departures worth knowing about:
+
+- The spec asks for an **AI-written** explanation in the halfway and
+  final reports. The text is deterministic instead, because
+  ARCHITECTURE invariant 3 requires the app to work with the AI off — a
+  report that only exists when Gemini answers is not a report. Phase 9
+  may enrich it; it may not become a precondition for having one.
+- **Reports average intake over logged days; the expenditure model
+  averages over elapsed days.** They answer different questions and now
+  sit side by side with a note on why. Caught in verification: a report
+  was telling someone who logged 20 days of a 56-day phase that they had
+  averaged 715 kcal a day.
+
 ## TODO
 
-Phases 7–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
+Phases 8–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
 and is not restated here.
 
 ## KNOWN ISSUES
@@ -469,6 +532,25 @@ kg/week, with noise) and 28 days of food logs at 2100 kcal.
 | Weekly check-in recorded | PASS — week of 2026-08-17: trend 110.09 → 109.33, −0.760 kg, 100% adherence, 7 logged days, 2500 → 1906 |
 | Weigh-in upsert | PASS — re-weighing the same day corrected the row rather than adding a second |
 | Teardown | PASS — account deleted; cascades cleared goals, weigh-ins, logs, targets, estimates and check-ins |
+
+### Phase 7 end-to-end runs, 2026-08-23 (production build)
+
+| Check | Result |
+|-------|--------|
+| Phase created through the real action | PASS — anchored at the 109.33 kg **trend**, not the 108.5 kg reading; 9 milestones written |
+| Recommended range | PASS — 100.58–102.77 kg, the 0.75–1.0%/week band over 56 days |
+| Precedence | PASS — diary rendered "2-Month Cut target · 1906 kcal", row stored with `source: phase` |
+| Cadence inside a phase | PASS — a phase target dated 6 days earlier carried forward at 2222 kcal instead of recomputing |
+| Cadence at seven days | PASS — recomputed with `source: weekly_adjustment` |
+| Visible fallback | PASS — ending the phase switched to "Daily target", moved the number, and explained why |
+| Early-phase damping | PASS — day 1 gave 3211 kcal where the undamped path gave 3109 |
+| Progress graph | PASS — four series, goal marker at 90.0, no NaN coordinates, one dashed path (stretch) |
+| Milestone backfill | PASS — weeks 0–3 of a 21-day-old phase stamped; weeks 4–8 left null |
+| Mid-phase report | PASS — "Day 22 check-in" with rate, projection and the stretch gap stated neutrally |
+| Final report | PASS — percentage bodyweight lost, average weekly, best logging run; no forward projection |
+| Phase 2 proposal | PASS — "19.88 kg still separates you from 90 kg… the goal following in a later phase" |
+| Intake attribution | PASS after fix — "Across the 20 days you logged, you averaged 2180 kcal" |
+| Teardown | PASS — test accounts removed by email prefix; the real account and login fixture untouched, 0 orphaned foods/milestones/estimates |
 
 Every test account has been torn down. The database holds the 4 seeded
 `meal_types` rows and the retained login fixture (see KNOWN ISSUES) —
