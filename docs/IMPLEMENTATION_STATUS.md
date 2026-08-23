@@ -20,7 +20,7 @@ Last updated: 2026-08-22
 | 2 | Auth and app shell | DONE |
 | 3 | Nutrition and TDEE domain logic | DONE |
 | 4 | Food providers (USDA, OFF, cache) | IN PROGRESS |
-| 5 | Food logging and diary | TODO |
+| 5 | Food logging and diary | IN PROGRESS |
 | 6 | Weight tracking and adaptive TDEE | TODO |
 | 7 | 2-Month Cut phase mode | TODO |
 | 8 | Recipes, saved meals, favorites, barcode | TODO |
@@ -206,14 +206,56 @@ Phase 5.
 Remaining before this phase is DONE:
 
 - Exercise `cacheFood` / `searchCache` against the real database with an
-  authenticated session. Nothing calls them yet, so the RLS interaction
-  is reasoned about but unproven.
-- Re-run `npm run test:live` when USDA and OFF search recover (see KNOWN
-  ISSUES) to confirm the mappings against live payloads.
+  authenticated session. The Phase 5 diary now calls them, but nobody has
+  been able to sign in yet (see BLOCKED), so the RLS interaction is
+  reasoned about and unit-tested rather than observed.
+
+### Phase 5 — food logging and diary
+
+Written and tested; **the authenticated path has not been exercised
+against a live session**, for the same reason as Phase 4.
+
+- `rate-limit.ts` — fixed-window counter keyed on the user id. Honest
+  limitation documented in the module: serverless instances do not share
+  memory, so the effective limit is per-instance. That is enough to stop
+  a runaway client burning the USDA quota, which is the actual risk; it
+  is not a defence against a distributed attacker and is not described
+  as one. A real limiter needs shared state, which needs a paid add-on.
+- `api/foods/search` and `api/foods/barcode` — authenticate, then rate
+  limit, then validate, in that order. Limiting before authenticating
+  would let an anonymous caller spend another user's budget. The barcode
+  route's input regex matches the `foods.barcode` check constraint
+  exactly, so anything it accepts the database will accept too.
+- `lib/diary.ts` — day reads, joined to the food that produced each
+  entry. Queries rely on RLS for scoping rather than adding a `user_id`
+  filter, so a forgotten filter returns nothing rather than another
+  user's rows.
+- `lib/targets.ts` — computes a daily target once and stores it. Past
+  days are never back-filled: the target you were working to is part of
+  the record, and recomputing it later would rewrite history and make
+  adherence figures meaningless.
+- `tdee/daily-target.ts` — the everyday target for a goal with no end
+  date, floored the same way the phase engine is. Lands at ~2130 kcal and
+  179 g protein for the spec's starting subject.
+- `diary/actions.ts` — the convergence point from ARCHITECTURE §4. The
+  client posts the chosen food, but its nutrient values are used only to
+  seed the cache; the entry's own macros are then computed from the row
+  the database actually holds, so a tampered payload cannot inflate an
+  entry.
+- Diary UI: day navigation, per-meal grouping, totals against target,
+  inline amount editing and removal. Source badges distinguish USDA
+  verified from community-contributed data, as the spec requires.
+
+Remaining before this phase is DONE:
+
+- Sign in and actually log a food, then confirm the row, its computed
+  macros and the cached food records.
+- Barcode scanning has no camera UI yet — the route exists and is
+  tested, but nothing calls it. That is Phase 8.
 
 ## TODO
 
-Phases 5–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
+Phases 6–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
 and is not restated here.
 
 ## KNOWN ISSUES
@@ -285,8 +327,15 @@ and is not restated here.
 ## BLOCKED / NEEDS ACCOUNT OWNER
 
 - **Disable email confirmation** — the dashboard toggle described above.
-  Until it is flipped, a new signup lands on "check your email" instead
-  of going straight to onboarding.
+  Re-verified still ON on 2026-08-23 by a signup probe (the probe user
+  was deleted afterwards).
+
+  This is now the single thing blocking verification of everything
+  behind a login: the diary, the food cache, target creation and the
+  whole logged-in shell are written and unit-tested but have never been
+  run by a real signed-in user. Either flip the toggle, or supply the
+  password for `caldef.dev.tester@gmail.com`, which is already confirmed
+  and would work as a login fixture today.
 - `GEMINI_API_KEY` — **RESOLVED 2026-08-22.** Present in `.env.local`
   and verified against the live API (HTTP 200, 50 models listed).
 - `USDA_API_KEY` — **RESOLVED 2026-08-22.** Present in `.env.local` and
@@ -324,7 +373,11 @@ and is not restated here.
 | 2026-08-23 | `npm run typecheck` / `lint` / `build` | PASS |
 | 2026-08-23 | Supabase security advisors | 1 WARN — `auth_leaked_password_protection` only. No RLS findings. |
 | 2026-08-23 | Email-confirmation setting | Verified still **ON** by signup probe; probe user deleted afterwards |
-| 2026-08-23 | Food cache round trip | NOT RUN — nothing calls it until Phase 5 |
+| 2026-08-23 | `npm run test` (Phase 5) | PASS — 242 tests, 18 files |
+| 2026-08-23 | API routes, unauthenticated (dev server) | PASS — `/api/foods/search` and `/api/foods/barcode` return JSON 401; page routes still 307 to `/login` |
+| 2026-08-23 | Route handlers with a stubbed session | PASS — 20 tests covering auth, validation, rate limiting, degradation and error sanitisation |
+| 2026-08-23 | Food cache round trip | NOT RUN — needs a live session (see BLOCKED) |
+| 2026-08-23 | Logging a food end to end | NOT RUN — needs a live session (see BLOCKED) |
 
 Phase 1 test data was torn down, but a later Phase 2 test user remains —
 see KNOWN ISSUES. The database otherwise holds only the 4 seeded

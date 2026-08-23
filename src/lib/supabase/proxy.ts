@@ -53,6 +53,15 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Route handlers answer for themselves. Redirecting an unauthenticated
+  // API request to /login would hand a `fetch` caller a 307 to an HTML page,
+  // which it would follow and then fail to parse as JSON — turning "you are
+  // signed out" into "the service is unreachable". Each handler re-verifies
+  // the user and returns a proper 401.
+  if (pathname.startsWith("/api/")) {
+    return supabaseResponse;
+  }
+
   if (!userId && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
