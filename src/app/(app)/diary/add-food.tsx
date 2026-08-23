@@ -12,6 +12,7 @@
 import { useActionState, useState } from "react";
 
 import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
+import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,48 @@ export function AddFood({
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>(IDLE);
   const [chosen, setChosen] = useState<Food | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  /**
+   * Resolves a scanned code through our own route.
+   *
+   * A 404 here means the product genuinely is not in Open Food Facts, which
+   * is a normal outcome of scanning — the user is told so and left on the
+   * search box rather than being shown an error.
+   */
+  async function lookupBarcode(code: string) {
+    setScannerOpen(false);
+    setSearch({ ...IDLE, status: "loading" });
+
+    try {
+      const response = await fetch(
+        `/api/foods/barcode?code=${encodeURIComponent(code)}`,
+      );
+      const body = await response.json();
+
+      if (response.ok && body.food) {
+        setSearch(IDLE);
+        setChosen(body.food);
+        return;
+      }
+
+      setSearch({
+        status: "done",
+        foods: [],
+        notice: null,
+        error:
+          body.error ??
+          `Nothing found for barcode ${code}. Try searching by name.`,
+      });
+    } catch {
+      setSearch({
+        status: "error",
+        foods: [],
+        notice: null,
+        error: "Could not reach the product database.",
+      });
+    }
+  }
 
   const [state, formAction, pending] = useActionState<
     DiaryActionState,
@@ -126,17 +169,31 @@ export function AddFood({
       <CardContent className="space-y-4">
         {!chosen ? (
           <>
-            <form onSubmit={runSearch} className="flex gap-2">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search foods, e.g. chicken breast"
-                aria-label="Search foods"
+            {scannerOpen ? (
+              <BarcodeScanner
+                onDetected={lookupBarcode}
+                onCancel={() => setScannerOpen(false)}
               />
-              <Button type="submit" disabled={search.status === "loading"}>
-                {search.status === "loading" ? "Searching…" : "Search"}
-              </Button>
-            </form>
+            ) : (
+              <form onSubmit={runSearch} className="flex gap-2">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search foods, e.g. chicken breast"
+                  aria-label="Search foods"
+                />
+                <Button type="submit" disabled={search.status === "loading"}>
+                  {search.status === "loading" ? "Searching…" : "Search"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setScannerOpen(true)}
+                >
+                  Scan
+                </Button>
+              </form>
+            )}
 
             {search.error ? (
               <Alert variant="destructive">

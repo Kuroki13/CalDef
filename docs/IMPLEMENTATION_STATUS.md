@@ -373,6 +373,24 @@ and is not restated here.
   stored. The five rows already written for that account remain — they
   are harmless, but any dated later than the day they were created will
   read as stale rather than recomputing.
+- **The barcode camera UI is unverified and must stay that way until
+  Phase 11.** `getUserMedia` requires a secure context, so the scanner
+  works at `http://localhost:3000` on desktop but cannot work from a
+  phone over plain HTTP on the LAN — a browser constraint, not a defect.
+  Desktop alone is not sufficient evidence that it works, because the
+  device that matters is a phone with a rear camera. **Verify on-device
+  after the Vercel deploy in Phase 11**, where HTTPS is available.
+  - What *is* verified: the capability logic (15 unit tests), and the
+    whole server path the scanner calls — a real barcode resolves through
+    Open Food Facts, caches, and returns; an unknown one returns 404 with
+    a body rather than an error.
+  - The UI distinguishes four failure modes rather than showing one
+    generic message, because three are fixable by the user and one is
+    not: `insecure-context` (open over HTTPS — permissions cannot help),
+    `unsupported` (no `BarcodeDetector`; Chrome and Edge have it, Safari
+    and Firefox do not), `no-camera`, and `permission-denied`. Collapsing
+    them would send someone to check permissions when the real problem is
+    plain HTTP.
 - **A dev test user is still in the database**:
   `caldef.dev.tester@gmail.com`, created 2026-08-10, email confirmed. It
   has a `profiles` row but no `goals` or `weight_entries`, so it has
