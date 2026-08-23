@@ -13,8 +13,9 @@ import "server-only";
  * that rather than a flag somewhere in application code.
  */
 
-import { type IsoDate, addDays, todayInTimeZone } from "@/lib/dates";
+import { type IsoDate, addDays, daysBetween, todayInTimeZone } from "@/lib/dates";
 import { getDailyTotals } from "@/lib/diary";
+import { getActivePhase } from "@/lib/phase";
 import { meanDailyIntake } from "@/lib/nutrition/totals";
 import { getAccountSetup } from "@/lib/profile";
 import { createClient } from "@/lib/supabase/server";
@@ -91,6 +92,15 @@ export async function getExpenditure(
   // The prior is the last stored estimate if there is one, else the formula.
   const prior = await getLastStoredEstimate(today);
 
+  // Early in a phase the scale is mostly glycogen, water and food volume, so
+  // an expenditure reading drawn from it overstates the deficit badly
+  // (spec §8.9). `adaptive.ts` damps for this, but only if it is told how
+  // far into a phase we are — otherwise the rule sits there doing nothing.
+  const active = await getActivePhase(today);
+  const phaseDayIndex = active
+    ? daysBetween(active.phase.start_date, today)
+    : null;
+
   const trendChange = history.changeKgPerWeek;
   const estimate = estimateAdaptiveTdee({
     meanIntakeKcal: mean.kcal,
@@ -101,6 +111,7 @@ export async function getExpenditure(
     weighInDays: history.weighInDays,
     loggedDays: totalsByDate.size,
     priorTdeeKcal: prior ?? formula,
+    phaseDayIndex,
   });
 
   return {
