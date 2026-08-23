@@ -34,6 +34,11 @@ Then:
    or an invariant changes. Amend `docs/PRODUCT_SPEC.md` only on an
    explicit product decision by the account owner. Stale documentation
    is treated as a defect.
+7. **Push to GitHub immediately after every commit.** Not in batches at
+   the end of a session, not "once the phase is done" — every single
+   commit, as soon as it is made. A commit that has not been pushed is
+   not backed up, and a session can end without warning. `git push`
+   is part of committing, not a separate chore.
 
 Also true every session: this file's hard constraints below are binding
 and are never relaxed to make a task easier. Extend this file; do not
