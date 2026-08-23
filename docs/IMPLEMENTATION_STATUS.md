@@ -22,7 +22,7 @@ Last updated: 2026-08-23
 | 4 | Food providers (USDA, OFF, cache) | DONE |
 | 5 | Food logging and diary | DONE |
 | 6 | Weight tracking and adaptive TDEE | DONE |
-| 7 | 2-Month Cut phase mode | TODO |
+| 7 | 2-Month Cut phase mode | IN PROGRESS |
 | 8 | Recipes, saved meals, favorites, barcode | TODO |
 | 9 | AI layer | TODO |
 | 10 | PWA, rate limiting, security hardening | TODO |
@@ -295,6 +295,21 @@ and is not restated here.
 - **Leaked-password protection is disabled** (Supabase security advisor,
   WARN). Supabase Auth can check new passwords against
   HaveIBeenPwned. Dashboard toggle, no cost. Not yet enabled.
+- **There is now a real account in the database.**
+  `orfalim260@gmail.com`, created 2026-08-23 14:49 UTC — the account
+  owner signed up while Phase 7 was being built. It is *not* test data
+  and must never be included in a teardown. Every automated cleanup from
+  here on must target test accounts by their `caldef.<slug>.` email
+  prefix rather than deleting broadly.
+- **Browsing the diary forward used to persist a target for every future
+  date visited.** Found because that real account had five
+  `daily_targets` rows from a single weigh-in. Paging ahead froze a
+  number computed from today's weight and expenditure onto a date weeks
+  away, which then read back stale when it arrived. Fixed: only *today*
+  is written; past and future dates are computed and shown, never
+  stored. The five rows already written for that account remain — they
+  are harmless, but any dated later than the day they were created will
+  read as stale rather than recomputing.
 - **A dev test user is still in the database**:
   `caldef.dev.tester@gmail.com`, created 2026-08-10, email confirmed. It
   has a `profiles` row but no `goals` or `weight_entries`, so it has

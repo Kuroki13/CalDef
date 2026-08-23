@@ -151,9 +151,14 @@ export async function getOrCreateDailyTarget(
       : await computeTargetFor(date);
   if (!computed) return null;
 
-  // Only today and future dates get written. Back-filling a target for a day
-  // that has already passed would invent a goal the user never actually had,
-  // and adherence figures computed against it would be fiction.
+  // Only *today* is written.
+  //
+  // Back-filling a past day would invent a goal the user never actually had,
+  // and adherence measured against it would be fiction. Persisting a future
+  // day is a subtler mistake with the same shape: merely paging forward in
+  // the diary would freeze a number computed from today's weight and today's
+  // expenditure onto a date weeks away, which then reads back stale when it
+  // arrives. Future dates are computed and shown, never stored.
   const source: TargetSource =
     governor === "phase"
       ? "phase"
@@ -161,7 +166,7 @@ export async function getOrCreateDailyTarget(
         ? "weekly_adjustment"
         : "initial";
 
-  if (date >= computed.today) {
+  if (date === computed.today) {
     const { error: insertError } = await supabase.from("daily_targets").insert({
       user_id: computed.userId,
       target_date: date,
@@ -262,7 +267,8 @@ async function carryForward(
   const today = todayInTimeZone(setup.profile.timezone);
   const supabase = await createClient();
 
-  if (date >= today) {
+  // Today only, for the same reason as above.
+  if (date === today) {
     const { error } = await supabase.from("daily_targets").insert({
       user_id: setup.profile.id,
       target_date: date,
