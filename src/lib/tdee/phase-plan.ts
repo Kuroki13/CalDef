@@ -15,6 +15,7 @@
 
 import { type IsoDate, addDays } from "@/lib/dates";
 import { proteinTargetG } from "@/lib/nutrition/macros";
+import { RECOMMENDED_RATE } from "@/lib/tdee/constants";
 import {
   type Milestone,
   buildMilestones,
@@ -197,6 +198,88 @@ function explainPhase({
   }
 
   return parts.join(" ");
+}
+
+export type PhaseTwoProposal = {
+  /** Where the next phase would start from. */
+  startWeightKg: number;
+  finalGoalWeightKg: number;
+  /** Suggested length, in days. */
+  durationDays: number;
+  /** Where that length lands at a sustainable rate. */
+  projectedEndWeightKg: number;
+  /** Days to the final goal at that rate, from the end of the next phase. */
+  daysToGoal: number | null;
+  /** True when the goal is reachable inside a single further phase. */
+  goalWithinOnePhase: boolean;
+  explanation: string;
+};
+
+/**
+ * Proposes the next phase (spec §8.10).
+ *
+ * The timeframe is adaptive rather than another automatic 56 days: if the
+ * remaining distance can be covered sooner at a sustainable rate, the phase
+ * is shorter, and if it cannot, the proposal says how far this one gets
+ * instead of pretending the goal is in range.
+ */
+export function proposePhaseTwo({
+  currentWeightKg,
+  finalGoalWeightKg,
+  observedKgPerWeek,
+  maxDurationDays = DEFAULT_PHASE_DAYS,
+}: {
+  currentWeightKg: number;
+  finalGoalWeightKg: number;
+  /** The rate this phase actually achieved. Positive magnitude. */
+  observedKgPerWeek: number;
+  maxDurationDays?: number;
+}): PhaseTwoProposal {
+  const remainingKg = round2(currentWeightKg - finalGoalWeightKg);
+
+  // Fall back to the band's top when the last phase produced no usable rate,
+  // rather than proposing a phase that never moves.
+  const rate =
+    observedKgPerWeek > 0.05
+      ? observedKgPerWeek
+      : currentWeightKg * RECOMMENDED_RATE.max;
+
+  if (remainingKg <= 0) {
+    return {
+      startWeightKg: round2(currentWeightKg),
+      finalGoalWeightKg,
+      durationDays: maxDurationDays,
+      projectedEndWeightKg: round2(currentWeightKg),
+      daysToGoal: 0,
+      goalWithinOnePhase: true,
+      explanation:
+        "You are at or past your long-term goal. A maintenance phase makes " +
+        "more sense than another cut.",
+    };
+  }
+
+  const daysNeeded = Math.ceil((remainingKg / rate) * 7);
+  const goalWithinOnePhase = daysNeeded <= maxDurationDays;
+  const durationDays = goalWithinOnePhase ? daysNeeded : maxDurationDays;
+  const projectedEndWeightKg = round2(
+    currentWeightKg - (rate * durationDays) / 7,
+  );
+
+  return {
+    startWeightKg: round2(currentWeightKg),
+    finalGoalWeightKg,
+    durationDays,
+    projectedEndWeightKg,
+    daysToGoal: goalWithinOnePhase ? daysNeeded : null,
+    goalWithinOnePhase,
+    explanation: goalWithinOnePhase
+      ? `At the rate this phase achieved, ${finalGoalWeightKg} kg is about ` +
+        `${Math.round(daysNeeded / 7)} weeks away — so the next phase can be ` +
+        `${durationDays} days rather than a full eight weeks.`
+      : `${remainingKg} kg still separates you from ${finalGoalWeightKg} kg. ` +
+        `Another ${durationDays}-day phase at this rate would put you around ` +
+        `${projectedEndWeightKg} kg, with the goal following in a later phase.`,
+  };
 }
 
 /**

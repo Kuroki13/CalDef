@@ -14,7 +14,16 @@ import { getDailyTotals } from "@/lib/diary";
 import { type ActivePhase } from "@/lib/phase";
 import { meanDailyIntake } from "@/lib/nutrition/totals";
 import { loggedDayRatio } from "@/lib/nutrition/totals";
+import {
+  type Checkpoint,
+  type PhaseReport,
+  bestLoggedStreak,
+  buildPhaseReport,
+  checkpointKind,
+  checkpointsFor,
+} from "@/lib/tdee/checkpoints";
 import { daysToReach } from "@/lib/tdee/feasibility";
+import { type PhaseTwoProposal, proposePhaseTwo } from "@/lib/tdee/phase-plan";
 import { projectWeightKg } from "@/lib/tdee/trend";
 import { type WeightHistory } from "@/lib/weight";
 
@@ -50,6 +59,13 @@ export type PhaseDashboard = {
 
   /** One sentence, safe to show verbatim. Never shaming (spec §8.6). */
   projectionNote: string;
+
+  checkpoints: Checkpoint[];
+  /** The report for the latest checkpoint reached. */
+  report: PhaseReport;
+  bestStreakDays: number;
+  /** Present only in the final report (spec §8.10). */
+  phaseTwo: PhaseTwoProposal | null;
 };
 
 export async function getPhaseDashboard(
@@ -64,7 +80,15 @@ export async function getPhaseDashboard(
   const totalsByDate = await getDailyTotals(from, today);
   const spanDays = elapsedDays + 1;
 
+  // Two averages, answering two different questions. `mean` divides by
+  // elapsed days and feeds anything modelling energy balance, where an
+  // unlogged day must not read as a low-intake day. `loggedMean` divides by
+  // days actually logged and is what the reports quote back to the user.
   const mean = meanDailyIntake([...totalsByDate.values()], spanDays);
+  const loggedMean = meanDailyIntake(
+    [...totalsByDate.values()],
+    Math.max(totalsByDate.size, 1),
+  );
 
   const startWeightKg = Number(phase.start_weight_kg);
   const currentTrendKg = history.latestTrendKg;
@@ -86,6 +110,49 @@ export async function getPhaseDashboard(
     currentTrendKg === null || rate === null || rate >= 0 || finalGoalWeightKg === null
       ? null
       : daysToReach(currentTrendKg, finalGoalWeightKg, rate);
+
+  const checkpoints = checkpointsFor(phase.start_date, phase.duration_days, today);
+  const kind = checkpointKind(progress.dayNumber, progress.totalDays);
+  const bestStreakDays = bestLoggedStreak([...totalsByDate.keys()]);
+
+  const report = buildPhaseReport({
+    kind,
+    dayNumber: progress.dayNumber,
+    totalDays: progress.totalDays,
+    startWeightKg,
+    currentTrendKg,
+    projectedEndWeightKg,
+    recommendedLowKg:
+      phase.recommended_target_low_kg === null
+        ? null
+        : Number(phase.recommended_target_low_kg),
+    recommendedHighKg:
+      phase.recommended_target_high_kg === null
+        ? null
+        : Number(phase.recommended_target_high_kg),
+    stretchTargetKg:
+      phase.stretch_target_kg === null ? null : Number(phase.stretch_target_kg),
+    finalGoalWeightKg,
+    // Over logged days, not elapsed days — see the note on the field.
+    meanIntakeKcal: loggedMean.kcal,
+    meanProteinG: loggedMean.protein_g,
+    estimatedTdeeKcal:
+      phase.initial_tdee_kcal === null ? null : Number(phase.initial_tdee_kcal),
+    trendKgPerWeek: rate,
+    bestStreakDays,
+    loggedDays: totalsByDate.size,
+  });
+
+  // Only offered once the phase is over. Proposing the next one midway would
+  // invite abandoning this one before its data means anything.
+  const phaseTwo =
+    kind === "final" && currentTrendKg !== null && finalGoalWeightKg !== null
+      ? proposePhaseTwo({
+          currentWeightKg: currentTrendKg,
+          finalGoalWeightKg,
+          observedKgPerWeek: rate === null ? 0 : Math.abs(rate),
+        })
+      : null;
 
   return {
     dayNumber: progress.dayNumber,
@@ -131,6 +198,11 @@ export async function getPhaseDashboard(
       daysRemaining: progress.daysRemaining,
       rate,
     }),
+
+    checkpoints,
+    report,
+    bestStreakDays,
+    phaseTwo,
   };
 }
 

@@ -302,6 +302,94 @@ export default async function PhasePage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>{dash.report.headline}</CardTitle>
+          <CardDescription>
+            Checkpoints at days{" "}
+            {dash.checkpoints.map((c) => c.day).join(", ")}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ol className="flex flex-wrap gap-2 text-xs">
+            {dash.checkpoints.map((c) => (
+              <li
+                key={c.day}
+                className={
+                  c.reached
+                    ? "bg-accent text-accent-foreground rounded-md px-2 py-1"
+                    : "text-muted-foreground rounded-md border px-2 py-1"
+                }
+              >
+                Day {c.day}
+                {c.kind === "halfway" ? " · halfway" : ""}
+                {c.kind === "final" ? " · final" : ""}
+              </li>
+            ))}
+          </ol>
+
+          <div className="space-y-2 text-sm">
+            {dash.report.body.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+
+          {dash.report.percentBodyweightLost !== null &&
+          dash.report.kind === "final" ? (
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Stat
+                label="Bodyweight lost"
+                value={`${dash.report.percentBodyweightLost}%`}
+              />
+              <Stat
+                label="Average weekly"
+                value={
+                  dash.report.averageWeeklyLossKg === null
+                    ? "—"
+                    : `${Math.abs(kgToDisplay(dash.report.averageWeeklyLossKg, units)).toFixed(2)} ${unitLabel}`
+                }
+              />
+              <Stat
+                label="Best logging run"
+                value={`${dash.bestStreakDays} days`}
+              />
+            </dl>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {dash.phaseTwo ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>What comes next</CardTitle>
+            <CardDescription>
+              A proposal, not a commitment. Nothing starts until you start it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm">{dash.phaseTwo.explanation}</p>
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Stat
+                label="Suggested length"
+                value={`${dash.phaseTwo.durationDays} days`}
+              />
+              <Stat
+                label="Would reach"
+                value={showMass(dash.phaseTwo.projectedEndWeightKg)}
+              />
+              <Stat
+                label="Long-term goal"
+                value={showMass(dash.phaseTwo.finalGoalWeightKg)}
+              />
+            </dl>
+            <p className="text-muted-foreground text-xs">
+              Finish this phase first — the next one is planned from where this
+              one actually ended, not from where it was projected to.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <p className="text-muted-foreground text-xs">
         CalDef provides estimates for personal tracking. It is not medical or
         dietary advice.
