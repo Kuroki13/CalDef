@@ -26,13 +26,18 @@ import { kcalFromMacros } from "@/lib/nutrition/macros";
 const ENDPOINT = "https://api.nal.usda.gov/fdc/v1/foods/search";
 
 /**
- * Laboratory-analysed datasets first, then the survey set.
+ * The laboratory-analysed datasets, which is what "generic whole food" means
+ * here.
  *
- * Foundation and SR Legacy are what "generic whole food" means here.
  * Branded is deliberately excluded: those entries are self-reported by
- * manufacturers and Open Food Facts handles that category.
+ * manufacturers, and Open Food Facts handles that category better.
+ *
+ * `Survey (FNDDS)` is excluded too, for a blunter reason — sending it makes
+ * FoodData Central answer 400 (observed 2026-08-23; the parenthesised value
+ * does not survive the round trip). Its values are modelled from Foundation
+ * and SR Legacy rather than measured, so nothing is lost by omitting it.
  */
-const DATA_TYPES = ["Foundation", "SR Legacy", "Survey (FNDDS)"];
+const DATA_TYPES = ["Foundation", "SR Legacy"];
 
 /** USDA nutrient ids. Stable, and far safer to match on than names. */
 const NUTRIENT_IDS = {
@@ -91,7 +96,16 @@ async function runSearch({ text, limit = 15 }: FoodSearchQuery): Promise<Food[]>
   // so the URL cannot reach a log or a user-facing message.
   url.searchParams.set("api_key", USDA_API_KEY ?? "");
 
-  const response = await providerFetch(url.toString());
+  // FoodData Central intermittently answers 404 to perfectly valid search
+  // requests — observed 2026-08-23 failing roughly half of identical repeat
+  // calls while still returning healthy rate-limit headers. It is a lying
+  // status from an unwell backend rather than a real "no such endpoint", so
+  // it is treated as retryable here even though 404 normally would not be.
+  const response = await providerFetch(
+    url.toString(),
+    {},
+    { retries: 3, retryStatuses: [404, 429, 500, 502, 503, 504] },
+  );
   if (!response.ok) throw new ProviderHttpError(response.status);
 
   const body = (await response.json()) as { foods?: UsdaFood[] };
@@ -121,8 +135,9 @@ function toFood(raw: UsdaFood): Food[] {
       brand: raw.brandName || raw.brandOwner || null,
       description: raw.dataType ?? null,
       barcode: raw.gtinUpc || null,
-      // Foundation and SR Legacy are laboratory-analysed. Survey values are
-      // modelled from them, so they are not claimed as verified.
+      // Foundation and SR Legacy are laboratory-analysed. Anything else that
+      // reaches us — a dataset added upstream later — is not claimed as
+      // verified without checking what it actually is.
       isVerified:
         raw.dataType === "Foundation" || raw.dataType === "SR Legacy",
       nutrients: {

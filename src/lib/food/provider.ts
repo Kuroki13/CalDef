@@ -23,35 +23,84 @@ export type FoodProvider = {
 /** How long we wait on a provider before treating it as unavailable. */
 export const PROVIDER_TIMEOUT_MS = 6000;
 
+/** Statuses worth a second attempt: the server is unwell, not the request. */
+export const DEFAULT_RETRY_STATUSES = [429, 500, 502, 503, 504];
+
+export type ProviderFetchOptions = {
+  timeoutMs?: number;
+  /** Extra attempts after the first. Only ever used on idempotent GETs. */
+  retries?: number;
+  retryStatuses?: readonly number[];
+};
+
 /**
- * `fetch` with a timeout and a descriptive User-Agent.
+ * `fetch` with a timeout, a descriptive User-Agent, and a bounded retry.
  *
  * Open Food Facts asks integrators to identify themselves, and a hung
  * provider must not hold a search open indefinitely — the point of the
  * degradation rule is that the other sources still return.
+ *
+ * The retry exists because a provider that fails half its requests is not
+ * the same thing as a provider that is down: giving up on the first bad
+ * response would make search unusable when one more attempt would have
+ * worked. It stays small and only covers idempotent reads, so a flaky
+ * upstream cannot turn into a stampede.
  */
 export async function providerFetch(
   url: string,
   init: RequestInit = {},
-  timeoutMs = PROVIDER_TIMEOUT_MS,
+  options: ProviderFetchOptions = {},
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const {
+    timeoutMs = PROVIDER_TIMEOUT_MS,
+    retries = 0,
+    retryStatuses = DEFAULT_RETRY_STATUSES,
+  } = options;
 
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        "User-Agent":
-          "CalDef/0.1 (personal nutrition tracker; +https://github.com/Kuroki13/CalDef)",
-        Accept: "application/json",
-        ...init.headers,
-      },
-    });
-  } finally {
-    clearTimeout(timer);
+  let lastResponse: Response | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      // Brief linear backoff. Long enough to clear a transient blip, short
+      // enough that the caller's own timeout still governs.
+      await delay(150 * attempt);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          "User-Agent":
+            "CalDef/0.1 (personal nutrition tracker; +https://github.com/Kuroki13/CalDef)",
+          Accept: "application/json",
+          ...init.headers,
+        },
+      });
+
+      if (response.ok || !retryStatuses.includes(response.status)) {
+        return response;
+      }
+      lastResponse = response;
+    } catch (error) {
+      // A timeout or transport error on a non-final attempt is retried; on
+      // the final one it propagates to safeProviderCall.
+      if (attempt === retries) throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  // Every attempt returned a retryable status. Hand back the last one so the
+  // caller reports the real code rather than a synthetic one.
+  return lastResponse!;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

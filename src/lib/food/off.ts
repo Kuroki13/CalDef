@@ -69,9 +69,10 @@ export const offProvider: FoodProvider = {
     if (!/^[0-9]{6,14}$/.test(barcode)) return null;
 
     const url = `${BASE}/api/v3/product/${barcode}.json?fields=${FIELDS}`;
-    const response = await providerFetch(url);
+    // 404 is deliberately not retryable here: for this endpoint it means the
+    // product genuinely is not in the database, which is an answer.
+    const response = await providerFetch(url, {}, { retries: 2 });
 
-    // v3 answers 404 for an unknown barcode, which is an answer, not a fault.
     if (response.status === 404) return null;
     if (!response.ok) throw new ProviderHttpError(response.status);
 
@@ -91,7 +92,9 @@ async function runSearch({ text, limit = 15 }: FoodSearchQuery): Promise<Food[]>
   url.searchParams.set("fields", FIELDS);
   url.searchParams.set("page_size", String(Math.min(limit, 50)));
 
-  const response = await providerFetch(url.toString());
+  // The search backend is the flakiest part of Open Food Facts and answers
+  // 503 under load while the product endpoint stays healthy.
+  const response = await providerFetch(url.toString(), {}, { retries: 2 });
   if (!response.ok) throw new ProviderHttpError(response.status);
 
   const body = (await response.json()) as { products?: OffProduct[] };

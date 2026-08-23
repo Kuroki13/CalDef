@@ -70,6 +70,8 @@ describe("usdaProvider.search", () => {
     expect(url).toContain("SR+Legacy");
     // Branded is Open Food Facts' job.
     expect(url).not.toContain("Branded");
+    // Sending the parenthesised Survey value makes the API answer 400.
+    expect(url).not.toContain("FNDDS");
   });
 
   it("marks Foundation and SR Legacy verified, Survey not", async () => {
