@@ -21,7 +21,7 @@ Last updated: 2026-08-23
 | 3 | Nutrition and TDEE domain logic | DONE |
 | 4 | Food providers (USDA, OFF, cache) | DONE |
 | 5 | Food logging and diary | DONE |
-| 6 | Weight tracking and adaptive TDEE | IN PROGRESS |
+| 6 | Weight tracking and adaptive TDEE | DONE |
 | 7 | 2-Month Cut phase mode | TODO |
 | 8 | Recipes, saved meals, favorites, barcode | TODO |
 | 9 | AI layer | TODO |
@@ -244,14 +244,46 @@ session on 2026-08-23.
 Not in this phase, by design: barcode scanning has no camera UI yet. The
 route exists and is tested, but nothing calls it — that is Phase 8.
 
-## IN PROGRESS
+### Phase 6 — weight tracking and adaptive TDEE
 
-- Phase 6: weight tracking and the adaptive TDEE engine. The domain
-  logic (`tdee/trend.ts`, `tdee/adaptive.ts`) landed in Phase 3 and is
-  unit-tested; what is missing is the weigh-in UI, the estimate
-  persistence into `tdee_estimates`, the weekly check-in into
-  `weekly_checkins`, and swapping `targets.ts` off the formula estimate
-  and onto the adaptive one once it is publishable.
+Verified end to end on 2026-08-23 against a 28-day fixture.
+
+- `lib/weight.ts` — weigh-in reads plus the smoothed series. Raw entries
+  exist so the user can see and correct what they typed; every decision
+  reads the trend.
+- `lib/expenditure.ts` — gathers the inputs for `tdee/adaptive.ts`,
+  applies it, and persists to `tdee_estimates`. The BMR baseline uses the
+  **trend** weight, not the last reading, so one heavy morning cannot
+  move the estimate. Recomputed at most once a day, enforced by the
+  table's `(user_id, computed_for)` unique constraint rather than by a
+  flag in application code.
+- `lib/checkin.ts` — `isAdjustmentDue` plus the `weekly_checkins` record.
+- `targets.ts` — now switches to the adaptive estimate once it is
+  publishable, and **carries the current target forward on every day
+  inside the week**. See the invariant note below.
+- `components/trend-chart.tsx` — dependency-free inline SVG. Two series
+  over a date axis does not need a chart engine, and server-rendered SVG
+  works without JavaScript. The raw readings are drawn faintly and the
+  trend boldly, so the chart shows which one decisions use.
+- Weight page: trend, rate, weigh-in form, expenditure card and history.
+  Weigh-ins upsert on `(user_id, entry_date)` — re-weighing corrects the
+  day rather than adding a second reading that would weight it twice.
+
+Two invariant violations were found by verifying rather than assuming,
+and both are fixed:
+
+- **The daily target was computed from a raw scale reading.** The deficit
+  and the protein floor are bodyweight-derived, which makes them
+  decisions, and ARCHITECTURE §6 says decisions never read raw values.
+  They now use the smoothed trend, exactly as the expenditure baseline
+  already did.
+- **Targets adjusted daily, not weekly.** `getOrCreateDailyTarget`
+  recomputed from the current expenditure whenever a new day had no
+  stored row, so the number drifted with every weigh-in — the precise
+  reactivity that the smoothing and the weekly cadence exist to prevent.
+  It now carries the previous target forward untouched until seven days
+  have passed, which is what makes the schema's claim that targets change
+  only at a check-in actually true.
 
 ## TODO
 
@@ -401,6 +433,29 @@ cookie, exercising the real server actions rather than mocks.
 | RLS: anon access | PASS — `permission denied for table profiles` |
 | Teardown | PASS — test account and cached food deleted; cascades removed goals, weigh-ins, logs and targets |
 
-Phase 1 test data was torn down, but a later Phase 2 test user remains —
-see KNOWN ISSUES. The database otherwise holds only the 4 seeded
-`meal_types` rows.
+### Phase 6 end-to-end run, 2026-08-23 (production build, 28-day fixture)
+
+A test account seeded with 28 days of weigh-ins (111.8 kg falling ~0.9
+kg/week, with noise) and 28 days of food logs at 2100 kcal.
+
+| Check | Result |
+|-------|--------|
+| Trend vs. raw | PASS — latest reading 108.5 kg, trend weight 109.3 kg; the trend lags, as smoothing should |
+| Rate over 28 days | PASS — −0.72 kg/wk from the smoothed series |
+| Observed expenditure | PASS — 2890 kcal, matching 2100 + (2.88 × 7700)/28 computed by hand |
+| Blended estimate | PASS — 3109 kcal, matching prior 3254 + 0.4 × (2890 − 3254) exactly |
+| Confidence | PASS — `high` at 28 days with full coverage |
+| Estimate persisted | PASS — `tdee_estimates` row: 3109.8 kcal, adaptive, high, 28 days of data |
+| Sufficiency gate | PASS — thinned to 4 weigh-ins, fell back to "Starting estimate… Needs 8 weigh-ins in the window; 4 so far" |
+| Target uses adaptive figure | PASS — 1906 kcal / 175 g protein from the 3109 basis, not the 3254 formula seed |
+| Target uses trend weight | PASS — protein moved 174 → 175 g once the raw reading was replaced by the trend |
+| Weekly cadence, inside week | PASS — target dated 6 days earlier carried forward unchanged at 2500 kcal |
+| Weekly cadence, at 7 days | PASS — recomputed to 1906 kcal with `source: weekly_adjustment` |
+| Weekly check-in recorded | PASS — week of 2026-08-17: trend 110.09 → 109.33, −0.760 kg, 100% adherence, 7 logged days, 2500 → 1906 |
+| Weigh-in upsert | PASS — re-weighing the same day corrected the row rather than adding a second |
+| Teardown | PASS — account deleted; cascades cleared goals, weigh-ins, logs, targets, estimates and check-ins |
+
+Every test account has been torn down. The database holds the 4 seeded
+`meal_types` rows and the retained login fixture (see KNOWN ISSUES) —
+verified directly after the Phase 6 run: 0 foods, 0 logs, 0 weigh-ins,
+0 targets, 0 estimates, 0 check-ins.
