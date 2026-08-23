@@ -19,7 +19,7 @@ Last updated: 2026-08-22
 | 1 | Database schema and RLS | DONE |
 | 2 | Auth and app shell | DONE |
 | 3 | Nutrition and TDEE domain logic | DONE |
-| 4 | Food providers (USDA, OFF, cache) | TODO |
+| 4 | Food providers (USDA, OFF, cache) | IN PROGRESS |
 | 5 | Food logging and diary | TODO |
 | 6 | Weight tracking and adaptive TDEE | TODO |
 | 7 | 2-Month Cut phase mode | TODO |
@@ -174,11 +174,46 @@ out of the 0.75–1.0%/week band rather than being hardcoded.
 
 ## IN PROGRESS
 
-- Nothing. Phase 4 is the next start.
+### Phase 4 — food providers
+
+Written and unit-tested (42 tests); **not yet verified end to end**,
+because nothing calls the cache yet. The API routes that exercise it are
+Phase 5.
+
+- `types.ts` — the neutral `Food` / `FoodServing` / `ProviderResult`
+  shapes. No provider payload escapes `src/lib/food`.
+- `provider.ts` — the `FoodProvider` port, a `fetch` wrapper with a 6 s
+  timeout and the descriptive User-Agent Open Food Facts asks for, and
+  `safeProviderCall`, which turns a failure into a value. Error text is
+  sanitised in one place because a USDA request URL contains the API key.
+- `usda.ts` — search only, restricted to Foundation / SR Legacy /
+  Survey, which is what "generic whole food" means. Nutrients are matched
+  on stable numeric ids rather than names. A row missing energy has it
+  derived from its macros; a row with neither is dropped rather than
+  logged as zero. Only Foundation and SR Legacy are marked verified.
+- `off.ts` — v3 for barcode lookup as the spec directs, v2 for search
+  because v3 has no search endpoint. Nothing from here is ever marked
+  verified. Sodium is converted from g to mg. A product with no energy
+  value, or a serving whose gram weight will not parse, is skipped rather
+  than guessed.
+- `cache.ts` — reads and writes `foods` / `food_servings` /
+  `food_nutrients`.
+- `registry.ts` — concurrent fan-out across cache, USDA and OFF, with
+  per-source success reported so the UI can say a result set is
+  incomplete. Deduplicates within a source but deliberately not across
+  sources, since the same food from two providers has two provenances.
+
+Remaining before this phase is DONE:
+
+- Exercise `cacheFood` / `searchCache` against the real database with an
+  authenticated session. Nothing calls them yet, so the RLS interaction
+  is reasoned about but unproven.
+- Re-run `npm run test:live` when USDA and OFF search recover (see KNOWN
+  ISSUES) to confirm the mappings against live payloads.
 
 ## TODO
 
-Phases 4–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
+Phases 5–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
 and is not restated here.
 
 ## KNOWN ISSUES
@@ -193,6 +228,28 @@ and is not restated here.
   delete it before any real use. The 2026-08-10 note claiming the
   database held "only the 4 seeded `meal_types` rows" was already stale
   when written — this user was created shortly afterwards.
+- **The food cache cannot refresh a provider food.** Shared cache rows
+  carry `user_id IS NULL`, and `foods_update_own` reads
+  `auth.uid() = user_id`, which is never true for a null owner — so no
+  authenticated user may update a shared row. `cacheFood` is therefore
+  insert-only and reuses an existing food as-is. This was caught by
+  reading the policies, not by a test: a plain `update` would have
+  reported success having matched zero rows, and the `upsert` it replaced
+  would have raised an RLS violation the first time a food was
+  re-resolved. Refreshing stale provider data would need either a
+  deliberate policy change (which grants every authenticated user write
+  access to shared nutrition data — a real multi-tenant hole) or an
+  owner-scoped copy of the row. Deferred as a product decision; provider
+  nutrient data for a given `source_id` is stable enough that this is not
+  urgent.
+- **USDA and Open Food Facts search were both down during Phase 4
+  testing** (2026-08-22, ~20:05–20:10 UTC). USDA answered 404 to every
+  request including URLs that had worked minutes earlier, while still
+  returning valid rate-limit headers (3578/3600 remaining), so the key is
+  fine and the outage is upstream. OFF's search backend answered 503
+  while its v3 product endpoint stayed healthy. Both mappings were
+  confirmed against live payloads by hand before the outage; re-run
+  `npm run test:live` to confirm automatically once they recover.
 - **Signup-to-session has not been exercised end to end.** Signup,
   the confirmation email and `/auth/confirm` all demonstrably worked on
   2026-08-10 (that is how the test user got confirmed), but no
@@ -250,6 +307,12 @@ and is not restated here.
 | 2026-08-22 | Secret leakage probe on `/login` HTML | PASS — no `service_role` string in the served page |
 | 2026-08-22 | Supabase security advisors | 1 WARN — `auth_leaked_password_protection` (see KNOWN ISSUES). No RLS findings. |
 | 2026-08-22 | Live schema vs. migrations | PASS — 20 tables, RLS on 20/20, 80 policies (4 per table), 6 migrations applied |
+| 2026-08-22 | `npm run test` (Phase 4) | PASS — 190 tests, 13 files |
+| 2026-08-22 | `npm run test:live` — OFF barcode (v3) | PASS — real product resolved and mapped; unknown barcode returns null |
+| 2026-08-22 | `npm run test:live` — USDA search | FAIL — upstream 404 outage, not a mapping fault (see KNOWN ISSUES) |
+| 2026-08-22 | `npm run test:live` — OFF search (v2) | FAIL — upstream 503, not a mapping fault (see KNOWN ISSUES) |
+| 2026-08-22 | USDA + OFF payload shapes | PASS — both confirmed by hand against live responses before the outage |
+| 2026-08-22 | Food cache round trip | NOT RUN — nothing calls it until Phase 5 |
 
 Phase 1 test data was torn down, but a later Phase 2 test user remains —
 see KNOWN ISSUES. The database otherwise holds only the 4 seeded
