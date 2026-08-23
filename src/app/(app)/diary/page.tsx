@@ -115,11 +115,24 @@ export default async function DiaryPage({
                 : "No target yet"}
           </CardTitle>
           <CardDescription>
-            {target
-              ? `${Math.round(day.totals.totals.kcal)} of ${target.calories} kcal` +
-                (target.detail ? ` · ${target.detail.explanation}` : "")
-              : "Add your profile and a weigh-in to get a target."}
+            {target ? (
+              <>
+                <span className="text-foreground font-medium">
+                  {target.label}
+                </span>
+                {` · ${Math.round(day.totals.totals.kcal)} of ${target.calories} kcal`}
+                {target.detail ? ` · ${target.detail.explanation}` : ""}
+              </>
+            ) : (
+              "Add your profile and a weigh-in to get a target."
+            )}
           </CardDescription>
+          {target?.fellBackFromPhase ? (
+            <p className="text-muted-foreground text-sm">
+              Your cut phase has ended, so this is your everyday target again.
+              The number changed because the phase is no longer setting it.
+            </p>
+          ) : null}
         </CardHeader>
         {target && remaining ? (
           <CardContent className="space-y-4">

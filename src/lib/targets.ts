@@ -13,21 +13,74 @@ import "server-only";
 import { isAdjustmentDue, recordWeeklyCheckin } from "@/lib/checkin";
 import { type IsoDate, todayInTimeZone } from "@/lib/dates";
 import { getExpenditure } from "@/lib/expenditure";
-import type { MacroTotals } from "@/lib/nutrition/macros";
+import { type MacroTotals, macroTargets } from "@/lib/nutrition/macros";
+import { type CutPhase, getActivePhase, phaseCoversDate } from "@/lib/phase";
 import { getAccountSetup } from "@/lib/profile";
 import { createClient } from "@/lib/supabase/server";
 import { ageFromBirthDate, formulaTdee } from "@/lib/tdee/bmr";
 import { type DailyTarget, dailyTargetFor } from "@/lib/tdee/daily-target";
+import { recommendPlan } from "@/lib/tdee/feasibility";
 import type { Enums } from "@/types/database";
+
+export type TargetSource = Enums<"target_source">;
 
 export type StoredTarget = {
   calories: number;
   macros: MacroTotals;
   basisTdeeKcal: number | null;
-  source: string;
+  source: TargetSource;
   /** Present only when the target was computed rather than read back. */
   detail: DailyTarget | null;
+  /**
+   * What the UI calls this number. There is only ever one target in force,
+   * and the user is told which régime produced it — a phase target and an
+   * everyday target must never be presented as if interchangeable.
+   */
+  label: string;
+  /** Set when this target is the first day after a phase stopped governing. */
+  fellBackFromPhase: boolean;
 };
+
+/** Which régime governs a date. `phase` wins wherever a phase covers it. */
+export type Governor = "phase" | "everyday";
+
+export function targetLabel(source: TargetSource): string {
+  return source === "phase" ? "2-Month Cut target" : "Daily target";
+}
+
+export function governorForSource(source: TargetSource): Governor {
+  return source === "phase" ? "phase" : "everyday";
+}
+
+/**
+ * Whether today's target may be recomputed, or must carry yesterday's
+ * forward.
+ *
+ * Two rules, in this order:
+ *
+ * 1. A change of régime is an *event* and takes effect immediately. Starting
+ *    a phase must not wait up to a week to matter, and a phase that has
+ *    ended must not keep governing after it stopped.
+ * 2. Otherwise the weekly cadence applies. This is deliberately checked
+ *    above the phase branch: a phase recomputing every day would reintroduce
+ *    the drift that smoothing and the weekly cadence exist to prevent, just
+ *    by a different route.
+ */
+export function shouldRecomputeTarget({
+  previousSource,
+  previousDate,
+  governor,
+  date,
+}: {
+  previousSource: TargetSource | null;
+  previousDate: IsoDate | null;
+  governor: Governor;
+  date: IsoDate;
+}): boolean {
+  if (previousSource === null || previousDate === null) return true;
+  if (governorForSource(previousSource) !== governor) return true;
+  return isAdjustmentDue(previousDate, date);
+}
 
 /**
  * Reads the stored target for a date, computing and storing one if absent.
@@ -62,32 +115,51 @@ export async function getOrCreateDailyTarget(
           : Number(existing.basis_tdee_kcal),
       source: existing.source,
       detail: null,
+      label: targetLabel(existing.source),
+      fellBackFromPhase: false,
     };
   }
 
-  // No target for this date yet. Before computing a new one, check whether
-  // an adjustment is even due.
-  //
-  // "Targets adjust at most weekly" (spec §6) is enforced here rather than
-  // by a reminder somewhere: on any day inside the current week the previous
-  // target is carried forward untouched, so a fresh expenditure reading
-  // cannot move today's number. Recomputing daily would let the target drift
-  // with every weigh-in, which is exactly the reactivity the smoothing and
-  // the weekly cadence exist to prevent.
+  const setup = await getAccountSetup();
+  if (!setup.profile) return null;
+  const today = todayInTimeZone(setup.profile.timezone);
+
+  const active = await getActivePhase(today);
+  const governor: Governor =
+    active && phaseCoversDate(active.phase, date) ? "phase" : "everyday";
+
   const previous = await getMostRecentTarget(date);
 
-  if (previous && !isAdjustmentDue(previous.target_date, date)) {
+  const governorChanged =
+    previous !== null && governorForSource(previous.source) !== governor;
+
+  const recompute = shouldRecomputeTarget({
+    previousSource: previous?.source ?? null,
+    previousDate: previous?.target_date ?? null,
+    governor,
+    date,
+  });
+
+  if (previous && !recompute) {
     const carried = await carryForward(previous, date);
     if (carried) return carried;
   }
 
-  const computed = await computeTargetFor(date);
+  const computed =
+    governor === "phase" && active
+      ? await computePhaseTargetFor(date, active.phase)
+      : await computeTargetFor(date);
   if (!computed) return null;
 
   // Only today and future dates get written. Back-filling a target for a day
   // that has already passed would invent a goal the user never actually had,
   // and adherence figures computed against it would be fiction.
-  const source = previous ? "weekly_adjustment" : "initial";
+  const source: TargetSource =
+    governor === "phase"
+      ? "phase"
+      : previous
+        ? "weekly_adjustment"
+        : "initial";
 
   if (date >= computed.today) {
     const { error: insertError } = await supabase.from("daily_targets").insert({
@@ -132,13 +204,12 @@ export async function getOrCreateDailyTarget(
     basisTdeeKcal: computed.target.basisTdeeKcal,
     source,
     detail: computed.target,
+    label: targetLabel(source),
+    fellBackFromPhase: governorChanged && governor === "everyday",
   };
 }
 
-/** Mirrors the `public.target_source` enum, so a carried-forward row keeps
- *  the provenance of the target it copies. */
-type TargetSource = Enums<"target_source">;
-
+/** A carried-forward row keeps the provenance of the target it copies. */
 type PreviousTarget = {
   target_date: IsoDate;
   calories: number;
@@ -218,6 +289,72 @@ async function carryForward(
     basisTdeeKcal: previous.basis_tdee_kcal,
     source: previous.source,
     detail: null,
+    label: targetLabel(previous.source),
+    fellBackFromPhase: false,
+  };
+}
+
+/**
+ * The target while a phase is running (spec §8.8).
+ *
+ * Calorie targets are explicitly *not* fixed for eight weeks. This re-runs
+ * the same guardrail that planned the phase, but against today's trend
+ * weight and today's expenditure estimate — so the number tracks reality
+ * while staying inside the band. It is still reached only on a weekly
+ * adjustment; the caller's cadence gate sits above this.
+ *
+ * The stretch target is the *ask*, never the prescription. `recommendPlan`
+ * is what turns it into a calorie figure, and it cannot exceed the band or
+ * fall below the floor.
+ */
+async function computePhaseTargetFor(
+  date: IsoDate,
+  phase: CutPhase,
+): Promise<ComputedTarget | null> {
+  const { profile, goal } = await getAccountSetup();
+  if (!profile || !goal) return null;
+
+  const expenditure = await getExpenditure(date);
+  if (!expenditure) return null;
+
+  const tdeeKcal = expenditure.estimate.isPublishable
+    ? expenditure.tdeeKcal
+    : expenditure.formulaTdeeKcal;
+
+  const currentWeightKg = expenditure.baselineWeightKg;
+  const askKg =
+    phase.stretch_target_kg === null
+      ? (phase.final_goal_weight_kg === null
+          ? currentWeightKg
+          : Number(phase.final_goal_weight_kg))
+      : Number(phase.stretch_target_kg);
+
+  const plan = recommendPlan({
+    currentWeightKg,
+    targetWeightKg: askKg,
+    startDate: date,
+    targetDate: phase.end_date,
+    tdeeKcal,
+  });
+
+  const proteinGPerKg = Number(goal.protein_g_per_kg);
+
+  return {
+    target: {
+      calories: plan.recommendedCalories,
+      macros: macroTargets(
+        plan.recommendedCalories,
+        currentWeightKg,
+        proteinGPerKg,
+      ),
+      basisTdeeKcal: Math.round(tdeeKcal * 10) / 10,
+      energyBalanceKcal: Math.round(plan.recommendedCalories - tdeeKcal),
+      wasFloored: plan.wasConstrained,
+      explanation: plan.explanation,
+    },
+    userId: profile.id,
+    today: todayInTimeZone(profile.timezone),
+    timeZone: profile.timezone,
   };
 }
 
