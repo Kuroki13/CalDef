@@ -5,9 +5,11 @@ import { z } from "zod";
 
 import { todayInTimeZone } from "@/lib/dates";
 import { recordExpenditure } from "@/lib/expenditure";
+import { getActivePhase, refreshMilestoneActuals } from "@/lib/phase";
 import { getAccountSetup } from "@/lib/profile";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 import { massToKg } from "@/lib/units";
+import { getWeightHistory } from "@/lib/weight";
 
 export type WeightActionState = { error?: string; ok?: boolean };
 
@@ -68,6 +70,20 @@ export async function recordWeighIn(
   // estimate is derived data and can be rebuilt on the next weigh-in.
   try {
     await recordExpenditure();
+  } catch {
+    // Intentionally swallowed; see above.
+  }
+
+  // A weigh-in is also what makes an elapsed milestone measurable, so the
+  // roadmap's "actual" column is backfilled here. Same reasoning: derived
+  // data, rebuilt on the next weigh-in if this fails.
+  try {
+    const today = todayInTimeZone(profile.timezone);
+    const active = await getActivePhase(today);
+    if (active) {
+      const history = await getWeightHistory(profile.timezone);
+      await refreshMilestoneActuals(active.phase.id, today, history.trend);
+    }
   } catch {
     // Intentionally swallowed; see above.
   }

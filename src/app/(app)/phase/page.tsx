@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { stopPhase } from "@/app/(app)/phase/actions";
 import { StartPhaseForm } from "@/app/(app)/phase/start-form";
+import { PhaseChart } from "@/components/phase-chart";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,6 +16,7 @@ import { todayInTimeZone } from "@/lib/dates";
 import { getActivePhase } from "@/lib/phase";
 import { getPhaseDashboard } from "@/lib/phase-dashboard";
 import { getAccountSetup } from "@/lib/profile";
+import { buildPhaseSeries, dayIndexFor } from "@/lib/tdee/phase-series";
 import { formatMass, kgToDisplay, massUnitLabel } from "@/lib/units";
 import { getWeightHistory } from "@/lib/weight";
 
@@ -100,6 +102,14 @@ export default async function PhasePage() {
   const showMass = (kg: number | null) =>
     kg === null ? "—" : formatMass(kg, units);
 
+  // The rate the roadmap was drawn at. Derived from the stored milestones so
+  // the graph and the table cannot disagree about the trajectory.
+  const recommendedKgPerWeek =
+    active.milestones.length >= 2
+      ? active.milestones[0].recommendedWeightKg -
+        active.milestones[1].recommendedWeightKg
+      : 0;
+
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
@@ -177,6 +187,87 @@ export default async function PhasePage() {
             <Stat label="Final goal" value={showMass(dash.finalGoalWeightKg)} />
           </dl>
           <p className="text-muted-foreground text-sm">{dash.projectionNote}</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Progress graph</CardTitle>
+          <CardDescription>
+            Day 1 to day {dash.totalDays}. The bold line is the smoothed
+            trend, which is what every decision uses.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PhaseChart
+            points={buildPhaseSeries({
+              startDate: active.phase.start_date,
+              durationDays: active.phase.duration_days,
+              startWeightKg: Number(active.phase.start_weight_kg),
+              recommendedKgPerWeek: recommendedKgPerWeek,
+              stretchTargetKg: dash.stretchTargetKg,
+              trend: history.trend,
+            })}
+            finalGoalKg={dash.finalGoalWeightKg}
+            unitLabel={unitLabel}
+            toDisplay={(kg) => kgToDisplay(kg, units)}
+            todayIndex={dayIndexFor(
+              active.phase.start_date,
+              active.phase.duration_days,
+              today,
+            )}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Weekly milestones</CardTitle>
+          <CardDescription>
+            Estimates, not obligations. They are recomputed from your real
+            trend rather than being a fixed ladder.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted-foreground text-left">
+                  <th className="py-2 pr-4 font-normal">Week</th>
+                  <th className="py-2 pr-4 font-normal">Date</th>
+                  <th className="py-2 pr-4 font-normal">Recommended</th>
+                  <th className="py-2 pr-4 font-normal">Stretch</th>
+                  <th className="py-2 font-normal">Actual trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {active.milestones.map((m) => (
+                  <tr
+                    key={m.weekNumber}
+                    className={
+                      m.date <= today ? "border-t" : "text-muted-foreground border-t"
+                    }
+                  >
+                    <td className="py-2 pr-4 tabular-nums">{m.weekNumber}</td>
+                    <td className="py-2 pr-4 tabular-nums">{m.date}</td>
+                    <td className="py-2 pr-4 tabular-nums">
+                      {showMass(m.recommendedWeightKg)}
+                    </td>
+                    <td className="py-2 pr-4 tabular-nums">
+                      {showMass(m.stretchWeightKg)}
+                    </td>
+                    <td className="py-2 tabular-nums">
+                      {m.actualTrendWeightKg === null
+                        ? m.date <= today
+                          ? "—"
+                          : ""
+                        : showMass(m.actualTrendWeightKg)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 
