@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { safeRedirect } from "@/lib/safe-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string; notice?: string };
@@ -31,10 +32,7 @@ export async function signIn(
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: error.message };
 
-  const next = String(formData.get("next") ?? "").trim();
-  // Only ever redirect within this app — an absolute URL here would be an
-  // open redirect.
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+  redirect(safeRedirect(String(formData.get("next") ?? "")));
 }
 
 export async function signUp(
