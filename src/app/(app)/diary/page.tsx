@@ -14,6 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { addDays, isIsoDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
+import { hasGeminiKey } from "@/lib/env.server";
 import { remainingAgainstTarget } from "@/lib/nutrition/totals";
 import { getAccountSetup } from "@/lib/profile";
 import { getOrCreateDailyTarget } from "@/lib/targets";
@@ -62,6 +63,12 @@ export default async function DiaryPage({
     getDiaryDay(date),
     getOrCreateDailyTarget(date),
   ]);
+
+  // The assistant needs both the user's switch and a configured key. Showing
+  // a "Describe a meal" box that can only ever answer "not configured" is an
+  // unimplemented button, which the acceptance criteria forbid — and the
+  // manual search above it is the whole feature regardless.
+  const aiReady = profile.ai_enabled && hasGeminiKey();
 
   const remaining = target
     ? remainingAgainstTarget(day.totals.totals, target.macros)
@@ -166,7 +173,7 @@ export default async function DiaryPage({
         above is the whole feature without it — ARCHITECTURE invariant 3 — so
         its absence removes a shortcut, never a capability.
       */}
-      {profile.ai_enabled ? (
+      {aiReady ? (
         <DescribeFood logDate={date} mealTypes={day.mealTypes} />
       ) : null}
 
@@ -195,7 +202,7 @@ export default async function DiaryPage({
                     <EntryRow
                         key={entry.id}
                         entry={entry}
-                        aiEnabled={profile.ai_enabled}
+                        aiEnabled={aiReady}
                       />
                   ))}
                 </ul>

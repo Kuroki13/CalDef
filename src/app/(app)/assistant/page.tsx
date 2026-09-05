@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { latestThread } from "@/lib/ai/conversations";
+import { hasGeminiKey } from "@/lib/env.server";
 import { getAccountSetup } from "@/lib/profile";
 
 export const metadata: Metadata = { title: "Assistant · CalDef" };
@@ -20,27 +21,37 @@ export default async function AssistantPage() {
   // The layout guarantees setup is complete before this renders.
   if (!profile) return null;
 
-  // The whole page is the assistant, so with it switched off there is
-  // nothing to render but the way to turn it on. Every other screen works
-  // exactly as before — ARCHITECTURE invariant 3.
-  if (!profile.ai_enabled) {
+  // The whole page is the assistant, so with it unavailable there is nothing
+  // to render but the reason. Every other screen works exactly as before —
+  // ARCHITECTURE invariant 3. Two different reasons, and only one of them is
+  // the user's to fix, so they are not collapsed into one message.
+  if (!profile.ai_enabled || !hasGeminiKey()) {
+    const switchedOff = !profile.ai_enabled;
     return (
       <div className="space-y-6">
         <Header />
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">The assistant is off</CardTitle>
+            <CardTitle className="text-base">
+              {switchedOff
+                ? "The assistant is off"
+                : "The assistant is not configured"}
+            </CardTitle>
             <CardDescription>
-              Turn it on in settings if you want it. Nothing else in CalDef
-              depends on it: food search, logging, weight, targets and the cut
-              phase all work without it.
+              {switchedOff
+                ? "Turn it on in settings if you want it. "
+                : "This deployment has no model key, so there is nothing to turn on. "}
+              Nothing else in CalDef depends on it: food search, logging,
+              weight, targets and the cut phase all work without it.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button asChild variant="secondary">
-              <Link href="/settings">Open settings</Link>
-            </Button>
-          </CardContent>
+          {switchedOff ? (
+            <CardContent>
+              <Button asChild variant="secondary">
+                <Link href="/settings">Open settings</Link>
+              </Button>
+            </CardContent>
+          ) : null}
         </Card>
       </div>
     );
