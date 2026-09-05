@@ -18,6 +18,8 @@ const schema = z.object({
   goalWeight: z.coerce.number().positive(),
   activityLevel: z.enum(["sedentary", "light", "moderate", "very", "extra"]),
   proteinPerKg: z.coerce.number().min(0.5).max(4),
+  /** Re-synced from the browser; absent without JavaScript, and that is fine. */
+  timezone: z.string().trim().max(64).optional(),
 });
 
 export async function updateSettings(
@@ -40,6 +42,16 @@ export async function updateSettings(
     return { error: "That goal weight looks out of range. Please check it." };
   }
 
+  // The same range onboarding applies. Without it the two forms disagreed
+  // about what a valid birth date is, and an out-of-range one reached the
+  // database — where the column's own check rejected it and the raw Postgres
+  // message was shown to the user as though it were guidance.
+  const birthYear = Number(input.birthDate.slice(0, 4));
+  const thisYear = new Date().getUTCFullYear();
+  if (thisYear - birthYear < 13 || thisYear - birthYear > 120) {
+    return { error: "Please enter a valid date of birth." };
+  }
+
   const userId = await requireUserId();
   const supabase = await createClient();
 
@@ -51,6 +63,9 @@ export async function updateSettings(
       birth_date: input.birthDate,
       height_cm: heightCm,
       unit_system: input.unitSystem,
+      // Only when the browser supplied one. Overwriting a good timezone with
+      // an empty string on a no-JS submission would be worse than leaving it.
+      ...(input.timezone ? { timezone: input.timezone } : {}),
     })
     .eq("id", userId);
   if (profileUpdate.error) return { error: profileUpdate.error.message };

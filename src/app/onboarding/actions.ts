@@ -14,7 +14,22 @@ const schema = z.object({
   sex: z.enum(["male", "female", "other"]),
   birthDate: z.iso.date(),
   unitSystem: z.enum(["metric", "imperial"]),
-  timezone: z.string().trim().min(1).max(64),
+  /**
+   * Defaults to UTC when absent.
+   *
+   * The field is a hidden input the client fills from
+   * `Intl.DateTimeFormat().resolvedOptions()`, so a submission without
+   * JavaScript sent it empty and failed validation — the whole form was
+   * unusable rather than degraded. A wrong timezone shifts which calendar
+   * day an entry lands on, and settings re-syncs it from the browser on
+   * every save — so this self-corrects on the first visit with JavaScript,
+   * whereas a form that will not submit cannot be corrected at all.
+   */
+  timezone: z
+    .string()
+    .trim()
+    .max(64)
+    .transform((value) => value || "UTC"),
   height: z.coerce.number().positive(),
   currentWeight: z.coerce.number().positive(),
   goalType: z.enum(["lose", "maintain", "gain", "recomp"]),

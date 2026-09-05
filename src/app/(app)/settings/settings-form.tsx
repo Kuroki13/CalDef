@@ -60,6 +60,18 @@ export function SettingsForm(props: SettingsFormProps) {
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="unitSystem" value={unitSystem} />
+      {/*
+        Re-synced from the browser on every save, rather than exposed as a
+        field nobody would think to set. Onboarding defaults to UTC when
+        JavaScript is off, and without this there was no way to correct that
+        afterwards — which matters, because the timezone decides which
+        calendar day an entry lands on.
+      */}
+      <input
+        type="hidden"
+        name="timezone"
+        value={Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}
+      />
 
       {state.error ? (
         <Alert variant="destructive">
