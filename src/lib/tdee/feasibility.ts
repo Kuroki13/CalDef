@@ -181,8 +181,6 @@ export type RecommendedPlan = {
   projectedRangeKg: { low: number; high: number };
   /** True when the requested target was reduced to stay inside the band. */
   wasConstrained: boolean;
-  /** Date the *requested* target would be reached at the recommended rate. */
-  projectedGoalDate: IsoDate | null;
   explanation: string;
 };
 
@@ -207,14 +205,20 @@ export function recommendPlan(input: RecommendPlanInput): RecommendedPlan {
     return {
       recommendedKgPerWeek: 0,
       recommendedPctPerWeek: 0,
-      recommendedCalories: Math.round(tdeeKcal),
+      // Floored like every other branch. Maintenance is not a deficit, but
+      // an expenditure estimate below the floor would otherwise print a
+      // sub-1200 kcal target here while `dailyTargetFor` floored the very
+      // same situation — two paths disagreeing about the same day.
+      recommendedCalories: Math.max(
+        Math.round(tdeeKcal),
+        calorieFloorFor(tdeeKcal),
+      ),
       projectedEndWeightKg: round2(currentWeightKg),
       projectedRangeKg: {
         low: round2(currentWeightKg),
         high: round2(currentWeightKg),
       },
       wasConstrained: false,
-      projectedGoalDate: null,
       explanation:
         "You are at or below this target, so this plan holds your weight " +
         "rather than reducing it.",
@@ -260,7 +264,6 @@ export function recommendPlan(input: RecommendPlanInput): RecommendedPlan {
     projectedEndWeightKg,
     projectedRangeKg,
     wasConstrained,
-    projectedGoalDate: null,
     explanation: explainPlan({
       wasConstrained,
       assessment,

@@ -148,14 +148,29 @@ export function proteinTargetG(weightKg: number, gPerKg: number): number {
   return Math.round(weightKg * gPerKg);
 }
 
+/** The share of calories fat may never be pushed below. */
+export const MIN_FAT_SHARE = 0.2;
+
 /**
  * Splits a calorie target into macros.
  *
- * Protein is fixed from bodyweight first and fat is set as a share of total
- * calories, with carbohydrate taking whatever remains — the standard ordering
- * when protein is the constraint being defended. Fat is floored at 20% of
- * calories so a large deficit cannot drive it to a level that costs hormonal
- * function.
+ * Protein is set from bodyweight first, fat takes a share of total calories,
+ * and carbohydrate takes what remains — the standard ordering when protein is
+ * the constraint being defended.
+ *
+ * Two clamps, and the order between them matters. Fat is floored at 20% of
+ * calories, because a large deficit driving fat lower costs hormonal
+ * function. Protein is then capped at whatever calories remain above that
+ * floor.
+ *
+ * The cap is not theoretical. `goals.protein_g_per_kg` accepts up to 4.0, and
+ * bodyweight-derived protein grows with weight at roughly the same rate the
+ * calorie floor does — so a heavy user at a high protein setting could ask
+ * for more protein energy than the whole target contained. The previous
+ * version answered that by zeroing carbohydrate, silently pushing fat under
+ * the floor it documents, and returning a split whose parts summed to more
+ * than the target it was splitting. A target whose macros do not add up is
+ * worse than one that admits it could not fit the protein in.
  */
 export function macroTargets(
   calories: number,
@@ -163,15 +178,24 @@ export function macroTargets(
   proteinGPerKg: number,
   fatShare = 0.28,
 ): MacroTotals {
-  const protein_g = proteinTargetG(weightKg, proteinGPerKg);
+  const budget = Math.max(calories, 0);
+
+  const fatKcal = budget * Math.max(fatShare, MIN_FAT_SHARE);
+  const fatFloorKcal = budget * MIN_FAT_SHARE;
+
+  const requestedProteinG = proteinTargetG(weightKg, proteinGPerKg);
+  const maxProteinG = Math.floor(
+    Math.max(budget - fatFloorKcal, 0) / KCAL_PER_G_PROTEIN,
+  );
+  const protein_g = Math.min(requestedProteinG, maxProteinG);
   const proteinKcal = protein_g * KCAL_PER_G_PROTEIN;
 
-  const fatKcal = Math.max(calories * Math.max(fatShare, 0.2), 0);
-  // Protein and fat together must still leave room for some carbohydrate.
-  const cappedFatKcal = Math.min(fatKcal, Math.max(calories - proteinKcal, 0));
+  // Fat takes its share, but never more than what protein left behind — and
+  // by construction that remainder is at least the floor.
+  const cappedFatKcal = Math.min(fatKcal, Math.max(budget - proteinKcal, 0));
   const fat_g = round2(cappedFatKcal / KCAL_PER_G_FAT);
 
-  const carbsKcal = Math.max(calories - proteinKcal - cappedFatKcal, 0);
+  const carbsKcal = Math.max(budget - proteinKcal - cappedFatKcal, 0);
   const carbs_g = round2(carbsKcal / KCAL_PER_G_CARBS);
 
   return { kcal: Math.round(calories), protein_g, carbs_g, fat_g };
