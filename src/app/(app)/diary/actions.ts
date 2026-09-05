@@ -14,9 +14,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { cacheFood } from "@/lib/food/cache";
+import { logCachedFood } from "@/lib/food-log";
 import type { Food } from "@/lib/food/types";
 import { scaleNutrients } from "@/lib/nutrition/macros";
-import { toGrams } from "@/lib/nutrition/units";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 
 export type DiaryActionState = { error?: string; ok?: boolean };
@@ -88,79 +88,23 @@ export async function logFood(
     return { error: "That food could not be read. Search for it again." };
   }
 
-  const userId = await requireUserId();
-  const supabase = await createClient();
-
   // Cache first, so the entry references a real row and the same food is not
   // fetched from a provider again next time.
   const foodId = await cacheFood(food);
 
-  // Read the nutrients back from the database rather than using the payload.
-  // This is what makes the invariant structural: whatever the client sent,
-  // the entry is computed from what is actually stored.
-  const { data: nutrients, error: nutrientError } = await supabase
-    .from("food_nutrients")
-    .select("kcal, protein_g, carbs_g, fat_g")
-    .eq("food_id", foodId)
-    .single();
-  if (nutrientError || !nutrients) {
-    return { error: "That food has no nutrition data recorded." };
-  }
-
-  const { data: servingRows, error: servingError } = await supabase
-    .from("food_servings")
-    .select("id, label, grams")
-    .eq("food_id", foodId);
-  if (servingError) return { error: servingError.message };
-
-  const chosenServing =
-    parsed.data.unit === "serving"
-      ? (servingRows ?? []).find(
-          (s) => s.label === parsed.data.servingLabel,
-        ) ?? null
-      : null;
-
-  if (parsed.data.unit === "serving" && !chosenServing) {
-    return { error: "That serving is no longer available. Pick another." };
-  }
-
-  let grams: number;
-  try {
-    grams = toGrams({
-      amount: parsed.data.amount,
-      unit: parsed.data.unit,
-      serving: chosenServing ? { grams: Number(chosenServing.grams) } : null,
-    });
-  } catch {
-    return { error: "That amount could not be converted to grams." };
-  }
-
-  const macros = scaleNutrients(
-    {
-      kcal: Number(nutrients.kcal),
-      protein_g: Number(nutrients.protein_g),
-      carbs_g: Number(nutrients.carbs_g),
-      fat_g: Number(nutrients.fat_g),
-    },
-    grams,
-  );
-
-  const { error: insertError } = await supabase.from("food_logs").insert({
-    user_id: userId,
-    log_date: parsed.data.logDate,
-    meal_type_id: parsed.data.mealTypeId,
-    food_id: foodId,
-    serving_id: chosenServing?.id ?? null,
+  // From here the payload is finished with. `logCachedFood` recomputes the
+  // macros from the stored nutrient row, so whatever the client sent cannot
+  // reach the diary as a calorie figure.
+  const result = await logCachedFood({
+    foodId,
+    logDate: parsed.data.logDate,
+    mealTypeId: parsed.data.mealTypeId,
     amount: parsed.data.amount,
     unit: parsed.data.unit,
-    grams,
-    kcal: macros.kcal,
-    protein_g: macros.protein_g,
-    carbs_g: macros.carbs_g,
-    fat_g: macros.fat_g,
+    servingLabel: parsed.data.servingLabel,
     source: "manual",
   });
-  if (insertError) return { error: insertError.message };
+  if ("error" in result) return result;
 
   revalidatePath("/diary");
   revalidatePath("/dashboard");

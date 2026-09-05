@@ -7,8 +7,10 @@ import {
   toggleFavoriteAction,
 } from "@/app/(app)/recipes/actions";
 import {
+  AddIngredientsForm,
   CreateRecipeForm,
   CreateSavedMealForm,
+  LogFavoriteForm,
   LogRecipeForm,
   LogSavedMealForm,
 } from "@/app/(app)/recipes/library-forms";
@@ -75,29 +77,33 @@ export default async function RecipesPage() {
           ) : (
             <ul className="divide-y">
               {favorites.map((food) => (
-                <li
-                  key={food.id}
-                  className="flex items-center justify-between gap-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{food.name}</p>
-                    <p className="text-muted-foreground truncate text-xs">
-                      {food.brand ? `${food.brand} · ` : ""}
-                      {Math.round(food.nutrients.kcal)} kcal / 100 g
-                    </p>
+                <li key={food.id} className="space-y-2 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{food.name}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {food.brand ? `${food.brand} · ` : ""}
+                        {Math.round(food.nutrients.kcal)} kcal / 100 g
+                      </p>
+                    </div>
+                    <form action={toggleFavoriteAction}>
+                      <input type="hidden" name="foodId" value={food.id} />
+                      <input type="hidden" name="favorite" value="true" />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Unstar ${food.name}`}
+                      >
+                        Unstar
+                      </Button>
+                    </form>
                   </div>
-                  <form action={toggleFavoriteAction}>
-                    <input type="hidden" name="foodId" value={food.id} />
-                    <input type="hidden" name="favorite" value="true" />
-                    <Button
-                      type="submit"
-                      size="sm"
-                      variant="ghost"
-                      aria-label={`Unstar ${food.name}`}
-                    >
-                      Unstar
-                    </Button>
-                  </form>
+                  <LogFavoriteForm
+                    foodId={food.id}
+                    logDate={today}
+                    mealTypes={day.mealTypes}
+                  />
                 </li>
               ))}
             </ul>
@@ -230,6 +236,11 @@ export default async function RecipesPage() {
                       has some.
                     </p>
                   )}
+
+                  <AddIngredientsForm
+                    recipeId={recipe.id}
+                    entries={entryOptions}
+                  />
 
                   {ingredients.length > 0 ? (
                     <LogRecipeForm

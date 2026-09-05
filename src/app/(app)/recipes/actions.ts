@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { addFavorite, removeFavorite } from "@/lib/favorites";
+import { logCachedFood } from "@/lib/food-log";
 import {
   addIngredientsFromEntries,
   createRecipe,
@@ -115,6 +116,82 @@ export async function removeIngredientAction(
   if (!Number.isInteger(id) || id <= 0) return;
   await removeIngredient(id);
   revalidateAll();
+}
+
+const addIngredientsSchema = z.object({
+  recipeId: z.coerce.number().int().positive(),
+  entryIds: idList,
+});
+
+/**
+ * Adds today's diary entries to a recipe that already exists.
+ *
+ * Without this a recipe could only ever receive ingredients in the moment it
+ * was created — an empty one was a dead end, and a recipe whose ingredients
+ * had all been removed could not be rebuilt.
+ *
+ * Ownership is not checked here: `recipe_ingredients`' insert policy keys on
+ * the parent recipe's `user_id`, so a forged `recipeId` fails at the
+ * database rather than relying on this layer to notice.
+ */
+export async function addIngredientsAction(
+  _prev: LibraryState,
+  formData: FormData,
+): Promise<LibraryState> {
+  const parsed = addIngredientsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Pick at least one entry to add." };
+
+  const added = await addIngredientsFromEntries(
+    parsed.data.recipeId,
+    parsed.data.entryIds,
+  );
+  if ("error" in added) return { error: added.error };
+
+  revalidateAll();
+  return {
+    ok: true,
+    notice: `Added ${added.added} ingredient${added.added === 1 ? "" : "s"}.`,
+  };
+}
+
+const logFavoriteSchema = z.object({
+  foodId: z.coerce.number().int().positive(),
+  logDate: z.iso.date(),
+  mealTypeId: z.coerce.number().int().positive(),
+  grams: z.coerce.number().positive().max(100000),
+});
+
+/**
+ * Logs a starred food straight to the diary.
+ *
+ * The point of a favourite is to skip the search, so this takes a food id
+ * that is already cached rather than a provider payload. `logCachedFood`
+ * still computes the macros from the stored nutrient row, so this path is
+ * no more trusted than the manual one.
+ *
+ * The amount is in grams because that is the figure the favourites list
+ * shows (kcal per 100 g); offering servings here would mean rendering a
+ * serving picker per row for a screen whose whole purpose is one action.
+ */
+export async function logFavoriteAction(
+  _prev: LibraryState,
+  formData: FormData,
+): Promise<LibraryState> {
+  const parsed = logFavoriteSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Check the amount and meal." };
+
+  const result = await logCachedFood({
+    foodId: parsed.data.foodId,
+    logDate: parsed.data.logDate,
+    mealTypeId: parsed.data.mealTypeId,
+    amount: parsed.data.grams,
+    unit: "g",
+    source: "favorite",
+  });
+  if ("error" in result) return { error: result.error };
+
+  revalidateAll();
+  return { ok: true, notice: "Added to your diary." };
 }
 
 const createSavedMealSchema = z.object({
