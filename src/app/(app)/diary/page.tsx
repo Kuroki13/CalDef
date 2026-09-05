@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AddFood } from "@/app/(app)/diary/add-food";
+import { DescribeFood } from "@/app/(app)/diary/describe-food";
 import { EntryRow } from "@/app/(app)/diary/entry-row";
 import {
   Card,
@@ -159,6 +160,15 @@ export default async function DiaryPage({
       </Card>
 
       <AddFood logDate={date} mealTypes={day.mealTypes} />
+
+      {/*
+        Rendered only when the user has the assistant on. The manual search
+        above is the whole feature without it — ARCHITECTURE invariant 3 — so
+        its absence removes a shortcut, never a capability.
+      */}
+      {profile.ai_enabled ? (
+        <DescribeFood logDate={date} mealTypes={day.mealTypes} />
+      ) : null}
 
       {day.mealTypes.map((meal) => {
         const entries = entriesByMeal.get(meal.id) ?? [];

@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { cacheFood } from "@/lib/food/cache";
+import { foodPayloadSchema } from "@/lib/food/payload";
 import { logCachedFood } from "@/lib/food-log";
 import type { Food } from "@/lib/food/types";
 import { scaleNutrients } from "@/lib/nutrition/macros";
@@ -32,46 +33,6 @@ const logSchema = z.object({
   food: z.string().min(2),
 });
 
-/**
- * The shape the client sends back for a chosen search result.
- *
- * Validated rather than trusted: it arrives from the browser, so it is
- * re-parsed here before anything is written. Note that the nutrient values
- * it carries are used only to *populate the cache* on first sight — the
- * entry's own macros are then computed from what the database holds, so a
- * tampered payload cannot inflate a diary entry beyond what it also wrote
- * into the shared cache.
- */
-const foodSchema = z.object({
-  sourceId: z.string().min(1).max(200),
-  source: z.enum(["usda", "off", "custom"]),
-  name: z.string().trim().min(1).max(300),
-  brand: z.string().trim().max(200).nullable(),
-  description: z.string().trim().max(500).nullable(),
-  barcode: z.string().regex(/^[0-9]{6,14}$/).nullable(),
-  isVerified: z.boolean(),
-  nutrients: z.object({
-    kcal: z.number().min(0).max(1000),
-    protein_g: z.number().min(0).max(100),
-    carbs_g: z.number().min(0).max(100),
-    fat_g: z.number().min(0).max(100),
-    fiber_g: z.number().min(0).max(100).nullable().optional(),
-    sugar_g: z.number().min(0).max(100).nullable().optional(),
-    sat_fat_g: z.number().min(0).max(100).nullable().optional(),
-    sodium_mg: z.number().min(0).nullable().optional(),
-  }),
-  servings: z
-    .array(
-      z.object({
-        label: z.string().trim().min(1).max(120),
-        grams: z.number().positive().max(100000),
-        isDefault: z.boolean(),
-      }),
-    )
-    .max(25),
-  dataUpdatedAt: z.string().nullable(),
-});
-
 export async function logFood(
   _prev: DiaryActionState,
   formData: FormData,
@@ -83,7 +44,7 @@ export async function logFood(
 
   let food: Food;
   try {
-    food = foodSchema.parse(JSON.parse(parsed.data.food)) as Food;
+    food = foodPayloadSchema.parse(JSON.parse(parsed.data.food)) as Food;
   } catch {
     return { error: "That food could not be read. Search for it again." };
   }
