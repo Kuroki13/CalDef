@@ -21,12 +21,16 @@ const base = {
 describe("buildPhaseSeries", () => {
   const series = buildPhaseSeries(base);
 
-  it("covers day 1 through day 57 inclusive of both endpoints", () => {
-    // 56 days of phase plus the starting point.
-    expect(series).toHaveLength(57);
+  it("covers exactly the days the phase covers", () => {
+    // `phaseCoversDate` treats end_date as exclusive, so a 56-day phase is
+    // day 1 (the start date) through day 56. It previously ran to day 57,
+    // which is end_date — the morning after — on a chart captioned
+    // "day 1 to day 56".
+    expect(series).toHaveLength(56);
     expect(series[0].day).toBe(1);
     expect(series[0].date).toBe(START);
-    expect(series[56].date).toBe("2026-10-18");
+    expect(series[55].day).toBe(56);
+    expect(series[55].date).toBe("2026-10-17");
   });
 
   it("starts every projection at the starting weight", () => {
@@ -35,11 +39,11 @@ describe("buildPhaseSeries", () => {
   });
 
   it("lands the recommended line near 103 kg (spec 8.5)", () => {
-    expect(series[56].recommendedKg).toBeCloseTo(102.86, 1);
+    expect(series[55].recommendedKg).toBeCloseTo(103, 0);
   });
 
-  it("lands the stretch line exactly on the stretch target", () => {
-    expect(series[56].stretchKg).toBeCloseTo(99, 2);
+  it("lands the stretch line exactly on the stretch target, on the last day", () => {
+    expect(series[55].stretchKg).toBeCloseTo(99, 2);
   });
 
   it("keeps the stretch line below the recommended line throughout", () => {
@@ -56,7 +60,7 @@ describe("buildPhaseSeries", () => {
 
   it("takes the rate's magnitude, so a signed rate works either way", () => {
     const negative = buildPhaseSeries({ ...base, recommendedKgPerWeek: -1.118 });
-    expect(negative[56].recommendedKg).toBeCloseTo(102.86, 1);
+    expect(negative[55].recommendedKg).toBeCloseTo(103, 0);
   });
 });
 
@@ -128,6 +132,7 @@ describe("dayIndexFor", () => {
 
   it("clamps before the start and after the end", () => {
     expect(dayIndexFor(START, 56, "2026-08-01")).toBe(0);
-    expect(dayIndexFor(START, 56, "2027-01-01")).toBe(56);
+    // Clamped to the last plotted point, which is index 55 (day 56).
+    expect(dayIndexFor(START, 56, "2027-01-01")).toBe(55);
   });
 });

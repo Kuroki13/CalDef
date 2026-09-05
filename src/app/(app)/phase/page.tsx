@@ -248,7 +248,11 @@ export default async function PhasePage() {
                       m.date <= today ? "border-t" : "text-muted-foreground border-t"
                     }
                   >
-                    <td className="py-2 pr-4 tabular-nums">{m.weekNumber}</td>
+                    {/* Week 0 is the starting point, not a week — spec 8.5
+                        writes it as START rather than as a number. */}
+                    <td className="py-2 pr-4 tabular-nums">
+                      {m.weekNumber === 0 ? "Start" : m.weekNumber}
+                    </td>
                     <td className="py-2 pr-4 tabular-nums">{m.date}</td>
                     <td className="py-2 pr-4 tabular-nums">
                       {showMass(m.recommendedWeightKg)}

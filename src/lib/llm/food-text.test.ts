@@ -78,7 +78,8 @@ describe("toFoodText — what it refuses", () => {
 describe("trustedFoodText", () => {
   it("passes through a product name a provider gave us", () => {
     // Would be refused as an identifier if it went through toFoodText, which
-    // is exactly why the two are separate functions.
+    // is exactly why the two are separate functions: a pack code is normal
+    // in a product name and abnormal in a sentence someone typed.
     expect(trustedFoodText("Chocolate bar 3017624010701")).toBe(
       "Chocolate bar 3017624010701",
     );
@@ -86,5 +87,21 @@ describe("trustedFoodText", () => {
 
   it("still bounds the length", () => {
     expect(trustedFoodText("x".repeat(5000))).toHaveLength(MAX_FOOD_TEXT);
+  });
+
+  it("strips what never belongs in a food name", () => {
+    // `foods` is written from a payload the browser sent, so a name is
+    // user-influenced even though it usually comes from USDA or OFF. None of
+    // these can be a real product name.
+    expect(trustedFoodText("Protein bar alex@example.com")).toBe("Protein bar");
+    expect(trustedFoodText("Bar https://example.com/x")).toBe("Bar");
+    expect(
+      trustedFoodText("Bar 6eb72e72-72b4-480c-a3b6-368e9c9e9ddb"),
+    ).toBe("Bar");
+    expect(
+      trustedFoodText(
+        "Bar eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w",
+      ),
+    ).toBe("Bar");
   });
 });

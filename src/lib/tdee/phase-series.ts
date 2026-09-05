@@ -54,16 +54,24 @@ export function buildPhaseSeries({
   const byDate = new Map(trend.map((p) => [p.date, p]));
   const rate = Math.abs(recommendedKgPerWeek);
 
+  // One point per day the phase actually covers. `phaseCoversDate` treats
+  // `end_date` as exclusive, so a 56-day phase runs day 1 (the start date)
+  // through day 56, and `end_date` itself is the morning after. Plotting
+  // that morning gave a 57th point on a chart captioned "day 1 to day 56",
+  // and left the stretch line reaching its goalpost a day late.
+  const lastOffset = Math.max(durationDays - 1, 0);
+
   // The stretch line runs from the starting weight to the stretch target
-  // across the phase, whatever rate that implies — it is a goalpost.
+  // across the phase, whatever rate that implies — it is a goalpost, and it
+  // has to arrive on the last day of the phase rather than after it.
   const stretchPerDay =
-    stretchTargetKg === null || durationDays <= 0
+    stretchTargetKg === null || lastOffset <= 0
       ? null
-      : (startWeightKg - stretchTargetKg) / durationDays;
+      : (startWeightKg - stretchTargetKg) / lastOffset;
 
   const points: PhaseSeriesPoint[] = [];
 
-  for (let offset = 0; offset <= durationDays; offset++) {
+  for (let offset = 0; offset <= lastOffset; offset++) {
     const date = addDays(startDate, offset);
     const observed = byDate.get(date);
 
@@ -117,7 +125,9 @@ export function dayIndexFor(
   date: IsoDate,
 ): number {
   const offset = daysBetween(startDate, date);
-  return Math.min(Math.max(offset, 0), durationDays);
+  // Clamped to the last plotted point, which is `durationDays - 1` — the
+  // final day the phase covers, not the boundary after it.
+  return Math.min(Math.max(offset, 0), Math.max(durationDays - 1, 0));
 }
 
 function round2(value: number): number {

@@ -101,13 +101,39 @@ export function toFoodText(raw: string): FoodTextResult {
 }
 
 /**
+ * Patterns removed from a food's own name before it is sent.
+ *
+ * Not the same list as `PATTERNS`, and not for the same reason. A product
+ * name legitimately contains a long run of digits — a barcode, a pack code,
+ * a batch number — so `toFoodText`'s digit rule would reject real foods. It
+ * never legitimately contains an email address, a URL, a UUID or a token.
+ */
+const NEVER_IN_A_FOOD_NAME: readonly RegExp[] = [
+  /[^\s@]+@[^\s@]+\.[^\s@]+/g,
+  /\b(?:https?:\/\/|www\.)\S+/gi,
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+  /\bey[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
+];
+
+/**
  * For text this app composed itself, not text a user typed.
  *
- * A food's own name comes from a provider or the cache and has already been
- * through the boundary once; re-checking it would reject legitimate product
- * names that happen to contain a long code. Deliberately named so that using
- * it on user input is a visible choice rather than an easy mistake.
+ * Used for a food's own name, which reaches the correction prompt so the
+ * model knows what is being amended. Deliberately named so that using it on
+ * user input is a visible choice rather than an easy mistake.
+ *
+ * It does not simply trust its input. The obvious reading — "names come from
+ * USDA and Open Food Facts, so they are safe" — is not quite true: `foods`
+ * is written by `cacheFood` from a payload the browser sent, so a name is
+ * user-influenced even though it usually originates upstream. Rejecting is
+ * the wrong response here, because refusing to amend an entry over its
+ * supplier's product name would be a bug; so the four things that never
+ * belong in a food name are stripped, and the rest is sent.
  */
 export function trustedFoodText(value: string): FoodText {
-  return value.trim().slice(0, MAX_FOOD_TEXT) as FoodText;
+  let text = value.trim();
+  for (const pattern of NEVER_IN_A_FOOD_NAME) {
+    text = text.replace(pattern, "");
+  }
+  return text.replace(/\s+/g, " ").trim().slice(0, MAX_FOOD_TEXT) as FoodText;
 }
