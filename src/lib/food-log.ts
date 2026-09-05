@@ -109,3 +109,106 @@ export async function logCachedFood(
 
   return { ok: true };
 }
+
+export type UpdateEntryPortionInput = {
+  entryId: number;
+  amount: number;
+  /** Defaults to the unit the entry already carries. */
+  unit?: PortionUnit;
+};
+
+/**
+ * Changes an entry's portion, recomputing its macros from the stored row.
+ *
+ * The counterpart to `logCachedFood`, and it exists for the same reason: an
+ * amended entry has to be recomputed from `food_nutrients`, not scaled from
+ * whatever the client believes the old figure was. Both the manual edit and
+ * the AI correction go through here, so the two cannot drift.
+ *
+ * A recipe-backed entry has no single food to recompute against and is
+ * refused rather than half-updated.
+ */
+export async function updateEntryPortion(
+  input: UpdateEntryPortionInput,
+): Promise<{ ok: true } | { error: string }> {
+  await requireUserId();
+  const supabase = await createClient();
+
+  const { data: entry, error } = await supabase
+    .from("food_logs")
+    .select("id, food_id, serving_id, amount, unit")
+    .eq("id", input.entryId)
+    .maybeSingle();
+  if (error) return { error: error.message };
+  // RLS makes another user's entry invisible, so this covers both "gone" and
+  // "not yours" without leaking which.
+  if (!entry) return { error: "That entry no longer exists." };
+  if (entry.food_id === null) {
+    return { error: "Edit a recipe entry from the recipe itself." };
+  }
+
+  const unit = input.unit ?? (entry.unit as PortionUnit);
+
+  const { data: nutrients } = await supabase
+    .from("food_nutrients")
+    .select("kcal, protein_g, carbs_g, fat_g")
+    .eq("food_id", entry.food_id)
+    .maybeSingle();
+  if (!nutrients) return { error: "That food has no nutrition data." };
+
+  let servingGrams: number | null = null;
+  if (unit === "serving") {
+    // The entry's own serving when it has one, otherwise the food's default:
+    // a correction may be turning a gram amount into servings for the first
+    // time, in which case there is no serving on the row yet.
+    const { data: servings } = await supabase
+      .from("food_servings")
+      .select("id, grams, is_default")
+      .eq("food_id", entry.food_id);
+
+    const chosen =
+      (servings ?? []).find((s) => s.id === entry.serving_id) ??
+      (servings ?? []).find((s) => s.is_default) ??
+      (servings ?? [])[0];
+
+    if (!chosen) return { error: "That food has no serving to measure by." };
+    servingGrams = Number(chosen.grams);
+  }
+
+  let grams: number;
+  try {
+    grams = toGrams({
+      amount: input.amount,
+      unit,
+      serving: servingGrams === null ? null : { grams: servingGrams },
+    });
+  } catch {
+    return { error: "That amount could not be converted to grams." };
+  }
+
+  const macros = scaleNutrients(
+    {
+      kcal: Number(nutrients.kcal),
+      protein_g: Number(nutrients.protein_g),
+      carbs_g: Number(nutrients.carbs_g),
+      fat_g: Number(nutrients.fat_g),
+    },
+    grams,
+  );
+
+  const { error: updateError } = await supabase
+    .from("food_logs")
+    .update({
+      amount: input.amount,
+      unit,
+      grams,
+      kcal: macros.kcal,
+      protein_g: macros.protein_g,
+      carbs_g: macros.carbs_g,
+      fat_g: macros.fat_g,
+    })
+    .eq("id", input.entryId);
+  if (updateError) return { error: updateError.message };
+
+  return { ok: true };
+}

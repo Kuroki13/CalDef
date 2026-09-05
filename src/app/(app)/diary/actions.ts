@@ -15,9 +15,8 @@ import { z } from "zod";
 
 import { cacheFood } from "@/lib/food/cache";
 import { foodPayloadSchema } from "@/lib/food/payload";
-import { logCachedFood } from "@/lib/food-log";
+import { logCachedFood, updateEntryPortion } from "@/lib/food-log";
 import type { Food } from "@/lib/food/types";
-import { scaleNutrients } from "@/lib/nutrition/macros";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 
 export type DiaryActionState = { error?: string; ok?: boolean };
@@ -78,11 +77,11 @@ const amendSchema = z.object({
 });
 
 /**
- * Changes the amount of an existing entry, recomputing its macros.
+ * Changes the amount of an existing entry.
  *
- * The stored `grams` is scaled by the ratio of new to old amount, which
- * preserves whatever serving the entry was originally logged against without
- * having to resolve it again.
+ * The recomputation lives in `updateEntryPortion` so that the manual edit
+ * and the AI correction cannot produce different numbers for the same
+ * change. The unit is left as it was: this control only moves the amount.
  */
 export async function updateEntryAmount(
   _prev: DiaryActionState,
@@ -91,53 +90,11 @@ export async function updateEntryAmount(
   const parsed = amendSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter a valid amount." };
 
-  await requireUserId();
-  const supabase = await createClient();
-
-  const { data: entry, error } = await supabase
-    .from("food_logs")
-    .select("id, amount, grams, food_id")
-    .eq("id", parsed.data.entryId)
-    .maybeSingle();
-  if (error) return { error: error.message };
-  // RLS makes another user's entry invisible, so this covers both "gone" and
-  // "not yours" without leaking which.
-  if (!entry) return { error: "That entry no longer exists." };
-
-  const previousAmount = Number(entry.amount);
-  if (previousAmount <= 0) return { error: "That entry cannot be amended." };
-
-  const grams = (Number(entry.grams) / previousAmount) * parsed.data.amount;
-
-  const { data: nutrients } = await supabase
-    .from("food_nutrients")
-    .select("kcal, protein_g, carbs_g, fat_g")
-    .eq("food_id", entry.food_id!)
-    .single();
-  if (!nutrients) return { error: "That food has no nutrition data." };
-
-  const macros = scaleNutrients(
-    {
-      kcal: Number(nutrients.kcal),
-      protein_g: Number(nutrients.protein_g),
-      carbs_g: Number(nutrients.carbs_g),
-      fat_g: Number(nutrients.fat_g),
-    },
-    grams,
-  );
-
-  const { error: updateError } = await supabase
-    .from("food_logs")
-    .update({
-      amount: parsed.data.amount,
-      grams,
-      kcal: macros.kcal,
-      protein_g: macros.protein_g,
-      carbs_g: macros.carbs_g,
-      fat_g: macros.fat_g,
-    })
-    .eq("id", parsed.data.entryId);
-  if (updateError) return { error: updateError.message };
+  const result = await updateEntryPortion({
+    entryId: parsed.data.entryId,
+    amount: parsed.data.amount,
+  });
+  if ("error" in result) return result;
 
   revalidatePath("/diary");
   revalidatePath("/dashboard");

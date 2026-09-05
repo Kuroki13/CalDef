@@ -19,7 +19,7 @@ import { z } from "zod";
 import { cacheFood } from "@/lib/food/cache";
 import { foodPayloadSchema } from "@/lib/food/payload";
 import type { Food } from "@/lib/food/types";
-import { logCachedFood } from "@/lib/food-log";
+import { logCachedFood, updateEntryPortion } from "@/lib/food-log";
 
 export type AiLogState = { error?: string; ok?: boolean; notice?: string };
 
@@ -88,4 +88,37 @@ export async function logParsedFoods(
         ok: true,
         notice: `Added ${logged}. Could not add: ${failures.join(", ")}.`,
       };
+}
+
+const correctionSchema = z.object({
+  entryId: z.coerce.number().int().positive(),
+  amount: z.coerce.number().positive().max(100000),
+  unit: z.enum(["g", "ml", "serving"]),
+});
+
+/**
+ * Applies a correction the user has read and confirmed.
+ *
+ * Takes the amount and unit rather than a model response: by this point the
+ * proposal has been shown on screen with the calorie figure it would
+ * produce, so what is applied is what was agreed to. `updateEntryPortion`
+ * recomputes from the stored nutrient row, exactly as the manual edit does.
+ */
+export async function applyCorrection(
+  _prev: AiLogState,
+  formData: FormData,
+): Promise<AiLogState> {
+  const parsed = correctionSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "That change could not be applied." };
+
+  const result = await updateEntryPortion({
+    entryId: parsed.data.entryId,
+    amount: parsed.data.amount,
+    unit: parsed.data.unit,
+  });
+  if ("error" in result) return result;
+
+  revalidatePath("/diary");
+  revalidatePath("/dashboard");
+  return { ok: true, notice: "Entry updated." };
 }

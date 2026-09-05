@@ -192,7 +192,11 @@ export default async function DiaryPage({
               ) : (
                 <ul className="divide-y">
                   {entries.map((entry) => (
-                    <EntryRow key={entry.id} entry={entry} />
+                    <EntryRow
+                        key={entry.id}
+                        entry={entry}
+                        aiEnabled={profile.ai_enabled}
+                      />
                   ))}
                 </ul>
               )}
