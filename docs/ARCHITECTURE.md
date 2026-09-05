@@ -21,7 +21,7 @@ Keep this synchronized with the implementation.
 | Auth       | Supabase Auth, email/password |
 | Hosting    | Vercel Hobby |
 | Food data  | USDA FoodData Central, Open Food Facts (v3 product, cgi search) |
-| LLM        | Gemini Developer API, free tier, behind `LLMProvider` |
+| LLM        | Gemini Developer API, free tier (`gemini-3.5-flash-lite`), behind `LLMProvider` |
 | Tests      | Vitest (unit/integration), SQL-level RLS tests |
 
 Everything on a free tier. No resource with a recurring cost.
@@ -84,18 +84,19 @@ src/
     api/
       foods/search/    provider-backed search
       foods/barcode/   Open Food Facts barcode lookup
-      ai/parse/        natural language -> structured intent
-      ai/correct/      correction of a logged entry
+      ai/parse/        natural language -> structured intent -> proposals
+      ai/correct/      proposed amendment to a logged entry
       ai/chat/         nutrition assistant
   components/
     ui/                shadcn primitives
     <feature>/         feature components
   lib/
     food-log.ts        the single-food logging convergence point
+    ai/                resolve.ts · figures.ts · conversations.ts
     supabase/          client.ts · server.ts · proxy.ts
     food/              types.ts · provider.ts · usda.ts · off.ts
                        cache.ts · registry.ts
-    llm/               types.ts · provider.ts · gemini.ts
+    llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
     tdee/              constants.ts · bmr.ts · trend.ts · adaptive.ts
@@ -138,6 +139,11 @@ The AI path and the manual path converge before any number is computed.
 That convergence is the structural reason the model cannot influence
 nutrition values.
 
+`/api/ai/parse` and `/api/ai/correct` *propose*; they never write. The
+user confirms, and the confirmation goes through the ordinary logging
+and editing actions. A model that misreads a sentence therefore costs a
+glance, not a wrong diary entry.
+
 The convergence is a function, not a convention: `src/lib/food-log.ts`.
 Every path that logs a single food — manual search, a favourite, a
 scanned barcode, and the AI parser when it arrives — calls
@@ -156,15 +162,35 @@ These are load-bearing. Breaking one is a defect even if tests pass.
    (`query`, `amount`, `unit`) and free text. Calories, protein, carbs
    and fat are always computed by the domain layer from `food_nutrients`
    rows. Any model output claiming a kcal value is discarded.
+   - Enforced by shape, not by checking: `FoodIntent` in
+     `lib/llm/types.ts` has no nutrition field, the response schema sent
+     to Gemini has none either, and the parser reads exactly three keys.
+     A `kcal` the model volunteers is dropped because there is nowhere
+     for it to go.
 2. **Gemini receives food text and anonymous aggregates only.** One
    server-side call site, whose parameter type is food text — never a
    user object, row, session or id. No names, emails, addresses, weight
    history, profiles or user ids cross that boundary.
+   - The type is `FoodText`, branded and produced only by `toFoodText`
+     in `lib/llm/food-text.ts`, which refuses emails, URLs, UUIDs, JWTs
+     and long digit runs. The aggregates are `AnonymousFigures`, whose
+     every field is a `number` — a name is not assignable to it — and
+     `lib/ai/figures.ts` is the whole of what is ever gathered.
+   - `lib/llm/gemini.ts` holds the only `fetch` to Google and assembles
+     the request body itself, so there is no parameter through which
+     extra context could be passed in.
+   - Assistant threads are stored but never replayed to the model, so a
+     long conversation does not become an accumulating dossier.
 3. **The app works with the AI switched off.** Manual search, manual
    logging, weight entry, the TDEE engine and the whole phase mode are
    AI-independent. `LLMProvider` has an `unavailable` implementation
    that returns a typed "AI is off" result, and every AI entry point
    renders a working manual alternative.
+   - Two things switch it off and they stay distinct: the user's
+     `profiles.ai_enabled` toggle (`disabled`) and a missing key
+     (`unconfigured`). Only the first is fixable in settings.
+   - Checked by running the production build with `GEMINI_API_KEY`
+     unset, not only by reasoning about it. See TEST RESULTS.
 4. **Every user-owned table has RLS enabled and explicit policies** for
    select, insert, update and delete, keyed on `auth.uid()`.
 5. **Secrets stay server-side.** Only `NEXT_PUBLIC_SUPABASE_URL` and
@@ -255,6 +281,7 @@ are encoded as test cases so the safety behaviour cannot silently drift.
 | `NEXT_PUBLIC_SUPABASE_URL` | public | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | public | RLS-constrained browser key |
 | `GEMINI_API_KEY` | server | Gemini Developer API, free tier |
+| `GEMINI_MODEL` | server | Optional. Overrides the pinned model; the default is chosen for its free-tier allowance |
 | `USDA_API_KEY` | server | FoodData Central |
 
 Names only are mirrored in `.env.example`. Real values live in

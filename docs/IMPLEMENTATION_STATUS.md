@@ -24,7 +24,7 @@ Last updated: 2026-09-05
 | 6 | Weight tracking and adaptive TDEE | DONE |
 | 7 | 2-Month Cut phase mode | DONE |
 | 8 | Recipes, saved meals, favorites, barcode | DONE |
-| 9 | AI layer | TODO |
+| 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | TODO |
 | 11 | Acceptance pass and Vercel deploy | TODO |
 
@@ -398,6 +398,66 @@ as it does in the app.
   to trust a number from the client. Recipes and saved meals deliberately
   do not pass through it — they compose entries rather than log one food.
 
+### Phase 9 — the AI layer
+
+Verified on 2026-09-05 end to end against the production build with a
+real session — twice, once with `GEMINI_API_KEY` present and once with
+it unset.
+
+- **`lib/llm/types.ts` — the port.** Both AI rules are types rather than
+  discipline. `FoodIntent` is `{query, amount, unit}`, so a nutrition
+  figure has nowhere to go; `FoodText` is branded and unforgeable outside
+  `food-text.ts`; `AnonymousFigures` has only `number` fields, so a name
+  or an id is not assignable to it.
+- **`lib/llm/food-text.ts` — the data-minimization gate.** The only
+  producer of `FoodText`. Refuses emails, URLs, UUIDs, JWTs and runs of
+  nine or more digits, and refuses rather than strips — silently deleting
+  part of what someone typed and sending the rest tells them nothing and
+  hands the model a sentence with a hole in it. `trustedFoodText` is the
+  separate, deliberately awkward door for text the app composed itself,
+  such as a food's own name from a provider.
+- **`lib/llm/gemini.ts` — the single call site.** Every request to Google
+  leaves from one function, which assembles the body itself; there is no
+  parameter through which extra context could be passed. The response
+  schema has no nutrition fields, and the parser reads only the three
+  keys — a response carrying `kcal` has it dropped rather than rejected.
+  Failure text carries a status and nothing else, because the request URL
+  contains the API key.
+- **`lib/llm/unavailable.ts`** — "off" is a typed outcome, not an error.
+  `disabled` (the user's switch) stays distinct from `unconfigured` (no
+  key) because only one is fixable in settings, and `rate-limited` from
+  both because waiting fixes it.
+- **`/api/ai/parse` + `lib/ai/resolve.ts`** — natural-language logging.
+  The model's queries go through the same `searchFoods` fan-out the
+  search box uses and the macros through the same `scaleNutrients` the
+  diary uses. The route proposes and does not write; the user confirms
+  through `logParsedFoods`, which caches and writes via `logCachedFood`
+  exactly as the manual path does, differing only by `source: "ai"`.
+- **`/api/ai/correct`** — "actually that was 250g". Also proposes only.
+  `unclear` is a first-class answer and offers no button, because
+  rewriting a diary entry from an ambiguous sentence is worse than
+  declining. Its preview is computed from the same nutrient row the
+  update reads.
+- **`lib/food-log.ts` gained `updateEntryPortion`**, the counterpart to
+  `logCachedFood`. The manual Edit control now goes through it too, so
+  the two paths cannot produce different numbers for the same change —
+  and unlike the ratio-scaling it replaced it can express a change of
+  unit, which a spoken correction can ask for.
+- **`/api/ai/chat` + `/assistant`** — the nutrition assistant.
+  `lib/ai/figures.ts` is the whole of what the app tells Gemini about the
+  person asking: targets, today's totals, estimated expenditure, current
+  trend weight, weekly rate. Absent figures are omitted rather than sent
+  as zero. No name, email, user id, birth date, height, goal weight, or
+  weight *history* — one current trend figure answers "am I on track"; a
+  series would be a body-weight history leaving the machine.
+- **The thread is never replayed to the model.** Stored for the user's
+  screen only. A real limitation — a follow-up must restate its context,
+  and the UI says so — but replaying would send back everything
+  previously typed, which is the accumulation the rule exists to prevent.
+
+Two findings from the live API, both recorded under KNOWN ISSUES: the
+free-tier daily quota, and the search ordering that the AI path exposed.
+
 ## TODO
 
 Phases 8–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
@@ -462,6 +522,35 @@ and is not restated here.
   for a PWA whose whole point is a JS runtime, but it means the
   no-JS fallback React renders for free is not actually functional here.
   Fix by defaulting to UTC server-side when the field is empty.
+- **The Gemini free tier is measured in requests, and the ceiling is
+  low.** `gemini-3.8-flash` allows **20 requests per day** — the 429 body
+  names `GenerateRequestsPerDayPerProjectPerModel-FreeTier` with
+  quotaValue 20. That is a few meals and then nothing, and one run of the
+  live suite spends six. The pinned model is therefore
+  `gemini-3.5-flash-lite`, which took 16 requests in a single burst
+  before refusing and refused on the **per-minute** quota (15/min) rather
+  than a daily one. `GEMINI_MODEL` overrides the pin without a code
+  change, because these allowances move. A spent quota surfaces as the
+  `rate-limited` reason and a message saying to try again shortly — it is
+  not reported as a fault, because it is not one. `npm run test:live`
+  paces its Gemini calls 7 s apart for the same reason.
+- **The assistant has no memory within a thread.** Each question is
+  answered on its own; the stored history is for the user's screen and is
+  never sent back. Deliberate, not missing: replaying a thread would mean
+  sending back everything previously typed, which is exactly the
+  accumulation of personal detail the data-minimization rule prevents. A
+  follow-up has to restate its context and the UI says so. Revisiting
+  this would need a way to carry forward the *nutrition* of a
+  conversation without carrying forward its personal content.
+- **A one-word query can match a poor food.** Search ranking scores how
+  much of the query a food's name and brand account for, which settles
+  "dubai chocolate" but cannot settle "chicken" — every chicken row
+  scores the same, so the fan-out order decides and USDA's "Chicken
+  spread" can lead. Observed during the Phase 9 end-to-end run, where the
+  model faithfully returned the bare word the user typed. The
+  alternatives list on each proposal exists for this, and the figure
+  shown is always the matched food's own. A better tie-break would need a
+  notion of how typical a food is, which no provider gives us.
 - **A custom food cannot be created.** `foods` has a
   `foods_custom_requires_owner` check, so a row with `source = 'custom'`
   must carry a `user_id` — but `cacheFood` never sets one, because it
@@ -571,6 +660,57 @@ Nothing currently blocked.
 | 2026-09-05 | `npm run test:live` | PASS — 6/6 on 4 consecutive runs, including the new search-relevance check |
 | 2026-09-05 | `npm run typecheck` / `lint` / `build` | PASS — 14 routes, 0 lint problems |
 | 2026-09-05 | Supabase security advisors | 1 WARN — `auth_leaked_password_protection` only. No RLS findings. |
+| 2026-09-05 | `npm run test` (Phase 9) | PASS — 465 tests, 36 files |
+| 2026-09-05 | `npm run test:live` — Gemini | PASS — 7/7 on the pinned lite model |
+| 2026-09-05 | `npm run typecheck` / `lint` / `build` | PASS — 17 routes, 0 lint problems |
+
+### Phase 9 end-to-end run, 2026-09-05 (production build, real session)
+
+Driven over HTTP against `next start` with a genuine `@supabase/ssr`
+session, so the routes, the proxy and RLS all applied. Throwaway account,
+deleted afterwards with its fixtures.
+
+| Check | Result |
+|-------|--------|
+| Spec worked example parses | PASS — "200g chicken, 150g rice, one tablespoon olive oil" → 3 proposals |
+| Every proposal matched a real food | PASS — all three resolved through the search fan-out |
+| Macros come from the food, not the model | PASS — each equals `match.nutrients.kcal × grams / 100` exactly |
+| Intent carries no nutrition key | PASS — every intent is exactly `{amount, query, unit}` |
+| "50g Dubai chocolate" is heard | PASS — query "Dubai chocolate", 50 g |
+| …and matched to the real product | PASS — J.D. Gross "Dubai chocolate", 531 kcal/100 g → **265.50 kcal** |
+| Correction reads the spec's example | PASS — "actually that was 250g, not 200g" → amount 250 g |
+| Preview computed from the stored row | PASS — 1327.5 kcal, matching 531 × 2.5 |
+| Correction writes nothing until confirmed | PASS — the entry still read 200 g afterwards |
+| Ambiguous correction | PASS — "more of a lunch than a snack" → `unclear`, no guess |
+| Assistant answers from the figures | PASS — quoted the 179 g protein remaining and the calories left |
+| Assistant stores the thread | PASS — both turns in `ai_messages` |
+| A question carrying a user id | PASS — 400 `identifier`, nothing left the machine |
+| Teardown | PASS — 4 test accounts and 2 fixture `foods` rows deleted |
+
+### Phase 9 with `GEMINI_API_KEY` unset, 2026-09-05
+
+The same production build, started with the key removed from the
+environment. This is the check that ARCHITECTURE invariant 3 is true.
+
+| Check | Result |
+|-------|--------|
+| Diary renders | PASS |
+| Diary still offers the manual search box | PASS |
+| Dashboard / Recipes / Weight render | PASS |
+| Manual food search | PASS — 29 foods returned |
+| `/api/ai/parse` | PASS — 503 `unconfigured`, message names the manual path |
+| Text carrying an email | PASS — 400 before any model call |
+| Unauthenticated call | PASS — 401 JSON, not a redirect |
+
+### Secret containment, 2026-09-05
+
+| Check | Result |
+|-------|--------|
+| `GEMINI_API_KEY` in `.next/static` | PASS — absent (and absent from `.next` entirely) |
+| `USDA_API_KEY` in `.next/static` | PASS — absent |
+| Gemini host referenced in client JS | PASS — absent |
+| System prompt in client JS | PASS — absent |
+| Positive control | PASS — a string from the new client component *is* in `.next/static`, so the grep proves something |
 
 ### Open Food Facts search relevance, 2026-09-05
 
