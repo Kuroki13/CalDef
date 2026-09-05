@@ -25,7 +25,7 @@ Last updated: 2026-09-05
 | 7 | 2-Month Cut phase mode | DONE |
 | 8 | Recipes, saved meals, favorites, barcode | DONE |
 | 9 | AI layer | DONE |
-| 10 | PWA, rate limiting, security hardening | TODO |
+| 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | TODO |
 
 ---
@@ -458,6 +458,50 @@ it unset.
 Two findings from the live API, both recorded under KNOWN ISSUES: the
 free-tier daily quota, and the search ordering that the AI path exposed.
 
+### Phase 10 — PWA, rate limiting, security hardening
+
+Verified 2026-09-05 against the production build, twice: with
+`GEMINI_API_KEY` present and with it unset.
+
+**Installable (spec §7).** Both iOS routes are provided because they are
+not the same route. `app/manifest.ts` covers iOS 17.4+; the
+`apple-touch-icon` link and the Apple meta tags cover everything older.
+Next emits only the standardised `mobile-web-app-capable`, so the legacy
+`apple-mobile-web-app-capable` is added by hand — without it an older
+iPhone installs the icon and opens it in a browser tab with the address
+bar showing, which is not an installed app. Found by reading the served
+HTML. `start_url` is `/dashboard`, since `/` redirects and an installed
+app that opens on a redirect shows a blank frame first.
+
+- Icons come from one SVG via `scripts/generate-icons.mjs`: 192, 512, a
+  maskable 512 with its mark inside the middle 80%, and a 180 apple-touch
+  icon flattened to opaque RGB and left unrounded, because iOS applies
+  its own mask and composites transparency onto black.
+
+**The service worker never caches a page.** Every page here is personal,
+so a cached one would leave someone's figures on disk and later show
+stale numbers as today's. Navigations are network-only with a fallback
+to a static `/offline` page that shows no data and says why. Only hashed
+`/_next/static` assets are cache-first; `/api/*` is untouched; non-GET
+is ignored.
+
+**Rate limiting protects the quota, not the route.** The three AI routes
+held three separate 10/min buckets — 30 requests a minute against a
+model whose free tier allows 15, with our limiter reporting everything
+fine while Gemini refused. They now also share a `gemini:` bucket, and
+search and barcode share a `food-providers:` one since both reach Open
+Food Facts. `rateLimitAll` consumes every bucket on every request,
+including refused ones, and publishes headers for whichever bucket is
+closest to refusing.
+
+- A rate-limited response is distinguishable from a failure: 429 with
+  `Retry-After` and `RateLimit-*`, plus `reason: "too-many-requests"` for
+  our limiter versus `rate-limited` for the provider's own quota.
+
+**Response headers** on every route: CSP, nosniff, referrer policy,
+frame denial, a permissions policy allowing only the camera the scanner
+needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
+
 ## TODO
 
 Phases 8–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
@@ -522,6 +566,26 @@ and is not restated here.
   for a PWA whose whole point is a JS runtime, but it means the
   no-JS fallback React renders for free is not actually functional here.
   Fix by defaulting to UTC server-side when the field is empty.
+- **The CSP allows `'unsafe-inline'` for scripts.** Next's App Router
+  inlines its bootstrap and the RSC payload in `<script>` tags, so
+  removing the allowance needs a per-request nonce threaded through the
+  proxy — the same function that refreshes the Supabase session, where
+  the SDK is explicit that nothing may run between creating the client
+  and reading the claims. Deferred deliberately rather than bolted on
+  while adding headers. Everything else is `'self'`, and `connect-src` is
+  `'self'` alone, so an injected script still cannot load a remote
+  payload or send anything anywhere.
+- **The CSP has not been observed in a browser.** It is asserted from the
+  response headers and reasoned about; there is no browser in this
+  environment to catch a violation the reasoning missed. Watch the
+  console on the first real device visit in Phase 11.
+- **The rate limiter is still per instance.** Unchanged from Phase 5 and
+  restated here because Phase 10 is where it was reviewed: serverless
+  instances share no memory, so on Vercel the effective limit is
+  per-instance and resets on a cold start. Adequate against a runaway
+  client loop, which is the actual risk for a single-user app; not a
+  defence against a distributed attacker, and it should not be described
+  as one.
 - **The Gemini free tier is measured in requests, and the ceiling is
   low.** `gemini-3.8-flash` allows **20 requests per day** — the 429 body
   names `GenerateRequestsPerDayPerProjectPerModel-FreeTier` with
@@ -598,6 +662,18 @@ and is not restated here.
 
 ## DECISIONS
 
+- **`connect-src` is `'self'` alone.** Settled 2026-09-05 while verifying
+  the headers. `lib/supabase/client.ts` is imported by nothing — every
+  read and write goes through a server component, a server action or a
+  route handler — so the browser reaches no external origin, and the
+  built client bundle contains neither the project URL nor the
+  publishable key. Naming the Supabase origin would have permitted a
+  request the app does not make.
+  - The consequence is deliberate and signposted: the first component to
+    import the browser client gets a CSP violation rather than a network
+    call. `lib/supabase/client.ts` carries the note saying so, and what
+    one line fixes it, at the place someone would trip over it.
+
 - **Email confirmation on signup: DISABLED.** Settled 2026-08-22 by the
   account owner, enacted in the dashboard and **confirmed live on
   2026-08-23**: a signup now returns a session immediately and the user
@@ -611,7 +687,12 @@ and is not restated here.
 
 ## BLOCKED / NEEDS ACCOUNT OWNER
 
-Nothing currently blocked.
+- **Enable leaked-password protection.** The only finding the Supabase
+  security advisor has ever returned, and the one thing in Phase 10 that
+  could not be done from here: it is a dashboard toggle with no
+  Management API equivalent exposed through MCP, so it needs the account
+  holder. Authentication → Policies → "Prevent use of leaked passwords".
+  Free, no plan change. Checks new passwords against HaveIBeenPwned.
 
 - **Email confirmation** — **RESOLVED 2026-08-23.** Toggle flipped; the
   full signed-in path is now verified (see TEST RESULTS).
@@ -663,6 +744,78 @@ Nothing currently blocked.
 | 2026-09-05 | `npm run test` (Phase 9) | PASS — 465 tests, 36 files |
 | 2026-09-05 | `npm run test:live` — Gemini | PASS — 7/7 on the pinned lite model |
 | 2026-09-05 | `npm run typecheck` / `lint` / `build` | PASS — 17 routes, 0 lint problems |
+| 2026-09-05 | `npm run test` (Phase 10) | PASS — 473 tests, 37 files |
+| 2026-09-05 | `npm run build` (Phase 10) | PASS — 19 routes incl. `/offline` and `/manifest.webmanifest` |
+
+### Phase 10 install path, 2026-09-05
+
+The tap on a real iPhone is the one thing not verified here — there is no
+device in this environment, and it is scheduled for Phase 11 alongside the
+barcode camera, which has been waiting for the same reason. Everything the
+tap depends on **is** verified, against the served bytes rather than the
+source.
+
+| Check | Result |
+|-------|--------|
+| Manifest served as `application/manifest+json` | PASS |
+| `display: standalone` | PASS |
+| `start_url` is a real page, not a redirect | PASS — `/dashboard` |
+| Maskable icon declared | PASS |
+| Every icon is a real PNG at its stated size | PASS — 192², 512², maskable 512², apple-touch 180² |
+| `<link rel="manifest">` in the served HTML | PASS |
+| `<link rel="apple-touch-icon">` | PASS |
+| `apple-mobile-web-app-capable` (iOS < 17.4) | PASS — added by hand; Next does not emit it |
+| `mobile-web-app-capable` (iOS 17.4+) | PASS |
+| `apple-mobile-web-app-title` | PASS — home-screen name is "CalDef" |
+| `theme-color` and `viewport-fit=cover` | PASS |
+| Service worker served signed out, as JavaScript | PASS — the redirect that broke this is fixed |
+| Service worker not cached | PASS — `no-store` |
+| `/offline` reachable signed out, no redirect | PASS |
+
+### Phase 10 headers and rate limiting, 2026-09-05
+
+| Check | Result |
+|-------|--------|
+| `Content-Security-Policy` | PASS — `default-src 'self'`, `connect-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'` |
+| `X-Content-Type-Options` | PASS — nosniff |
+| `Referrer-Policy` | PASS — strict-origin-when-cross-origin |
+| `X-Frame-Options` | PASS — DENY |
+| `Permissions-Policy` | PASS — `camera=(self)`, everything else denied |
+| `Strict-Transport-Security` | PASS — one year, includeSubDomains |
+| Headers apply to authenticated pages too | PASS |
+| Rate-limit headers on a normal response | PASS — limit 30, remaining 29 |
+| Search refuses past its limit | PASS — 429 |
+| Refusal is distinguishable from a failure | PASS — `reason: "too-many-requests"`, `Retry-After: 43` |
+| Refusal reports zero remaining | PASS |
+| Shared Gemini bucket binds across routes | PASS — 6 parse + 6 chat, then the 13th refused though neither route hit its own 10 |
+| Provider not called once refused | PASS |
+| Buckets are per user | PASS |
+
+### Phase 10 security re-verification, 2026-09-05
+
+| Check | Result |
+|-------|--------|
+| Supabase security advisors | 1 WARN — leaked-password protection (see BLOCKED). No RLS findings. |
+| Supabase performance advisors | 10 INFO `unused_index` only, expected with near-zero traffic |
+| RLS structural check | PASS — 20/20 tables, RLS enabled, exactly 4 policies each (one per command) |
+| RLS read isolation | PASS — all 20 tables; B sees only its own profile and the shared rows |
+| RLS write isolation | PASS — every cross-user update/delete affected 0 rows; own profile 1 |
+| RLS forged ownership | PASS — forged `weight_entries`, `goals`, `recipes`, `favorite_foods` all rejected |
+| RLS forged parentage | PASS — ingredient, saved-meal item and AI message into another user's parent all rejected |
+| Anon access | PASS — denied on all 20 tables |
+| `GEMINI_API_KEY` / `USDA_API_KEY` in client JS | PASS — absent from `.next/static` |
+| Gemini host, USDA host, system prompt in client JS | PASS — absent |
+| `service_role` in the codebase | PASS — one mention, in a comment saying it is never used |
+| Positive control | PASS — a client-component string *is* in `.next/static` |
+
+### Phase 10 with `GEMINI_API_KEY` unset, 2026-09-05
+
+| Check | Result |
+|-------|--------|
+| Dashboard, diary, weight, phase, recipes, assistant, settings | PASS — all 200 |
+| Manual food search | PASS — 15 foods |
+| `/api/ai/parse` | PASS — 503 `unconfigured`, message names the manual path |
+| `/api/ai/chat` | PASS — 503 `unconfigured`, message names the manual path |
 
 ### Phase 9 end-to-end run, 2026-09-05 (production build, real session)
 
