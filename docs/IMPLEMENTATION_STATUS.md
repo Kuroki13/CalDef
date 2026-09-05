@@ -7,7 +7,7 @@ true.
 A feature belongs under DONE only if it was **tested and verified**, not
 merely written. "It compiles" is not done.
 
-Last updated: 2026-08-23
+Last updated: 2026-09-05
 
 ---
 
@@ -188,11 +188,25 @@ Verified end to end against the live APIs and the real database on
   numeric ids rather than names. A row missing energy has it derived from
   its macros; a row with neither is dropped rather than logged as zero.
   Only Foundation and SR Legacy are marked verified.
-- `off.ts` — v3 for barcode lookup as the spec directs, v2 for search
-  because v3 has no search endpoint. Nothing from here is ever marked
-  verified. Sodium is converted from g to mg. A product with no energy
-  value, or a serving whose gram weight will not parse, is skipped rather
-  than guessed.
+- `off.ts` — v3 for barcode lookup as the spec directs, `/cgi/search.pl`
+  for search. Nothing from here is ever marked verified. Sodium is
+  converted from g to mg. A product with no energy value, or a serving
+  whose gram weight will not parse, is skipped rather than guessed.
+  - **Search endpoint corrected 2026-09-05.** It previously called
+    `/api/v2/search`, which filters on tags and *ignores* a parameter it
+    does not recognise instead of rejecting it. `search_terms` was
+    therefore dropped on every query and the call returned page 1 of the
+    unfiltered database — the same arbitrary products regardless of what
+    was typed. Reported by the account owner: "dubai" returned Sidi Ali
+    water and Jaouda yoghurt. `/cgi/search.pl` reads `search_terms` and
+    returns the same response shape, so the mapping was unchanged.
+  - The regression is covered twice, because neither test catches it
+    alone: `off.test.ts` asserts the request URL is `/cgi/search.pl` and
+    carries the term (a mocked fetch returns its fixture whatever URL it
+    is given, so only the URL assertion has any force), and the live
+    suite asserts that "dubai" returns products naming it, or none.
+    Accent-folded — the matches are largely French and German and spell
+    it "Dubaï", which the first version of the test wrongly rejected.
 - `cache.ts` — reads and writes `foods` / `food_servings` /
   `food_nutrients`. Cache search matches each whitespace/comma-separated
   term independently rather than the whole query as one substring:
@@ -370,9 +384,12 @@ and is not restated here.
   number computed from today's weight and expenditure onto a date weeks
   away, which then read back stale when it arrived. Fixed: only *today*
   is written; past and future dates are computed and shown, never
-  stored. The five rows already written for that account remain — they
-  are harmless, but any dated later than the day they were created will
-  read as stale rather than recomputing.
+  stored. **Cleaned up 2026-09-05**: four of those five rows were deleted.
+  The one that remains (`2026-08-23`) was created on the date it carries,
+  so it is a real target for a real day, not a frozen future one — there
+  is no stale row left in the table. Verified by querying `daily_targets`
+  directly: the account now holds that row plus one for today, both
+  written on the day they cover.
 - **The barcode camera UI is unverified and must stay that way until
   Phase 11.** `getUserMedia` requires a secure context, so the scanner
   works at `http://localhost:3000` on desktop but cannot work from a
