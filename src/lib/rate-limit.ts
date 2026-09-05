@@ -37,14 +37,39 @@ export type RateLimitOptions = {
   windowMs: number;
 };
 
-/** Sensible defaults per route class. */
+/**
+ * Sensible defaults per route class.
+ *
+ * These sit *below* the quota each one is protecting, not at it, because the
+ * limiter is per instance (see the note at the top of this file) and because
+ * a user who has hit our limit should see our message rather than the
+ * provider's.
+ */
 export const RATE_LIMITS = {
   /** Search hits USDA and OFF, whose quotas we are a guest of. */
   foodSearch: { limit: 30, windowMs: 60_000 },
   /** Barcode scanning is bursty by nature — a camera fires repeatedly. */
   barcode: { limit: 60, windowMs: 60_000 },
-  /** Gemini's free tier is the tightest budget in the system. */
+  /** Per AI route, so one runaway screen cannot starve the others. */
   ai: { limit: 10, windowMs: 60_000 },
+  /**
+   * Every Gemini call, whichever route made it.
+   *
+   * Without this the three AI routes held three separate 10/min buckets, so
+   * a client looping across all of them could make 30 requests a minute
+   * against a model whose free tier allows 15 — our limiter would have
+   * reported everything fine while the provider refused. The number is what
+   * the upstream quota actually is, minus headroom for a retry.
+   */
+  gemini: { limit: 12, windowMs: 60_000 },
+  /**
+   * Every outbound call to a food provider, whichever route made it.
+   *
+   * Search and barcode both reach Open Food Facts, a community-run service
+   * with no paid tier to fall back on. 30 + 60 per minute from one user is
+   * not a reasonable thing to ask of it.
+   */
+  foodProviders: { limit: 60, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitOptions>;
 
 /**
@@ -98,6 +123,44 @@ export function rateLimitHeaders(
     headers["Retry-After"] = String(result.retryAfterSeconds);
   }
   return headers;
+}
+
+/**
+ * Consumes from several buckets at once and reports the tightest.
+ *
+ * A route is usually limited twice: once for itself, and once for the
+ * upstream quota it shares with other routes. Both counters must move on
+ * every request — including a refused one, since a fixed window that only
+ * counts successes is a window a caller can walk straight through.
+ *
+ * The headers describe whichever bucket has least left, because that is the
+ * one the caller will hit next and the only honest number to publish.
+ */
+export function rateLimitAll(
+  checks: ReadonlyArray<{ key: string; options: RateLimitOptions }>,
+  now: number = Date.now(),
+): { allowed: boolean; result: RateLimitResult; limit: number } {
+  const consumed = checks.map((check) => ({
+    result: rateLimit(check.key, check.options, now),
+    limit: check.options.limit,
+  }));
+
+  const tightest = consumed.reduce((worst, current) =>
+    // A refusal always wins; otherwise the one closest to refusing.
+    current.result.allowed === worst.result.allowed
+      ? current.result.remaining < worst.result.remaining
+        ? current
+        : worst
+      : current.result.allowed
+        ? worst
+        : current,
+  );
+
+  return {
+    allowed: consumed.every((c) => c.result.allowed),
+    result: tightest.result,
+    limit: tightest.limit,
+  };
 }
 
 function evictExpired(now: number): void {

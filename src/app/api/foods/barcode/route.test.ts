@@ -86,7 +86,9 @@ describe("GET /api/foods/barcode", () => {
   });
 
   it("degrades to 503 rather than leaking a provider failure", async () => {
-    lookupBarcode.mockRejectedValue(new Error("ECONNRESET at https://x/?key=s3cret"));
+    lookupBarcode.mockRejectedValue(
+      new Error("ECONNRESET at https://x/?key=s3cret"),
+    );
 
     const response = await call("?code=3017624010701");
     const body = await response.json();

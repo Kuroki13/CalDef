@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { lookupBarcode } from "@/lib/food/registry";
-import { RATE_LIMITS, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { RATE_LIMITS, rateLimitAll, rateLimitHeaders } from "@/lib/rate-limit";
 import { getUserId } from "@/lib/supabase/server";
 
 /**
@@ -16,7 +16,10 @@ import { getUserId } from "@/lib/supabase/server";
 const paramsSchema = z.object({
   // Matches the `foods.barcode` column constraint exactly, so anything this
   // route accepts is something the database will also accept.
-  code: z.string().trim().regex(/^[0-9]{6,14}$/, "That is not a barcode."),
+  code: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{6,14}$/, "That is not a barcode."),
 });
 
 export async function GET(request: NextRequest) {
@@ -25,11 +28,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const limit = rateLimit(`barcode:${userId}`, RATE_LIMITS.barcode);
-  const headers = rateLimitHeaders(limit, RATE_LIMITS.barcode.limit);
+  // This route's own bucket, plus the one every outbound provider call
+  // shares. Search and barcode both reach Open Food Facts, which is
+  // community-run and has no paid tier to fall back on.
+  const limit = rateLimitAll([
+    { key: `barcode:${userId}`, options: RATE_LIMITS.barcode },
+    { key: `food-providers:${userId}`, options: RATE_LIMITS.foodProviders },
+  ]);
+  const headers = rateLimitHeaders(limit.result, limit.limit);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: "Too many lookups. Try again shortly." },
+      {
+        error: "Too many lookups. Try again shortly.",
+        reason: "too-many-requests",
+      },
       { status: 429, headers },
     );
   }

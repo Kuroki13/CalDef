@@ -4,7 +4,7 @@ import { z } from "zod";
 import { resolveIntents } from "@/lib/ai/resolve";
 import { toFoodText } from "@/lib/llm/food-text";
 import { llmForCurrentUser } from "@/lib/llm";
-import { RATE_LIMITS, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { RATE_LIMITS, rateLimitAll, rateLimitHeaders } from "@/lib/rate-limit";
 import { getUserId } from "@/lib/supabase/server";
 
 /**
@@ -30,11 +30,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const limit = rateLimit(`ai-parse:${userId}`, RATE_LIMITS.ai);
-  const headers = rateLimitHeaders(limit, RATE_LIMITS.ai.limit);
+  // Two buckets: this route's own, and the one every Gemini call shares.
+  // Without the second, three routes at 10/min each could make 30 requests a
+  // minute against a model whose free tier allows 15.
+  const limit = rateLimitAll([
+    { key: `ai-parse:${userId}`, options: RATE_LIMITS.ai },
+    { key: `gemini:${userId}`, options: RATE_LIMITS.gemini },
+  ]);
+  const headers = rateLimitHeaders(limit.result, limit.limit);
   if (!limit.allowed) {
+    // `reason` distinguishes our own limiter from the provider's, which also
+    // answers 429 — see the note on `rate-limited` in lib/llm/types.ts.
     return NextResponse.json(
-      { error: "Too many requests. Try again shortly." },
+      {
+        error: "Too many requests. Try again shortly.",
+        reason: "too-many-requests",
+      },
       { status: 429, headers },
     );
   }

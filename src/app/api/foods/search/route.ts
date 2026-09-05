@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { searchFoods } from "@/lib/food/registry";
 import { describeDegradation } from "@/lib/food/registry";
-import { RATE_LIMITS, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { RATE_LIMITS, rateLimitAll, rateLimitHeaders } from "@/lib/rate-limit";
 import { getUserId } from "@/lib/supabase/server";
 
 /**
@@ -30,11 +30,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const limit = rateLimit(`food-search:${userId}`, RATE_LIMITS.foodSearch);
-  const headers = rateLimitHeaders(limit, RATE_LIMITS.foodSearch.limit);
+  // This route's own bucket, plus the one every outbound provider call
+  // shares. Search and barcode both reach Open Food Facts, which is
+  // community-run and has no paid tier to fall back on.
+  const limit = rateLimitAll([
+    { key: `food-search:${userId}`, options: RATE_LIMITS.foodSearch },
+    { key: `food-providers:${userId}`, options: RATE_LIMITS.foodProviders },
+  ]);
+  const headers = rateLimitHeaders(limit.result, limit.limit);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: "Too many searches. Try again shortly." },
+      {
+        error: "Too many searches. Try again shortly.",
+        reason: "too-many-requests",
+      },
       { status: 429, headers },
     );
   }
