@@ -96,6 +96,19 @@ describe("offProvider.search", () => {
     expect((await offProvider.search({ text: "x" })).foods).toEqual([]);
   });
 
+  it("sends the search term to the endpoint that honours it", async () => {
+    const fetchMock = mockFetch({ products: [] });
+    await offProvider.search({ text: "dubai" });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    // `/api/v2/search` filters on tags and ignores `search_terms` instead of
+    // rejecting it, so querying it returned page 1 of the whole database —
+    // products unrelated to anything the user typed.
+    expect(url.pathname).toBe("/cgi/search.pl");
+    expect(url.searchParams.get("search_terms")).toBe("dubai");
+    expect(url.searchParams.get("json")).toBe("1");
+  });
+
   it("identifies the app in the User-Agent, as OFF asks", async () => {
     const fetchMock = mockFetch({ products: [] });
     await offProvider.search({ text: "x" });

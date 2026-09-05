@@ -88,4 +88,38 @@ describe("Open Food Facts, live", () => {
     }
     expect(result.foods.some((f) => f.nutrients.kcal > 0)).toBe(true);
   }, 20_000);
+
+  /**
+   * Regression: search once returned products matched to nothing the user
+   * typed — "dubai" produced Moroccan bottled water and yoghurt — because
+   * the v2 endpoint ignores `search_terms` rather than rejecting it. Nothing
+   * in a mocked suite can catch that, since the mock returns whatever it is
+   * handed regardless of the URL.
+   *
+   * The assertion is deliberately one-sided. Zero results is a legitimate
+   * answer; results unrelated to the query are not, because they look like
+   * real answers and get logged as food.
+   */
+  it("returns products matching the query, or none at all", async () => {
+    const result = await offProvider.search({ text: "dubai", limit: 10 });
+    if (!result.ok) return; // Upstream outage; the assertion above covers it.
+
+    // Accent-folded, because the products that match are largely French and
+    // German and spell it "Dubaï".
+    const fold = (s: string) =>
+      s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase();
+
+    const unrelated = result.foods.filter(
+      (f) => !fold(`${f.name} ${f.brand ?? ""}`).includes("dubai"),
+    );
+
+    expect(
+      unrelated.map((f) => f.name),
+      "Open Food Facts returned products unrelated to the search term. " +
+        "Check that the search endpoint still honours `search_terms`.",
+    ).toEqual([]);
+  }, 20_000);
 });

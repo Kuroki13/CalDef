@@ -7,8 +7,13 @@ import "server-only";
  * supermarket items. No key required.
  *
  * Barcode lookup uses API v3, as the spec directs for new integrations.
- * Search stays on v2, because v3 exposes product reads and writes but no
- * search endpoint — v2 `/api/v2/search` is still the supported way to query.
+ *
+ * Search uses the legacy `/cgi/search.pl` endpoint, which is the only Open
+ * Food Facts endpoint that honours a free-text `search_terms`. `/api/v2/search`
+ * accepts tag filters only; it does not reject an unknown parameter, it
+ * ignores it — so `search_terms=dubai` there returned the unfiltered database
+ * (count 4.7 million, page 1) rather than an error. See the note in
+ * `runSearch`.
  *
  * The data is community-contributed and photographed off packaging. Every
  * food from here is returned unverified, and the caller is expected to show
@@ -86,9 +91,26 @@ export const offProvider: FoodProvider = {
   },
 };
 
+/**
+ * Full-text product search.
+ *
+ * `/cgi/search.pl` rather than `/api/v2/search`, because only the former
+ * honours `search_terms`. v2 filters on tags (`categories_tags`,
+ * `brands_tags`, …) and silently discards parameters it does not recognise,
+ * so the v2 call this replaced returned page 1 of the entire database on
+ * every query — searching "dubai" produced Moroccan bottled water and
+ * yoghurt, matched to nothing the user typed. Unrelated results are worse
+ * than none: they look like real answers.
+ *
+ * `search_simple=1&action=process` is the form the endpoint documents for a
+ * one-term query; `json=1` selects the JSON response over the HTML page.
+ */
 async function runSearch({ text, limit = 15 }: FoodSearchQuery): Promise<Food[]> {
-  const url = new URL(`${BASE}/api/v2/search`);
+  const url = new URL(`${BASE}/cgi/search.pl`);
   url.searchParams.set("search_terms", text);
+  url.searchParams.set("search_simple", "1");
+  url.searchParams.set("action", "process");
+  url.searchParams.set("json", "1");
   url.searchParams.set("fields", FIELDS);
   url.searchParams.set("page_size", String(Math.min(limit, 50)));
 
