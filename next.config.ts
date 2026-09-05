@@ -19,16 +19,6 @@ import type { NextConfig } from "next";
  * another origin.
  */
 
-const supabaseOrigin = (() => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url) return "";
-  try {
-    return new URL(url).origin;
-  } catch {
-    return "";
-  }
-})();
-
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -37,11 +27,22 @@ const csp = [
   // scanner's camera frames.
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  // The only place the browser is allowed to send data. Supabase is named
-  // because the browser client talks to it directly; Gemini and USDA are
-  // absent on purpose, since those are server-only and a browser request to
-  // them would mean a key had leaked.
-  `connect-src 'self' ${supabaseOrigin} ${supabaseOrigin.replace("https://", "wss://")}`.trim(),
+  /**
+   * The only place the browser may send data — and it is nowhere but here.
+   *
+   * Supabase is deliberately absent. `lib/supabase/client.ts` exists but is
+   * imported by nothing: every read and write goes through a server
+   * component, a server action or a route handler, so the browser never
+   * talks to Supabase, Gemini or USDA directly. Confirmed by grepping the
+   * built client bundle, which contains neither the project URL nor the
+   * publishable key.
+   *
+   * If a browser-side Supabase feature is ever added — realtime, say — this
+   * line has to gain the project origin and its `wss://` form, and
+   * `lib/supabase/client.ts` carries a note saying so at the point someone
+   * would trip over it.
+   */
+  "connect-src 'self'",
   "media-src 'self' blob:",
   "worker-src 'self'",
   "manifest-src 'self'",
