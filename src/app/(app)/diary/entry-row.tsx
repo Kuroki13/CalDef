@@ -7,6 +7,7 @@ import {
   updateEntryAmount,
   type DiaryActionState,
 } from "@/app/(app)/diary/actions";
+import { toggleFavoriteAction } from "@/app/(app)/recipes/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { DiaryEntry } from "@/lib/diary";
@@ -66,6 +67,30 @@ export function EntryRow({ entry }: { entry: DiaryEntry }) {
           <span className="text-sm tabular-nums">
             {Math.round(entry.kcal)} kcal
           </span>
+          {/* A recipe entry has no single food, so there is nothing to star. */}
+          {entry.foodId !== null ? (
+            <form action={toggleFavoriteAction}>
+              <input type="hidden" name="foodId" value={entry.foodId} />
+              <input
+                type="hidden"
+                name="favorite"
+                value={String(entry.isFavorite)}
+              />
+              <Button
+                type="submit"
+                size="sm"
+                variant="ghost"
+                aria-label={
+                  entry.isFavorite
+                    ? `Unstar ${entry.foodName}`
+                    : `Star ${entry.foodName}`
+                }
+                aria-pressed={entry.isFavorite}
+              >
+                {entry.isFavorite ? "★" : "☆"}
+              </Button>
+            </form>
+          ) : null}
           <Button
             type="button"
             size="sm"

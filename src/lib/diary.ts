@@ -10,6 +10,7 @@ import "server-only";
  */
 
 import { type IsoDate } from "@/lib/dates";
+import { getFavoriteFoodIds } from "@/lib/favorites";
 import {
   type MacroTotals,
   ZERO_MACROS,
@@ -34,6 +35,9 @@ export type DiaryEntry = MacroTotals & {
   foodName: string;
   foodBrand: string | null;
   servingLabel: string | null;
+  /** Null for a recipe-backed entry, which has no single food to star. */
+  foodId: number | null;
+  isFavorite: boolean;
 };
 
 export type DiaryDay = {
@@ -61,18 +65,19 @@ export async function getMealTypes(): Promise<MealType[]> {
 export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
   const supabase = await createClient();
 
-  const [entriesResult, mealTypes] = await Promise.all([
+  const [entriesResult, mealTypes, favoriteIds] = await Promise.all([
     supabase
       .from("food_logs")
       .select(
-        `id, meal_type_id, amount, unit, grams, kcal, protein_g, carbs_g,
-         fat_g, source, notes, created_at,
+        `id, meal_type_id, food_id, amount, unit, grams, kcal, protein_g,
+         carbs_g, fat_g, source, notes, created_at,
          foods ( name, brand ),
          food_servings ( label )`,
       )
       .eq("log_date", date)
       .order("created_at", { ascending: true }),
     getMealTypes(),
+    getFavoriteFoodIds(),
   ]);
 
   if (entriesResult.error) throw new Error(entriesResult.error.message);
@@ -94,6 +99,8 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
     foodName: row.foods?.name ?? row.notes ?? "Logged item",
     foodBrand: row.foods?.brand ?? null,
     servingLabel: row.food_servings?.label ?? null,
+    foodId: row.food_id,
+    isFavorite: row.food_id !== null && favoriteIds.has(row.food_id),
   }));
 
   return {
