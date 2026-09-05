@@ -3,8 +3,23 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env";
 
-/** Routes reachable without a session. Everything else redirects to /login. */
-const PUBLIC_PREFIXES = ["/login", "/signup", "/auth", "/manifest", "/icons"];
+/**
+ * Routes reachable without a session. Everything else redirects to /login.
+ *
+ * `/sw.js` and `/offline` are here for the PWA, and their absence was a real
+ * bug rather than a nicety: a signed-out request for the worker script got a
+ * 307 to an HTML page, so registration failed on its MIME type, and the
+ * worker's install-time precache of `/offline` would have stored the login
+ * page under that URL and served it later as the offline screen.
+ */
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/signup",
+  "/auth",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/offline",
+];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PREFIXES.some(
