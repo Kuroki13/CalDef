@@ -26,7 +26,7 @@ Last updated: 2026-09-05
 | 8 | Recipes, saved meals, favorites, barcode | DONE |
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
-| 11 | Acceptance pass and Vercel deploy | TODO |
+| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — audit done, deploy not started |
 
 ---
 
@@ -558,7 +558,10 @@ and is not restated here.
   shared `foods` rows their fixtures wrote. The 2026-08-10 note claiming the
   database held "only the 4 seeded `meal_types` rows" was already stale
   when written — this user was created shortly afterwards.
-- **The onboarding form does not work without JavaScript.** `timezone` is
+- ~~**The onboarding form does not work without JavaScript.**~~
+  **RESOLVED 2026-09-05** in the acceptance audit — it defaults to UTC,
+  and settings now re-syncs the timezone from the browser so a wrong
+  default can be corrected. Original note kept for the reasoning: `timezone` is
   a hidden input populated on the client from
   `Intl.DateTimeFormat().resolvedOptions()`, so a no-JS submission sends
   it empty and fails validation. Noticed while driving the form through
@@ -566,6 +569,21 @@ and is not restated here.
   for a PWA whose whole point is a JS runtime, but it means the
   no-JS fallback React renders for free is not actually functional here.
   Fix by defaulting to UTC server-side when the field is empty.
+- **The one spec item that is not implemented: custom user foods.**
+  `PRODUCT_SPEC.md` §4 lists them as a search source, and the schema
+  anticipates them — `foods` has a `foods_custom_requires_owner` check —
+  but no code path can create one, because `cacheFood` is the only writer
+  of `foods` and it never sets `user_id`. Nothing in the UI offers the
+  feature, so there is no broken button; it is simply absent. Building it
+  needs an owner-scoped insert path and a form, and it is a product call
+  rather than a defect fix, so it is listed here rather than quietly
+  added. Everything else in §10's acceptance list is implemented and
+  verified.
+- **The PWA install tap and the barcode camera are still unverified.**
+  Both need a physical iPhone, which this environment does not have.
+  Everything either depends on is verified against the served bytes and
+  the server path respectively; what remains is the on-device gesture.
+  Do both on the first real-device visit after the deploy.
 - **The CSP allows `'unsafe-inline'` for scripts.** Next's App Router
   inlines its bootstrap and the RSC payload in `<script>` tags, so
   removing the allowance needs a per-request nonce threaded through the
@@ -746,6 +764,163 @@ and is not restated here.
 | 2026-09-05 | `npm run typecheck` / `lint` / `build` | PASS — 17 routes, 0 lint problems |
 | 2026-09-05 | `npm run test` (Phase 10) | PASS — 473 tests, 37 files |
 | 2026-09-05 | `npm run build` (Phase 10) | PASS — 19 routes incl. `/offline` and `/manifest.webmanifest` |
+
+### Acceptance criteria, verified 2026-09-05
+
+Every item in `PRODUCT_SPEC.md` §10, with how it was checked. "HTTP"
+means driven over the wire against `next start` with a real Supabase
+session cookie; "lib" means the real modules called with a real session
+so RLS applies; "unit" means the committed suite.
+
+| Criterion | How | Result |
+|-----------|-----|--------|
+| Signup / login / logout | HTTP | PASS — session returned immediately, profile auto-created, sign-out returns to `/login` |
+| Authorization | HTTP | PASS — signed-out pages 307 to login, API routes 401 JSON, unknown path 404s in-app |
+| RLS on every table | SQL | PASS — 20/20 tables, RLS on, 80 policies; read, write, forged-ownership and forged-parentage all denied; anon denied on all 20 |
+| Food search | HTTP | PASS — 36 results merged from cache, USDA and OFF |
+| USDA provider | HTTP | PASS — verified generic foods returned |
+| Open Food Facts provider | HTTP | PASS — branded results, never marked verified |
+| Food caching | HTTP | PASS — a cached food ranks first for a query naming it |
+| Servings | lib | PASS — 2 × "1 fillet (172 g)" resolved to 344 g |
+| Unit conversion | lib | PASS — and a serving amount with no serving is refused, not guessed |
+| Diary | HTTP + lib | PASS |
+| Daily totals | lib | PASS — 2100 kcal, 160 g protein from stored rows |
+| Macros | HTTP | PASS — and the split never exceeds the target |
+| Editing / deleting food | lib | PASS — 200 g → 250 g recomputed to 412.5 kcal from the nutrient row; serving amend to 100 g; delete removes the entry |
+| Saved meals | lib | PASS — logs as two separate entries |
+| Recipes | lib | PASS — logs as one entry, nutrition divided by servings |
+| Favourites | lib | PASS — star, list, unstar |
+| Barcode lookup | HTTP | PASS — real product resolves; unknown code 404s with a body; malformed code 400s |
+| Weight entry | lib | PASS |
+| Weight trend | lib | PASS — 104.49 kg latest, 105.86 kg trend; the trend lags, as smoothing should |
+| Adaptive TDEE | lib | PASS — 3123.7 kcal, adaptive, high confidence on 56 days |
+| Weekly check-in | lib | PASS |
+| Goal projection | lib | PASS — "At this pace 90 kg is about 18 weeks away" |
+| 2-Month Cut: feasibility engine | unit + lib | PASS — both spec 8.2 worked examples |
+| 2-Month Cut: rate guardrails | unit | PASS — swept across every weight and expenditure |
+| 2-Month Cut: milestones | lib | PASS — START + W1..W8, and future rows rebase onto the trend |
+| 2-Month Cut: four-line graph | lib | PASS — 56 points; actual and trend stop at today, recommended and stretch span the phase |
+| 2-Month Cut: checkpoints | lib | PASS — days 1, 7, 14, 28, 42, 56 |
+| 2-Month Cut: day-56 report | lib | PASS — 5.31% bodyweight lost, 0.756 kg/week average, 56-day streak, Phase 2 proposed |
+| AI food parsing | HTTP | PASS — three proposals, macros from the matched food, no nutrition on the intent |
+| AI correction | HTTP | PASS — "actually that was 250g" previews without writing |
+| AI assistant | HTTP | PASS |
+| With `GEMINI_API_KEY` unset | HTTP | PASS — 19/19; every page renders, search and barcode work, AI controls are absent rather than broken, routes 503 `unconfigured` |
+| Error handling | HTTP | PASS — 404 renders in-app; four boundaries added this pass |
+| Mobile layout | HTTP | PASS — sidebar hidden below `md`, bottom tab bar shown, content padded clear of it, `viewport-fit=cover` |
+| PWA install | HTTP | PASS on everything the tap depends on; **the tap itself is unverified** — see KNOWN ISSUES |
+| Rate limiting | HTTP + unit | PASS — 429 with `Retry-After`, `reason: "too-many-requests"`, and the shared upstream bucket binds across routes |
+| Privacy / data minimization | unit | PASS — every request body asserted against a battery of real personal data, by value and by shape |
+| API-secret security | build | PASS — neither key, neither provider host, nor the system prompts appear in `.next/static`; a client string does |
+| TypeScript | `tsc --noEmit` | PASS |
+| Lint | `eslint` | PASS — 0 problems |
+| Tests | `vitest run` | PASS — 489 tests, 40 files |
+| Production build | `next build` | PASS — 20 routes |
+| No TODO/FIXME/placeholder/mock/fake/hardcoded data | grep | PASS — none in shipped paths |
+| No unimplemented buttons | grep + audit | PASS — two found and fixed this pass |
+
+**Starvation-level targets.** No path can produce one.
+`safety.property.test.ts` sweeps `dailyTargetFor` and `recommendPlan`
+across 8 weights × 8 expenditures × 4 goal types × 6 protein settings ×
+5 targets × 6 windows and asserts every result sits at or above
+`max(1200, 60% of expenditure)`. `daily_targets.calories` carries a
+`check (calories between 800 and 10000)` as a structural backstop that
+should never be what stops a bad number.
+
+**The 90 kg goal is never an 8-week prescription.** `assessTarget`
+reports it honestly as unachievable (implied intake ~359 kcal);
+`recommendPlan` caps the rate at the top of the recommended band and
+floors the calories regardless of the ask; the phase stores the four
+concepts separately; and the dashboard states the goal as a date at the
+current pace.
+
+**Gemini receives only food text.** `privacy.test.ts` captures every
+request body the provider produces across all three call paths and
+asserts that an email, a user id, a display name, a birth date, an
+address, a phone number, a JWT and the Supabase key prefixes appear in
+none of them — and that nothing email-, UUID- or JWT-shaped survives
+whatever its value. The correction prompt is asserted as an exact
+string; the figures render from a fixed label list, so a field added to
+`AnonymousFigures` cannot start being sent without someone writing its
+label.
+
+### Acceptance audit, 2026-09-05
+
+A hostile pass over every requirement in `PRODUCT_SPEC.md` §10, run as
+though another team had built this. Findings were fixed, not merely
+listed; each fix is its own commit.
+
+**Eleven defects found and fixed.**
+
+Safety, from an adversarial grid over every weight, expenditure, goal
+type, protein setting, target and window:
+
+1. `recommendPlan` skipped the calorie floor on its maintenance branch,
+   so an expenditure estimate below 1200 kcal printed a sub-floor
+   target — while `dailyTargetFor` floored that identical situation.
+   Two paths disagreeing about the same day, and the disagreeing one was
+   the path used inside a cut phase.
+2. `macroTargets` could allocate more energy than the target contained.
+   `protein_g_per_kg` accepts up to 4.0 and bodyweight-derived protein
+   grows at roughly the rate the floor does, so a heavy user at a high
+   setting could ask for more protein energy than the whole target held.
+   It answered by zeroing carbohydrate and pushing fat below the 20%
+   floor its own doc promised. Fat now keeps its floor; protein is
+   capped at what remains.
+3. `RecommendedPlan.projectedGoalDate` was declared, documented and
+   `null` on every path, read by nothing.
+
+Correctness and completeness:
+
+4. The phase graph plotted 57 points for a 56-day phase, and the stretch
+   line therefore reached its goalpost one day after the phase ended.
+5. The milestone table rendered week 0 as a bare "0" in a Week column.
+6. **Nothing recomputed the milestones.** Spec 8.5 says they are
+   estimates recomputed as real data arrives and `milestones.ts`
+   documents them as bending with the trend; the ladder stayed frozen at
+   the rate set on day one. `rebaseFutureMilestones` now runs on each
+   weigh-in, rebasing future rows onto the current trend and leaving past
+   rows as the record of what was projected at the time.
+7. **There were no error boundaries at all.** Every `src/lib` module
+   throws on a Supabase failure, and this runs on a free plan that pauses
+   after a quiet week. Added `(app)/error.tsx`, `error.tsx`,
+   `global-error.tsx` and `not-found.tsx`.
+8. The diary offered a "Describe a meal" box and an Amend control gated
+   on the user's AI switch but not on whether a model key exists — so a
+   deployment without one showed controls that could only ever answer
+   "not configured". The acceptance criteria forbid unimplemented
+   buttons and these were two.
+9. **An open-redirect bypass on the post-login hop.** `?next=` was
+   guarded with "starts with `/`, not `//`", which misses `/\evil.example`
+   — browsers normalise the backslash and navigate off-site. Replaced
+   with a whole-value path match in `lib/safe-redirect.ts`.
+10. Onboarding did not work without JavaScript (a known issue carried
+    across four phases with its own fix written down and never applied),
+    and the timezone it defaulted could not be corrected afterwards
+    because settings never exposed the field. Settings now re-syncs it
+    from the browser on every save. Settings was also missing
+    onboarding's 13–120 age range, so an out-of-range date reached the
+    column check and showed a raw Postgres message as guidance.
+11. `deleteConversation` was written, documented as letting the owner
+    delete what they had asked, and never wired up. Also removed two
+    genuinely dead exports (`recomputeMilestones`, `resolveToCachedId`).
+
+**Two things fixed that were about the suite rather than the app.** The
+live provider suite failed when Open Food Facts was merely overloaded —
+confirmed by hand as a 503 — which is the shape of a test people learn to
+ignore. It now reports and skips that specific condition, as the Gemini
+quota case already did. The retry backoff behind it was also too short to
+help: 150 ms retried straight back into the same overload, now 0.4 s and
+0.8 s, which helps real users too.
+
+**Three things checked and found correct**, recorded because "I looked"
+is worth as much as "I fixed": the recommended range is derived from the
+safe rate band independently of the stretch ask, so the two may
+legitimately overlap and `describeProjection` already handles it; the
+nine milestone rows are START plus W1..W8, which is spec 8.5's own
+roadmap; and the final goal is always given as a date at the current pace
+("At this pace 90 kg is about 18 weeks away"), never as an eight-week
+prescription.
 
 ### Phase 10 install path, 2026-09-05
 
