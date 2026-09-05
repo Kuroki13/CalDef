@@ -29,11 +29,22 @@ import type { PortionUnit } from "@/lib/nutrition/units";
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /**
- * Free-tier flash model. `gemini-2.5-flash` is closed to new keys and
- * answers 404; `gemini-flash-latest` is an alias that floats and answered
- * 503 while this one was healthy, so the version is pinned deliberately.
+ * The model, chosen for its free-tier allowance rather than its ability.
+ *
+ * Measured against this key on 2026-09-05: `gemini-3.8-flash` is capped at
+ * **20 requests per day** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`,
+ * quotaValue 20), which is a handful of meals and then nothing. The lite
+ * model took 16 requests in a single burst before refusing, and refused on
+ * the *per-minute* quota (15/min) rather than a daily one — so its daily
+ * allowance is far larger. For parsing a sentence into search terms, lite is
+ * ample; the ceiling is what decides this.
+ *
+ * `gemini-2.5-flash` is closed to new keys and answers 404, and the
+ * `-latest` aliases float and answered 503 while pinned versions were
+ * healthy, so the version is pinned. `GEMINI_MODEL` overrides it without a
+ * code change if the allowances move again.
  */
-const MODEL = "gemini-3.8-flash";
+const MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
 
 const TIMEOUT_MS = 15_000;
 /**

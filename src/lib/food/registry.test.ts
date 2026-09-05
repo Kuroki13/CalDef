@@ -109,6 +109,77 @@ describe("searchFoods", () => {
   });
 });
 
+describe("searchFoods — relevance ordering", () => {
+  it("puts the product that names the query above a partial match", async () => {
+    // The real case: USDA answers before Open Food Facts in the fan-out, so
+    // without ranking "Dubai chocolate" returned chocolate syrup.
+    usdaSearch.mockResolvedValue(
+      ok("usda", [food("usda", "u1", "Beverages, chocolate syrup")]),
+    );
+    offSearch.mockResolvedValue(
+      ok("off", [food("off", "o1", "Dubai chocolate")]),
+    );
+
+    const outcome = await searchFoods({ text: "dubai chocolate" });
+
+    expect(outcome.foods[0].name).toBe("Dubai chocolate");
+  });
+
+  it("folds accents, because the branded data is multilingual", async () => {
+    offSearch.mockResolvedValue(
+      ok("off", [
+        food("off", "o1", "Chocolat au lait"),
+        food("off", "o2", "Chocolat Dubaï pistache"),
+      ]),
+    );
+
+    const outcome = await searchFoods({ text: "dubai chocolate" });
+    expect(outcome.foods[0].name).toBe("Chocolat Dubaï pistache");
+  });
+
+  it("matches across the provider's punctuation", async () => {
+    usdaSearch.mockResolvedValue(
+      ok("usda", [
+        food("usda", "u1", "Chicken, liver, raw"),
+        food("usda", "u2", "Chicken, breast, boneless, skinless, raw"),
+      ]),
+    );
+
+    const outcome = await searchFoods({ text: "chicken breast" });
+    expect(outcome.foods[0].name).toContain("breast");
+  });
+
+  it("counts the brand as well as the name", async () => {
+    offSearch.mockResolvedValue(
+      ok("off", [
+        { ...food("off", "o1", "Chocolate bar"), brand: "Generic" },
+        { ...food("off", "o2", "Chocolate bar"), brand: "Lindt" },
+      ]),
+    );
+
+    const outcome = await searchFoods({ text: "lindt chocolate" });
+    expect(outcome.foods[0].brand).toBe("Lindt");
+  });
+
+  it("keeps a weak match rather than dropping it", async () => {
+    usdaSearch.mockResolvedValue(ok("usda", [food("usda", "u1", "Rice")]));
+
+    const outcome = await searchFoods({ text: "dubai chocolate" });
+
+    // A weak match is a result the user can see and reject; dropping it
+    // would undo the rule that a partial answer beats no answer.
+    expect(outcome.foods).toHaveLength(1);
+  });
+
+  it("leaves equally relevant foods in fan-out order, cache first", async () => {
+    searchCache.mockResolvedValue([food("custom", "c1", "Rice, saved")]);
+    usdaSearch.mockResolvedValue(ok("usda", [food("usda", "u1", "Rice, raw")]));
+
+    const outcome = await searchFoods({ text: "rice" });
+    expect(outcome.foods[0].name).toBe("Rice, saved");
+  });
+});
+
 describe("searchFoods — a dead provider degrades, it does not break", () => {
   it("still returns the other sources' results", async () => {
     usdaSearch.mockResolvedValue(failed("usda"));
