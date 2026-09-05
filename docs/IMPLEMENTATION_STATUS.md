@@ -23,7 +23,7 @@ Last updated: 2026-09-05
 | 5 | Food logging and diary | DONE |
 | 6 | Weight tracking and adaptive TDEE | DONE |
 | 7 | 2-Month Cut phase mode | DONE |
-| 8 | Recipes, saved meals, favorites, barcode | TODO |
+| 8 | Recipes, saved meals, favorites, barcode | DONE |
 | 9 | AI layer | TODO |
 | 10 | PWA, rate limiting, security hardening | TODO |
 | 11 | Acceptance pass and Vercel deploy | TODO |
@@ -362,6 +362,42 @@ Two deliberate departures worth knowing about:
   was telling someone who logged 20 days of a 56-day phase that they had
   averaged 715 kcal a day.
 
+### Phase 8 — recipes, saved meals, favourites, barcode
+
+Verified end to end on 2026-09-05 against the real database with a real
+session, driving the library functions themselves so RLS applied exactly
+as it does in the app.
+
+- **Barcode** (`lib/barcode.ts`, `/api/foods/barcode`). Server path
+  verified in Phase 5's session; the camera UI stays unverified until
+  Phase 11, for the reason under KNOWN ISSUES.
+- **Recipes** (`lib/recipes.ts`, `/recipes`). A composed dish that logs
+  as **one** diary entry carrying `food_logs.recipe_id`, with nutrition
+  summed from the ingredients' stored nutrient rows and divided by the
+  serving count.
+- **Saved meals** (`lib/saved-meals.ts`). A set of foods that logs as
+  **several** entries, one per item. The `food_logs` XOR constraint
+  between `food_id` and `recipe_id` makes the distinction structural
+  rather than a naming convention.
+- Both are built from entries already in the diary rather than from a
+  fresh search, so every component is already a cached food with a
+  nutrient row and nothing is re-resolved against a provider at log time.
+- A recipe can be filled **after** it is created, not only at creation.
+  Without that an empty recipe was a dead end: it said it could not be
+  logged and offered no way to fix that.
+- **Favourites** (`lib/favorites.ts`). A pointer to a cached food, not a
+  copy, so favouriting something already logged costs nothing. Starred
+  from a diary entry; a recipe-backed entry has no single food behind it
+  and shows no star rather than a dead one. Favourites log straight to
+  the diary in grams, against the kcal-per-100 g figure the row shows.
+- **`lib/food-log.ts` — the single-food logging convergence point.**
+  Manual search, favourites and (later) the AI parser all write their
+  entry through `logCachedFood`, which re-reads `food_nutrients` from the
+  database and computes the macros there. Previously this lived inline in
+  the diary's server action, so each new caller was a fresh opportunity
+  to trust a number from the client. Recipes and saved meals deliberately
+  do not pass through it — they compose entries rather than log one food.
+
 ## TODO
 
 Phases 8–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
@@ -412,7 +448,10 @@ and is not restated here.
   `caldef.dev.tester@gmail.com`, created 2026-08-10, email confirmed. It
   has a `profiles` row but no `goals` or `weight_entries`, so it has
   never completed onboarding. Retained deliberately as a login fixture;
-  delete it before any real use. The 2026-08-10 note claiming the
+  delete it before any real use. It is the **only** test account left:
+  the Phase 8 account from 2026-08-23 and the three created by the
+  2026-09-05 end-to-end run were deleted afterwards, along with the
+  shared `foods` rows their fixtures wrote. The 2026-08-10 note claiming the
   database held "only the 4 seeded `meal_types` rows" was already stale
   when written — this user was created shortly afterwards.
 - **The onboarding form does not work without JavaScript.** `timezone` is
@@ -423,6 +462,15 @@ and is not restated here.
   for a PWA whose whole point is a JS runtime, but it means the
   no-JS fallback React renders for free is not actually functional here.
   Fix by defaulting to UTC server-side when the field is empty.
+- **A custom food cannot be created.** `foods` has a
+  `foods_custom_requires_owner` check, so a row with `source = 'custom'`
+  must carry a `user_id` — but `cacheFood` never sets one, because it
+  writes shared provider rows. Every path into `foods` therefore goes
+  through `cacheFood`, and none can produce a custom food. Found on
+  2026-09-05 when a Phase 8 end-to-end fixture tried to cache one and the
+  check rejected it. Spec §4 lists custom user foods as a search source,
+  so this is a real gap rather than a design choice; it needs an
+  owner-scoped insert path of its own. Not in any phase's scope yet.
 - **The food cache cannot refresh a provider food.** Shared cache rows
   carry `user_id IS NULL`, and `foods_update_own` reads
   `auth.uid() = user_id`, which is never true for a null owner — so no
@@ -519,6 +567,46 @@ Nothing currently blocked.
 | 2026-08-23 | API routes, unauthenticated (dev server) | PASS — `/api/foods/search` and `/api/foods/barcode` return JSON 401; page routes still 307 to `/login` |
 | 2026-08-23 | Route handlers with a stubbed session | PASS — 20 tests covering auth, validation, rate limiting, degradation and error sanitisation |
 | 2026-08-23 | `npm run test` (Phase 5 complete) | PASS — 252 tests, 19 files |
+| 2026-09-05 | `npm run test` | PASS — 374 tests, 28 files |
+| 2026-09-05 | `npm run test:live` | PASS — 6/6 on 4 consecutive runs, including the new search-relevance check |
+| 2026-09-05 | `npm run typecheck` / `lint` / `build` | PASS — 14 routes, 0 lint problems |
+| 2026-09-05 | Supabase security advisors | 1 WARN — `auth_leaked_password_protection` only. No RLS findings. |
+
+### Open Food Facts search relevance, 2026-09-05
+
+The defect and its cause are described under Phase 4.
+
+| Check | Result |
+|-------|--------|
+| `/api/v2/search?search_terms=dubai` (the old call) | REPRODUCED — `count` 4,730,718, i.e. the whole database; page 1 was Moroccan water and yoghurt |
+| `/cgi/search.pl?search_terms=dubai&json=1` | PASS — `count` 1,202, top hits "Dubai chocolate" (531 kcal/100 g) and Lindt "DUBAI Style CHOCOLATE PISTACHIO & KADAYIF" (563) |
+| `fields=` and `nutriments` on the cgi endpoint | PASS — energy, macros and `serving_quantity` all present, so the mapping is unchanged |
+| Endpoint flakiness | PASS — one probe in three answered 503, which `providerFetch` already retries |
+| Unit: request URL carries the term | PASS |
+| Live: "dubai" returns only matching products, or none | PASS — first version of the assertion correctly failed on "Dubaï"; now accent-folded |
+
+### Phase 8 end-to-end run, 2026-09-05 (real database, real session)
+
+A throwaway account, driving `lib/` directly with a genuine
+`@supabase/ssr` session so every call went through RLS. Deleted
+afterwards along with its fixtures.
+
+| Check | Result |
+|-------|--------|
+| Cache a food, log 200 g | PASS — 330.00 kcal, 62.00 g protein, computed from the stored row |
+| Star a food | PASS — idempotent; a second `addFavorite` is not an error |
+| Favourite appears in the list and marks its diary entries | PASS |
+| Log 50 g from favourites | PASS — 82.50 kcal, `source = 'favorite'` |
+| Empty recipe refuses to log | PASS — "That recipe has no ingredients yet." |
+| Add ingredients to an existing recipe | PASS — the path that did not exist before |
+| Append a second ingredient later | PASS — 2 distinct rows, no `sort_order` collision |
+| Recipe nutrition | PASS — 412.50 kcal total over 2 servings = 206.25 per serving |
+| Log a recipe | PASS — **one** entry at 206.25 kcal, `food_id` null, no star offered |
+| Remove an ingredient after appending | PASS — 2 → 1 |
+| Save a meal from 2 entries | PASS — totals 412.50 kcal |
+| Log a saved meal | PASS — **two** separate diary entries |
+| RLS: add ingredients to another user's recipe | PASS — rejected by the database, not by application code |
+| Teardown | PASS — 3 e2e accounts, the stale Phase 8 account and the fixture `foods` rows deleted; 2 users remain |
 
 ### End-to-end run, 2026-08-23 (production build, real Supabase session)
 

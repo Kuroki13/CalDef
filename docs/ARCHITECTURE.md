@@ -20,7 +20,7 @@ Keep this synchronized with the implementation.
 | Database   | Postgres 17 on Supabase (project `CalDef`, free plan, eu-west-1) |
 | Auth       | Supabase Auth, email/password |
 | Hosting    | Vercel Hobby |
-| Food data  | USDA FoodData Central, Open Food Facts v3 |
+| Food data  | USDA FoodData Central, Open Food Facts (v3 product, cgi search) |
 | LLM        | Gemini Developer API, free tier, behind `LLMProvider` |
 | Tests      | Vitest (unit/integration), SQL-level RLS tests |
 
@@ -91,7 +91,8 @@ src/
     ui/                shadcn primitives
     <feature>/         feature components
   lib/
-    supabase/          client.ts · server.ts · middleware.ts
+    food-log.ts        the single-food logging convergence point
+    supabase/          client.ts · server.ts · proxy.ts
     food/              types.ts · provider.ts · usda.ts · off.ts
                        cache.ts · registry.ts
     llm/               types.ts · provider.ts · gemini.ts
@@ -136,6 +137,16 @@ user types "200g chicken breast"
 The AI path and the manual path converge before any number is computed.
 That convergence is the structural reason the model cannot influence
 nutrition values.
+
+The convergence is a function, not a convention: `src/lib/food-log.ts`.
+Every path that logs a single food — manual search, a favourite, a
+scanned barcode, and the AI parser when it arrives — calls
+`logCachedFood`, which re-reads the `food_nutrients` row from the
+database and computes the macros there. A caller supplies a food id, an
+amount and a unit; it cannot supply a calorie figure. Recipes and saved
+meals do not pass through it, because they compose entries from
+ingredients rather than log one food, but they compute from the same
+stored nutrient rows.
 
 ## 5. Invariants
 
