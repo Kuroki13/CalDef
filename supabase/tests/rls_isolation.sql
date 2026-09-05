@@ -14,6 +14,12 @@
 --   1: every `seen` equals its `expected`
 --   2: every count is 0 except own_profile_updated, which is 1
 --   3 and 4: return their result row without raising
+--
+-- Section 1 asserts what B must NOT see, and asserts the shared tables by
+-- what is hidden rather than by a row count. An earlier version expected
+-- exactly one global food, which was true only while the database was empty
+-- and started failing as soon as real foods were cached — a test that goes
+-- red for a reason that is not a defect is a test people stop running.
 
 -- =====================================================================
 -- 0. SEED — two users, one row per table owned by user A
@@ -120,10 +126,17 @@ union all select 'ai_conversations', count(*), 0 from public.ai_conversations
 union all select 'ai_messages', count(*), 0 from public.ai_messages
 union all select 'cut_phases', count(*), 0 from public.cut_phases
 union all select 'cut_phase_milestones', count(*), 0 from public.cut_phase_milestones
-union all select 'foods (global only)', count(*), 1 from public.foods
-union all select 'food_nutrients (global only)', count(*), 1 from public.food_nutrients
-union all select 'food_servings (global only)', count(*), 1 from public.food_servings
-union all select 'meal_types (builtin only)', count(*), 4 from public.meal_types
+-- Shared rows are visible to everyone by design, so these assert the
+-- boundary instead: A's private food and A's custom meal type stay hidden,
+-- and the row seeded as global is still reachable.
+union all select 'foods: A private food hidden', count(*), 0
+  from public.foods where name = 'A Private Food'
+union all select 'foods: shared row reachable', count(*), 1
+  from public.foods where source_id = 'TEST-1'
+union all select 'meal_types: A custom hidden', count(*), 0
+  from public.meal_types where slug = 'pre_workout'
+union all select 'meal_types: builtins reachable', count(*), 4
+  from public.meal_types where user_id is null
 order by 1;
 
 -- =====================================================================
@@ -136,24 +149,36 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
 with
-  u_weight as (update public.weight_entries set weight_kg = 1 returning 1),
-  d_logs   as (delete from public.food_logs returning 1),
-  u_phase  as (update public.cut_phases set start_weight_kg = 1 returning 1),
-  d_miles  as (delete from public.cut_phase_milestones returning 1),
-  u_msg    as (update public.ai_messages set content = 'hacked' returning 1),
-  d_recipe as (delete from public.recipe_ingredients returning 1),
-  u_food   as (update public.foods set name = 'hacked' returning 1),
-  d_serv   as (delete from public.food_servings returning 1),
-  u_prof   as (update public.profiles set display_name = 'hacked' returning 1)
+  u_weight  as (update public.weight_entries set weight_kg = 1 returning 1),
+  d_logs    as (delete from public.food_logs returning 1),
+  u_phase   as (update public.cut_phases set start_weight_kg = 1 returning 1),
+  d_miles   as (delete from public.cut_phase_milestones returning 1),
+  u_msg     as (update public.ai_messages set content = 'hacked' returning 1),
+  d_conv    as (delete from public.ai_conversations returning 1),
+  d_recipe  as (delete from public.recipe_ingredients returning 1),
+  u_recipe  as (update public.recipes set name = 'hacked' returning 1),
+  d_smitem  as (delete from public.saved_meal_items returning 1),
+  u_smeal   as (update public.saved_meals set name = 'hacked' returning 1),
+  d_fav     as (delete from public.favorite_foods returning 1),
+  u_food    as (update public.foods set name = 'hacked' returning 1),
+  d_serv    as (delete from public.food_servings returning 1),
+  d_nutr    as (delete from public.food_nutrients returning 1),
+  u_prof    as (update public.profiles set display_name = 'hacked' returning 1)
 select
   (select count(*) from u_weight) as weight_updated,
   (select count(*) from d_logs)   as logs_deleted,
   (select count(*) from u_phase)  as phases_updated,
   (select count(*) from d_miles)  as milestones_deleted,
   (select count(*) from u_msg)    as ai_messages_updated,
+  (select count(*) from d_conv)   as ai_conversations_deleted,
   (select count(*) from d_recipe) as recipe_ingredients_deleted,
+  (select count(*) from u_recipe) as recipes_updated,
+  (select count(*) from d_smitem) as saved_meal_items_deleted,
+  (select count(*) from u_smeal)  as saved_meals_updated,
+  (select count(*) from d_fav)    as favorites_deleted,
   (select count(*) from u_food)   as foods_updated,
   (select count(*) from d_serv)   as servings_deleted,
+  (select count(*) from d_nutr)   as nutrients_deleted,
   (select count(*) from u_prof)   as own_profile_updated;
 
 -- =====================================================================
@@ -163,26 +188,77 @@ select
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
+-- Two shapes of forgery are covered. A row that names A as its owner, and
+-- a child row hung off a parent A owns — recipe ingredients, saved-meal
+-- items and AI messages have no `user_id` of their own, so their policies
+-- reach through to the parent, and that is the reach being tested here.
 do $$
-declare a uuid := '11111111-1111-1111-1111-111111111111';
+declare
+  a uuid := '11111111-1111-1111-1111-111111111111';
+  v_recipe bigint; v_meal bigint; v_conv bigint; v_food bigint;
 begin
+  -- Read as the definer, since B cannot see these. Knowing an id must not
+  -- be enough, which is precisely the assumption under test.
+  select id into v_recipe from public.recipes where user_id = a limit 1;
+  select id into v_meal from public.saved_meals where user_id = a limit 1;
+  select id into v_conv from public.ai_conversations where user_id = a limit 1;
+  select id into v_food from public.foods where source_id = 'TEST-1' limit 1;
+
   begin
     insert into public.weight_entries (user_id, entry_date, weight_kg)
       values (a, current_date - 1, 100);
-    raise exception 'FAIL: user B forged a weight_entry owned by user A';
+    raise exception 'FAIL: forged weight_entry accepted';
   exception when insufficient_privilege then
-    raise notice 'PASS: forged weight_entry rejected by RLS';
+    raise notice 'PASS: forged weight_entry rejected';
   end;
 
   begin
     insert into public.goals (user_id, final_goal_weight_kg) values (a, 70);
-    raise exception 'FAIL: user B forged a goal owned by user A';
+    raise exception 'FAIL: forged goal accepted';
   exception when insufficient_privilege then
-    raise notice 'PASS: forged goal rejected by RLS';
+    raise notice 'PASS: forged goal rejected';
+  end;
+
+  begin
+    insert into public.recipes (user_id, name, servings) values (a, 'forged', 1);
+    raise exception 'FAIL: forged recipe accepted';
+  exception when insufficient_privilege then
+    raise notice 'PASS: forged recipe rejected';
+  end;
+
+  begin
+    insert into public.recipe_ingredients (recipe_id, food_id, amount, unit, grams)
+      values (v_recipe, v_food, 100, 'g', 100);
+    raise exception 'FAIL: ingredient added to another user''s recipe';
+  exception when insufficient_privilege then
+    raise notice 'PASS: ingredient into foreign recipe rejected';
+  end;
+
+  begin
+    insert into public.saved_meal_items (saved_meal_id, food_id, amount, unit, grams)
+      values (v_meal, v_food, 100, 'g', 100);
+    raise exception 'FAIL: item added to another user''s saved meal';
+  exception when insufficient_privilege then
+    raise notice 'PASS: item into foreign saved meal rejected';
+  end;
+
+  begin
+    insert into public.ai_messages (conversation_id, role, content)
+      values (v_conv, 'user', 'forged');
+    raise exception 'FAIL: message added to another user''s thread';
+  exception when insufficient_privilege then
+    raise notice 'PASS: message into foreign thread rejected';
+  end;
+
+  begin
+    insert into public.favorite_foods (user_id, food_id) values (a, v_food);
+    raise exception 'FAIL: forged favorite accepted';
+  exception when insufficient_privilege then
+    raise notice 'PASS: forged favorite rejected';
   end;
 end $$;
 
-select 'forged inserts all rejected' as result;
+select 'every forged write rejected' as result;
 
 -- =====================================================================
 -- 4. ANON — the publishable key role reaches no user data
@@ -190,30 +266,30 @@ select 'forged inserts all rejected' as result;
 
 set local role anon;
 
+-- Every table, not a sample. `revoke all ... from anon` is what denies
+-- these, and a table added later without that revoke is exactly the kind of
+-- omission a three-table spot check would miss.
 do $$
-declare n int;
+declare n int; t text;
 begin
-  begin
-    select count(*) into n from public.weight_entries;
-    raise exception 'FAIL: anon read weight_entries (% rows)', n;
-  exception when insufficient_privilege then
-    raise notice 'PASS: anon denied on weight_entries';
-  end;
-  begin
-    select count(*) into n from public.food_logs;
-    raise exception 'FAIL: anon read food_logs (% rows)', n;
-  exception when insufficient_privilege then
-    raise notice 'PASS: anon denied on food_logs';
-  end;
-  begin
-    select count(*) into n from public.profiles;
-    raise exception 'FAIL: anon read profiles (% rows)', n;
-  exception when insufficient_privilege then
-    raise notice 'PASS: anon denied on profiles';
-  end;
+  foreach t in array array[
+    'profiles','goals','daily_targets','weight_entries','tdee_estimates',
+    'weekly_checkins','food_logs','recipes','recipe_ingredients','saved_meals',
+    'saved_meal_items','favorite_foods','ai_conversations','ai_messages',
+    'cut_phases','cut_phase_milestones','foods','food_nutrients',
+    'food_servings','meal_types']
+  loop
+    begin
+      execute format('select count(*) from public.%I', t) into n;
+      raise exception 'FAIL: anon read % (% rows)', t, n;
+    exception when insufficient_privilege then
+      null; -- expected
+    end;
+  end loop;
+  raise notice 'PASS: anon denied on all 20 tables';
 end $$;
 
-select 'anon denied on all probed tables' as result;
+select 'anon denied on all 20 tables' as result;
 
 -- =====================================================================
 -- 5. TEARDOWN — removes only what section 0 created
