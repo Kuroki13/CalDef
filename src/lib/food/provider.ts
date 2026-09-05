@@ -61,9 +61,12 @@ export async function providerFetch(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
-      // Brief linear backoff. Long enough to clear a transient blip, short
-      // enough that the caller's own timeout still governs.
-      await delay(150 * attempt);
+      // Linear backoff. Open Food Facts' search backend answers 503 under
+      // load and needs longer than a moment to recover — 150 ms retried into
+      // the same overload and reported it as unreachable. Two extra attempts
+      // now wait 0.4 s and 0.8 s, which is still well inside the per-attempt
+      // timeout that governs the whole call.
+      await delay(400 * attempt);
     }
 
     const controller = new AbortController();
