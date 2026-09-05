@@ -227,3 +227,77 @@ export async function refreshMilestoneActuals(
     if (updateError) throw new Error(updateError.message);
   }
 }
+
+/**
+ * Rebases the *future* half of the roadmap onto where the user actually is.
+ *
+ * Spec 8.5 says the milestones are estimates recomputed as real data
+ * arrives, and `milestones.ts` documents them as bending with the trend —
+ * but nothing recomputed them, so the ladder stayed frozen at the rate set
+ * on the day the phase began. A roadmap planned from 111.8 kg still claiming
+ * 107.4 kg for week 4, six weeks into a slower-than-planned phase, is not an
+ * estimate; it is a stale number wearing an estimate's label.
+ *
+ * Past milestones are left exactly as they were. They are the record of what
+ * was projected at the time, and overwriting them would make it impossible
+ * to see whether the phase is running ahead or behind — which is most of
+ * what a roadmap is for.
+ */
+export async function rebaseFutureMilestones({
+  phaseId,
+  today,
+  endDate,
+  currentTrendKg,
+  recommendedKgPerWeek,
+  stretchTargetKg,
+}: {
+  phaseId: number;
+  today: IsoDate;
+  endDate: IsoDate;
+  currentTrendKg: number;
+  /** Positive magnitude, kg/week. */
+  recommendedKgPerWeek: number;
+  stretchTargetKg: number | null;
+}): Promise<void> {
+  const supabase = await createClient();
+
+  const { data: rows, error } = await supabase
+    .from("cut_phase_milestones")
+    .select("id, milestone_date")
+    .eq("cut_phase_id", phaseId)
+    .gt("milestone_date", today);
+  if (error) throw new Error(error.message);
+  if (!rows || rows.length === 0) return;
+
+  const rate = Math.abs(recommendedKgPerWeek);
+  const daysToEnd = Math.max(daysBetween(today, endDate), 1);
+
+  // The stretch line is a goalpost: a straight run from where the user is
+  // now to the stretch target at the end of the phase, whatever rate that
+  // implies. It is never allowed to become a calorie figure.
+  const stretchPerDay =
+    stretchTargetKg === null
+      ? null
+      : (currentTrendKg - stretchTargetKg) / daysToEnd;
+
+  for (const row of rows) {
+    const days = Math.max(daysBetween(today, row.milestone_date), 0);
+
+    const { error: updateError } = await supabase
+      .from("cut_phase_milestones")
+      .update({
+        recommended_weight_kg: round2(currentTrendKg - (rate * days) / 7),
+        stretch_weight_kg:
+          stretchPerDay === null
+            ? null
+            : round2(currentTrendKg - stretchPerDay * days),
+        recomputed_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+    if (updateError) throw new Error(updateError.message);
+  }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}

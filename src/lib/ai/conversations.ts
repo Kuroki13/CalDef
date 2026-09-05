@@ -42,7 +42,7 @@ export async function latestThread(): Promise<Thread | null> {
   return { conversation, messages: await messagesFor(conversation.id) };
 }
 
-export async function messagesFor(conversationId: number): Promise<Message[]> {
+async function messagesFor(conversationId: number): Promise<Message[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase

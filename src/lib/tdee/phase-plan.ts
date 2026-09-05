@@ -282,38 +282,6 @@ export function proposePhaseTwo({
   };
 }
 
-/**
- * Recomputes the roadmap partway through a phase.
- *
- * Spec §8.5 requires milestones to move as real data arrives rather than
- * standing as a fixed ladder. The start of the phase is kept as the anchor
- * so the chart's history does not rewrite itself; only the forward rate
- * changes.
- */
-export function recomputeMilestones({
-  startDate,
-  startWeightKg,
-  durationDays,
-  recommendedKgPerWeek,
-  stretchTargetKg,
-  trendByDate,
-}: {
-  startDate: IsoDate;
-  startWeightKg: number;
-  durationDays: number;
-  recommendedKgPerWeek: number;
-  stretchTargetKg: number | null;
-  trendByDate?: ReadonlyMap<IsoDate, number>;
-}): Milestone[] {
-  return buildMilestones({
-    startDate,
-    startWeightKg,
-    durationDays,
-    recommendedKgPerWeek,
-    stretchTargetKg,
-    trendByDate,
-  });
-}
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;

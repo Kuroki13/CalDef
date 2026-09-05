@@ -134,16 +134,6 @@ export async function lookupBarcode(barcode: string): Promise<Food | null> {
   return found;
 }
 
-/**
- * Persists a chosen search result and hands back its database id.
- *
- * Called when the user actually logs a food rather than on every search, so
- * the cache fills with foods this user eats instead of everything they ever
- * typed.
- */
-export async function resolveToCachedId(food: Food): Promise<number> {
-  return cacheFood(food);
-}
 
 /**
  * Merges result sets, preferring the earlier source on a collision.

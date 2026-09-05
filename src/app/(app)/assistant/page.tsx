@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { clearThread } from "@/app/(app)/assistant/actions";
 import { Chat, type Turn } from "@/app/(app)/assistant/chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,6 +74,14 @@ export default async function AssistantPage() {
           />
         </CardContent>
       </Card>
+      {turns.length > 0 ? (
+        <form action={clearThread}>
+          <Button type="submit" variant="ghost" size="sm">
+            Delete this conversation
+          </Button>
+        </form>
+      ) : null}
+
       <p className="text-muted-foreground text-xs">
         CalDef provides estimates for personal tracking. It is not medical or
         dietary advice.

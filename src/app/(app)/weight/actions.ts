@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { todayInTimeZone } from "@/lib/dates";
-import { recordExpenditure } from "@/lib/expenditure";
-import { getActivePhase, refreshMilestoneActuals } from "@/lib/phase";
+import { getExpenditure, recordExpenditure } from "@/lib/expenditure";
+import {
+  getActivePhase,
+  rebaseFutureMilestones,
+  refreshMilestoneActuals,
+} from "@/lib/phase";
 import { getAccountSetup } from "@/lib/profile";
+import { recommendPlan } from "@/lib/tdee/feasibility";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 import { massToKg } from "@/lib/units";
 import { getWeightHistory } from "@/lib/weight";
@@ -83,6 +88,37 @@ export async function recordWeighIn(
     if (active) {
       const history = await getWeightHistory(profile.timezone);
       await refreshMilestoneActuals(active.phase.id, today, history.trend);
+
+      // And bend the rest of the ladder onto where the user now is (spec
+      // 8.5). A weigh-in is the only moment the trend can have moved, so it
+      // is the only moment this needs doing.
+      const expenditure = await getExpenditure(today);
+      if (expenditure) {
+        const plan = recommendPlan({
+          currentWeightKg: expenditure.baselineWeightKg,
+          targetWeightKg:
+            active.phase.stretch_target_kg === null
+              ? expenditure.baselineWeightKg
+              : Number(active.phase.stretch_target_kg),
+          startDate: today,
+          targetDate: active.phase.end_date,
+          tdeeKcal: expenditure.estimate.isPublishable
+            ? expenditure.tdeeKcal
+            : expenditure.formulaTdeeKcal,
+        });
+
+        await rebaseFutureMilestones({
+          phaseId: active.phase.id,
+          today,
+          endDate: active.phase.end_date,
+          currentTrendKg: expenditure.baselineWeightKg,
+          recommendedKgPerWeek: Math.abs(plan.recommendedKgPerWeek),
+          stretchTargetKg:
+            active.phase.stretch_target_kg === null
+              ? null
+              : Number(active.phase.stretch_target_kg),
+        });
+      }
     }
   } catch {
     // Intentionally swallowed; see above.
