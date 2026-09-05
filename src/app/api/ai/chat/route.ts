@@ -1,0 +1,103 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+import {
+  appendMessage,
+  openThread,
+} from "@/lib/ai/conversations";
+import { currentFigures } from "@/lib/ai/figures";
+import { toFoodText } from "@/lib/llm/food-text";
+import { llmForCurrentUser } from "@/lib/llm";
+import { RATE_LIMITS, rateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { getUserId } from "@/lib/supabase/server";
+
+/**
+ * The nutrition assistant.
+ *
+ * Two things leave this machine: the question, after `toFoodText` has
+ * refused anything that looks like an identifier, and `currentFigures()` —
+ * a handful of numbers with no name attached. The thread is stored for the
+ * user's screen and is never replayed to the model, so a long conversation
+ * does not become an accumulating dossier.
+ */
+
+const bodySchema = z.object({
+  conversationId: z.coerce.number().int().positive().nullable().optional(),
+  message: z.string().max(2000),
+});
+
+export async function POST(request: NextRequest) {
+  const userId = await getUserId();
+  if (!userId) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const limit = rateLimit(`ai-chat:${userId}`, RATE_LIMITS.ai);
+  const headers = rateLimitHeaders(limit, RATE_LIMITS.ai.limit);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many questions at once. Try again shortly." },
+      { status: 429, headers },
+    );
+  }
+
+  const body = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!body.success) {
+    return NextResponse.json(
+      { error: "Ask a question." },
+      { status: 400, headers },
+    );
+  }
+
+  const question = toFoodText(body.data.message);
+  if (!question.ok) {
+    return NextResponse.json(
+      { error: question.message, reason: question.reason },
+      { status: 400, headers },
+    );
+  }
+
+  const llm = await llmForCurrentUser();
+
+  // Checked before the thread is written, so a switched-off assistant does
+  // not leave a question sitting in the database with no answer beside it.
+  if (!llm.isAvailable()) {
+    const refused = await llm.answer(question.value, {});
+    return NextResponse.json(
+      {
+        error: refused.ok ? "The assistant is unavailable." : refused.message,
+        reason: refused.ok ? "unavailable" : refused.reason,
+      },
+      { status: 503, headers },
+    );
+  }
+
+  const answer = await llm.answer(question.value, await currentFigures());
+  if (!answer.ok) {
+    return NextResponse.json(
+      { error: answer.message, reason: answer.reason },
+      { status: answer.reason === "rate-limited" ? 429 : 503, headers },
+    );
+  }
+
+  const thread = await openThread(
+    body.data.conversationId ?? null,
+    question.value,
+  );
+  if ("error" in thread) {
+    // The answer exists; only storing it failed. Returning it unstored beats
+    // discarding a reply the user is waiting for.
+    return NextResponse.json(
+      { answer: answer.value, conversationId: null, stored: false },
+      { headers },
+    );
+  }
+
+  await appendMessage(thread.id, "user", question.value);
+  await appendMessage(thread.id, "assistant", answer.value);
+
+  return NextResponse.json(
+    { answer: answer.value, conversationId: thread.id, stored: true },
+    { headers },
+  );
+}

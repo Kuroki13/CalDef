@@ -1,6 +1,7 @@
 import {
   BookOpen,
   ChefHat,
+  MessageCircle,
   LayoutDashboard,
   Scale,
   Settings,
@@ -19,7 +20,11 @@ export type NavItem = {
  *
  * An entry is added here only once its route renders something real. That
  * keeps the shipped app free of links that lead nowhere, which the spec's
- * acceptance criteria require. The Assistant arrives in Phase 9.
+ * acceptance criteria require. Every route listed here now renders.
+ *
+ * Assistant is listed unconditionally even though the user can switch the AI
+ * off: the page itself explains the switch and links to settings, which is a
+ * better answer than a nav item that appears and disappears.
  */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,5 +32,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/weight", label: "Weight", icon: Scale },
   { href: "/phase", label: "Phase", icon: Target },
   { href: "/recipes", label: "Recipes", icon: ChefHat },
+  { href: "/assistant", label: "Assistant", icon: MessageCircle },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
