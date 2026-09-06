@@ -100,7 +100,28 @@ export async function getOrCreateDailyTarget(
     .maybeSingle();
   if (error) throw new Error(error.message);
 
-  if (existing) {
+  const setup = await getAccountSetup();
+  const today = setup.profile ? todayInTimeZone(setup.profile.timezone) : null;
+
+  const active = today === null ? null : await getActivePhase(today);
+  const governor: Governor =
+    active && phaseCoversDate(active.phase, date) ? "phase" : "everyday";
+
+  // A stored row is authoritative unless the régime changed under it today.
+  //
+  // Starting or ending a phase part-way through a day left that day on the
+  // number written before it, because a row for the date short-circuited
+  // everything below: rule 1 of `shouldRecomputeTarget` — a change of régime
+  // is an event and takes effect immediately — held in that function and
+  // nowhere else, since today's row is written the first time the diary is
+  // opened. Only *today* is reconsidered. A past day's target is what the
+  // user was actually working to, and rewriting it would invent history.
+  const regimeChangedToday =
+    existing !== null &&
+    date === today &&
+    governorForSource(existing.source) !== governor;
+
+  if (existing && !regimeChangedToday) {
     return {
       calories: existing.calories,
       macros: {
@@ -120,25 +141,25 @@ export async function getOrCreateDailyTarget(
     };
   }
 
-  const setup = await getAccountSetup();
   if (!setup.profile) return null;
-  const today = todayInTimeZone(setup.profile.timezone);
-
-  const active = await getActivePhase(today);
-  const governor: Governor =
-    active && phaseCoversDate(active.phase, date) ? "phase" : "everyday";
 
   const previous = await getMostRecentTarget(date);
 
+  // What governed the day before this render: the row already stored for it
+  // when there is one, otherwise the most recent stored day. Reading only
+  // the latter would miss a phase that both started and ended today.
+  const priorSource = existing?.source ?? previous?.source ?? null;
   const governorChanged =
-    previous !== null && governorForSource(previous.source) !== governor;
+    priorSource !== null && governorForSource(priorSource) !== governor;
 
-  const recompute = shouldRecomputeTarget({
-    previousSource: previous?.source ?? null,
-    previousDate: previous?.target_date ?? null,
-    governor,
-    date,
-  });
+  const recompute =
+    regimeChangedToday ||
+    shouldRecomputeTarget({
+      previousSource: previous?.source ?? null,
+      previousDate: previous?.target_date ?? null,
+      governor,
+      date,
+    });
 
   if (previous && !recompute) {
     const carried = await carryForward(previous, date);
@@ -167,20 +188,23 @@ export async function getOrCreateDailyTarget(
         : "initial";
 
   if (date === computed.today) {
-    const { error: insertError } = await supabase.from("daily_targets").insert({
-      user_id: computed.userId,
-      target_date: date,
-      calories: computed.target.calories,
-      protein_g: computed.target.macros.protein_g,
-      carbs_g: computed.target.macros.carbs_g,
-      fat_g: computed.target.macros.fat_g,
-      basis_tdee_kcal: computed.target.basisTdeeKcal,
-      source,
-    });
-    // A duplicate means another request won the race, which is fine.
-    if (insertError && !insertError.message.includes("duplicate")) {
-      throw new Error(insertError.message);
-    }
+    // Upsert rather than insert: when the régime changed today there is
+    // already a row for the date, and an insert would fail as a duplicate
+    // and leave the superseded number in place.
+    const { error: writeError } = await supabase.from("daily_targets").upsert(
+      {
+        user_id: computed.userId,
+        target_date: date,
+        calories: computed.target.calories,
+        protein_g: computed.target.macros.protein_g,
+        carbs_g: computed.target.macros.carbs_g,
+        fat_g: computed.target.macros.fat_g,
+        basis_tdee_kcal: computed.target.basisTdeeKcal,
+        source,
+      },
+      { onConflict: "user_id,target_date" },
+    );
+    if (writeError) throw new Error(writeError.message);
 
     if (previous) {
       // The check-in is a record of the adjustment, not a precondition for
