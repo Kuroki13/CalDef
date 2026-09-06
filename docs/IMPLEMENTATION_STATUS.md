@@ -26,7 +26,7 @@ Last updated: 2026-09-06
 | 8 | Recipes, saved meals, favorites, barcode | DONE |
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
-| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — Codex re-audit and production rollout |
+| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; physical iPhone checks remain |
 
 ---
 
@@ -321,7 +321,11 @@ Built as six commits, each tested and verified live before the next.
   - A change of régime is an event, not drift, so it applies at once —
     starting a phase does not wait a week to matter, and an ended phase
     stops governing immediately. The diary states why the number moved
-    rather than changing it silently.
+    rather than changing it silently. **This was true of the policy
+    function and false of the app until 2026-09-06**, when driving the
+    deployed site showed a phase started today not reaching today's
+    diary; see TEST RESULTS. It now holds end to end, on the day the
+    phase starts and the day it ends, and is verified on production.
 - **§8.4, 8.6 — dashboard and start flow** (`lib/phase-dashboard.ts`,
   `/phase`). Keeps 8.1's four concepts visibly separate — recommended
   range, projection, stretch, final goal. The projection sentence states
@@ -504,13 +508,55 @@ needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
 
 ## TODO
 
-Phase 11: apply committed migrations to CalDef-prod, verify production
-permissions/RLS and clean data, configure Vercel production variables, deploy,
-and exercise authentication, food search, diary writes, AI parsing and weight
-tracking. Physical iPhone install/camera checks remain after deployment.
+Phase 11: everything that can be checked without a phone is done — the
+migrations are applied to CalDef-prod, production permissions and RLS are
+verified, the Vercel production variables are configured, the app is deployed
+at `caldef-woad.vercel.app`, and authentication, food search, diary writes,
+AI parsing and correction, the assistant, weight tracking, saved meals and the
+cut phase were all exercised end to end against that deployment with a real
+signed-in account (2026-09-06, see TEST RESULTS).
+
+What is left:
+
+- The physical iPhone visit: the PWA install tap, the barcode camera, and a
+  look at the Safari console for CSP violations.
+- A decision on the 7 shared `foods` rows the deployment verification cached
+  into production (see KNOWN ISSUES). They hold no personal data; deleting
+  them is a production `DELETE` and therefore the owner's call.
 
 ## KNOWN ISSUES
 
+- **Production accepts a signup without confirming the email address.**
+  `mailer_autoconfirm` is `true` on CalDef-prod, so an account is usable
+  the moment it is created. That is deliberate: the free plan's built-in
+  mailer is rate-limited to a handful of messages an hour and no custom
+  SMTP is configured, so requiring confirmation would make signup fail
+  unpredictably. The cost is that someone could register an address they
+  do not own. Acceptable for a single-owner app; revisit before the app
+  is ever handed to anyone else. The signup action already handles both
+  outcomes, so turning confirmation on is a settings change, not a code
+  change.
+- **Seven shared `foods` rows are left in production.** They are the
+  provider cache written by the 2026-09-06 deployment verification —
+  chicken breast, rice crackers, mayonnaise, Greek yogurt, egg white,
+  cheddar and one more — with `user_id is null` and no personal data of
+  any kind. The smoke account itself was deleted by exact identity and
+  everything private to it went with it: 0 users, 0 profiles, 0 goals,
+  0 food logs, 0 weigh-ins, 0 daily targets, 0 private foods. Deleting
+  the cache rows would restore the documented "reference data only"
+  baseline exactly, but it is a `DELETE` against a production table with
+  data in it, so it waits for the owner.
+- **A deleted account keeps a working session until its JWT expires.**
+  Observed while cleaning up the smoke account: with the row already gone
+  from `auth.users`, the browser's still-valid access token took
+  `/dashboard` to `/onboarding` rather than to `/login`. This follows
+  from `getUserId` using `getClaims()`, which verifies the token's
+  signature locally instead of asking the auth server on every request —
+  the documented, recommended pattern. The window is `jwt_exp`, one hour,
+  and inside it the holder can do nothing: every table is behind RLS and
+  every user-owned row references `auth.users`, so writes fail on the
+  foreign key. Recorded because it is surprising, not because it is a
+  hole to plug.
 - **Leaked-password protection is unavailable on Free.** The prior "no
   cost" guidance was wrong. [Supabase password security](https://supabase.com/docs/guides/auth/password-security)
   specifies Pro and above. Leave disabled under the owner's zero-cost plan;
@@ -533,13 +579,19 @@ tracking. Physical iPhone install/camera checks remain after deployment.
   is no stale row left in the table. Verified by querying `daily_targets`
   directly: the account now holds that row plus one for today, both
   written on the day they cover.
-- **The barcode camera UI is unverified and must stay that way until
-  Phase 11.** `getUserMedia` requires a secure context, so the scanner
-  works at `http://localhost:3000` on desktop but cannot work from a
-  phone over plain HTTP on the LAN — a browser constraint, not a defect.
-  Desktop alone is not sufficient evidence that it works, because the
-  device that matters is a phone with a rear camera. **Verify on-device
-  after the Vercel deploy in Phase 11**, where HTTPS is available.
+- **The barcode camera UI is still unverified on a phone.** `getUserMedia`
+  requires a secure context, so the scanner works at
+  `http://localhost:3000` on desktop but cannot work from a phone over
+  plain HTTP on the LAN — a browser constraint, not a defect.
+  **Half of this is now closed**: on the deployed HTTPS site the scanner
+  reports `unsupported` (no `BarcodeDetector` in the audit browser)
+  rather than `insecure-context`, so the secure-context requirement is
+  satisfied in production and the failure mode reported is the honest
+  one. What remains is a phone with a rear camera. Note what that phone
+  will be: iOS runs WebKit for every browser, and the app's own copy says
+  Safari does not implement `BarcodeDetector` — so the likely on-device
+  outcome is the `unsupported` message, not a working scanner. Check it
+  on the device before treating scanning as a feature the owner has.
   - What *is* verified: the capability logic (15 unit tests), and the
     whole server path the scanner calls — a real barcode resolves through
     Open Food Facts, caches, and returns; an unknown one returns 404 with
@@ -585,8 +637,12 @@ tracking. Physical iPhone install/camera checks remain after deployment.
 - **The PWA install tap and the barcode camera are still unverified.**
   Both need a physical iPhone, which this environment does not have.
   Everything either depends on is verified against the served bytes and
-  the server path respectively; what remains is the on-device gesture.
-  Do both on the first real-device visit after the deploy.
+  the server path respectively — and both were re-checked against the
+  live deployment on 2026-09-06 (manifest served as
+  `application/manifest+json`, `display: standalone`, every icon a real
+  PNG at its declared size, the worker served `no-store`, `/offline`
+  reachable) — so what remains is the on-device gesture. Do both on the
+  first real-device visit.
 - **The CSP allows `'unsafe-inline'` for scripts.** Next's App Router
   inlines its bootstrap and the RSC payload in `<script>` tags, so
   removing the allowance needs a per-request nonce threaded through the
@@ -596,10 +652,13 @@ tracking. Physical iPhone install/camera checks remain after deployment.
   while adding headers. Everything else is `'self'`, and `connect-src` is
   `'self'` alone, so an injected script still cannot load a remote
   payload or send anything anywhere.
-- **The CSP has not been observed in a browser.** It is asserted from the
-  response headers and reasoned about; there is no browser in this
-  environment to catch a violation the reasoning missed. Watch the
-  console on the first real device visit in Phase 11.
+- ~~**The CSP has not been observed in a browser.**~~ **Largely closed
+  2026-09-06.** The deployed site was driven through a real Chrome:
+  login, dashboard, diary (search, manual log, AI parse, AI correction,
+  barcode dialog), weight, phase, recipes, assistant and settings all
+  rendered with **zero console errors**, which is where a CSP violation
+  would surface. Not yet seen in Safari, which is the browser the owner's
+  phone will use — recheck on the device visit.
 - **The rate limiter is still per instance.** Unchanged from Phase 5 and
   restated here because Phase 10 is where it was reviewed: serverless
   instances share no memory, so on Vercel the effective limit is
@@ -723,6 +782,85 @@ tracking. Physical iPhone install/camera checks remain after deployment.
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Deployed production verification, 2026-09-06 (Claude Code)
+
+Ran against the live deployment at `https://caldef-woad.vercel.app` with a
+real signed-in account, not against a local build.
+
+- **Signed-out surface (re-run after the redeploy):** `/dashboard`,
+  `/diary`, `/weight` and `/settings` all 307 to `/login`;
+  `/api/foods/search` and `/api/ai/parse` answer 401 as JSON; the login
+  page carries CSP, nosniff, frame denial, permissions policy and HSTS;
+  the manifest, all icons at their declared pixel sizes, the `no-store`
+  service worker and `/offline` all serve correctly; neither
+  `GEMINI_API_KEY` nor `USDA_API_KEY` appears in the login HTML or in any
+  of the 12 deployed client scripts. PASS.
+- **Authentication:** sign-in through the deployed server action returns
+  303 to `/dashboard` and sets the session cookie; the no-JS form path
+  works, so the progressive-enhancement fallback is real. Sign-out clears
+  it and `/dashboard` goes back to `/login?next=%2Fdashboard`. PASS.
+- **Food search:** "greek yogurt" returned live USDA and Open Food Facts
+  results, correctly labelled "USDA verified" and "Community". PASS.
+- **Diary write:** 170 g of USDA Greek yogurt logged from search; the
+  stored row is 124.10 kcal against a cached 73.00 kcal/100 g. Every one
+  of the seven rows in the account satisfied kcal = grams x per-100 g,
+  so the "nutrition is recomputed from the cached row, never taken from
+  the client" invariant held on production. PASS.
+- **AI parse and log:** "2 large eggs and 40 g of cheddar cheese" was read
+  by Gemini into two intents, resolved to real foods, and confirmed into
+  the diary. PASS.
+- **AI correction:** "it was only 100 grams" on that entry proposed
+  "Change to 100 g — 55 kcal instead of 110" and applied it. PASS.
+- **Assistant:** answered a nutrition question against the account's own
+  targets. PASS.
+- **Weight:** a second weigh-in for the same day corrected the existing
+  one rather than adding a row — 1 weigh-in, 110.20 kg. PASS.
+- **Saved meals, favourites, recipes, phase:** a two-item meal saved and
+  listed; a cut phase started, planned to a 101.4–103.6 kg recommended
+  band, and ended early. PASS.
+- **Barcode:** on HTTPS the scanner reports `unsupported` rather than
+  `insecure-context`, which closes the secure-context half of that known
+  issue. The camera itself still needs a phone.
+- **Browser console:** zero errors across every page visited.
+- **DEFECT FOUND AND FIXED — a phase did not govern the day it started.**
+  Starting a phase left the diary reading "Daily target · 2015 kcal"
+  instead of the phase target, and ending one left the phase target in
+  place, until the next day. Cause: today's `daily_targets` row is
+  written the first time the diary is opened, and a row for the date
+  returned straight out of `getOrCreateDailyTarget` before the régime was
+  considered — so rule 1 of `shouldRecomputeTarget`, "a change of régime
+  is an event and takes effect immediately", was true in that function
+  and nowhere else. Its four unit tests passed throughout, because they
+  test the policy and not the read-through. Fixed by reconsidering
+  today's stored row when the governor under it has changed, writing with
+  an upsert (an insert would have bounced off the row as a duplicate and
+  left the superseded number), and never touching a past day. Four new
+  tests cover it; two of them fail against the previous code. Redeployed
+  and re-verified live: starting a phase now flips the diary to
+  "2-Month Cut target · 2008 kcal" the same day, and ending it falls back
+  the same day with the "your cut phase has ended" notice.
+- **Production database, before and after:** the corrected RLS audit
+  passed in a single rolled-back transaction both with the smoke
+  account's data present and after cleanup — 20 RLS tables, 80 policies,
+  `authenticated` can SELECT, cannot TRUNCATE, `anon` denied. The smoke
+  account was then deleted by exact identity, leaving 0 users, 0
+  profiles, 0 goals, 0 food logs, 0 weigh-ins, 0 daily targets, 0 private
+  foods, 4 reference meal types and the 7 shared cache rows noted under
+  KNOWN ISSUES.
+- **Production auth configuration verified live:** site URL and redirect
+  allow-list are the production origin, minimum password length 8,
+  signups enabled, `mailer_autoconfirm` true (see KNOWN ISSUES).
+- **Production advisors:** security — 1 WARN,
+  `auth_leaked_password_protection`, the accepted free-tier limitation,
+  and nothing else; performance — 13 INFO `unused_index` only, expected
+  with no traffic.
+- **Local suites after the fix:** `npm run test` 493 tests / 40 files
+  PASS, `npm run typecheck` PASS, `npm run lint` PASS, `npm run build`
+  PASS, `npm run test:live` 13/13 PASS against real USDA, Open Food Facts
+  and Gemini.
+- Not verified, and not verifiable here: the iPhone install tap and the
+  barcode camera.
 
 ### Codex takeover and deployment preparation, 2026-09-05–06
 
