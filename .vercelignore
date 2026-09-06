@@ -1,0 +1,6 @@
+.env*
+.git/
+.vercel/caldef-ops/
+node_modules/
+.next/
+supabase/.temp/

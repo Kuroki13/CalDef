@@ -768,8 +768,20 @@ tracking. Physical iPhone install/camera checks remain after deployment.
   `20260810035422` … `20260810035940` differ from committed filenames.
   No migration repair/reset was performed; development history is preserved.
   Production is empty and will be built from committed files directly.
-- Production migrations, permissions/RLS, environment variables, deployed
-  flows, and physical iPhone checks are **not yet verified**.
+- **Production migration/RLS verification passed:** the initial database
+  had 0 users / 0 public tables over a TLS connection validating Supabase's
+  root CA. CLI dry-run listed exactly seven committed migrations, then all
+  seven applied successfully using the authorized migration connection.
+  Live SQL audit passed and rolled back: 20 RLS tables, 80 policies,
+  authenticated CRUD, no API truncate, anon denied. Afterwards 0 users,
+  foods, food logs and weigh-ins; 4 reference meal types only.
+- Vercel production variables configured: public Supabase URL/publishable
+  key, sensitive Gemini/USDA keys, pinned Gemini model. No production values
+  assigned to preview/development. Canonical domain: `caldef-woad.vercel.app`.
+  `.vercelignore` explicitly excludes local env files and operational secrets.
+- Chrome login-page render and browser error check passed locally using
+  temporary Linux libraries; no system package installation was needed.
+- Deployed flows and physical iPhone checks are **not yet verified**.
 
 
 | Date | Command / suite | Result |
