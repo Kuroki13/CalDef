@@ -7,7 +7,7 @@ true.
 A feature belongs under DONE only if it was **tested and verified**, not
 merely written. "It compiles" is not done.
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
 
 ---
 
@@ -26,7 +26,7 @@ Last updated: 2026-09-05
 | 8 | Recipes, saved meals, favorites, barcode | DONE |
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
-| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — audit done, deploy not started |
+| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — Codex re-audit and production rollout |
 
 ---
 
@@ -504,14 +504,17 @@ needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
 
 ## TODO
 
-Phases 8–11 above. Requirement detail lives in `docs/PRODUCT_SPEC.md`
-and is not restated here.
+Phase 11: apply committed migrations to CalDef-prod, verify production
+permissions/RLS and clean data, configure Vercel production variables, deploy,
+and exercise authentication, food search, diary writes, AI parsing and weight
+tracking. Physical iPhone install/camera checks remain after deployment.
 
 ## KNOWN ISSUES
 
-- **Leaked-password protection is disabled** (Supabase security advisor,
-  WARN). Supabase Auth can check new passwords against
-  HaveIBeenPwned. Dashboard toggle, no cost. Not yet enabled.
+- **Leaked-password protection is unavailable on Free.** The prior "no
+  cost" guidance was wrong. [Supabase password security](https://supabase.com/docs/guides/auth/password-security)
+  specifies Pro and above. Leave disabled under the owner's zero-cost plan;
+  an advisor warning for this is an accepted free-tier limitation.
 - **There is now a real account in the database.**
   `orfalim260@gmail.com`, created 2026-08-23 14:49 UTC — the account
   owner signed up while Phase 7 was being built. It is *not* test data
@@ -705,12 +708,12 @@ and is not restated here.
 
 ## BLOCKED / NEEDS ACCOUNT OWNER
 
-- **Enable leaked-password protection.** The only finding the Supabase
-  security advisor has ever returned, and the one thing in Phase 10 that
-  could not be done from here: it is a dashboard toggle with no
-  Management API equivalent exposed through MCP, so it needs the account
-  holder. Authentication → Policies → "Prevent use of leaked passwords".
-  Free, no plan change. Checks new passwords against HaveIBeenPwned.
+- No account authentication blocker remains: Supabase and Vercel CLI
+  logins work, and GitHub authentication is valid. Production verification
+  and deployment are still in progress, not yet passed.
+- Physical iPhone verification requires the owner/device after deployment.
+- Leaked-password protection is a paid feature, not an outstanding request
+  to enable a free toggle (see KNOWN ISSUES).
 
 - **Email confirmation** — **RESOLVED 2026-08-23.** Toggle flipped; the
   full signed-in path is now verified (see TEST RESULTS).
@@ -720,6 +723,54 @@ and is not restated here.
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Codex takeover and deployment preparation, 2026-09-05–06
+
+- Started from clean `main` at `c431b7c`, tracking `origin/main`; inspected
+  the recent acceptance-audit commits and all five handoff documents.
+- Vercel connector works; `kuroki13s-projects` reports **Hobby**. Listed
+  projects before creating `caldef` (`prj_tlLt15kOBInTkBXMTlQwit3zkwzR`).
+  CLI login works and this checkout is linked. Linking appended an OIDC
+  token to ignored `.env.local`; all four existing app values remain present.
+- No Supabase connector is exposed in this Codex session. CLI login now
+  works. Management API verified Melo Org `yvervpwghnrnmguopkdu` is **Free**
+  and listed only development `CalDef` before production creation.
+- Created `CalDef-prod` (`ccllzuelnjikmdtpuyhj`), eu-west-1,
+  `ACTIVE_HEALTHY`, in the second free slot. No branching, paid instance
+  size, billing, or paid feature enabled. Generated database password is
+  stored privately under ignored `.vercel/`; never printed or committed.
+- **Reproduced baseline:** 489 tests / 40 files, TypeScript and lint pass;
+  live USDA/OFF/Gemini suite 13/13, with no reported skips. `npm run build`
+  passes with 20 routes. Initial sandbox Turbopack port error was cached;
+  moving the failed build cache aside and retrying with approved execution
+  resolved it. Application source was unchanged.
+- **Audit defect fixed:** committed SQL previously selected foreign parent
+  IDs after assuming the role that could not see them, and displayed read
+  counts without asserting them. Now saves real IDs before the role switch,
+  raises on failed reads/writes, tests update/delete isolation on all 20
+  tables, and rolls back the whole test instead of leaving seed/teardown
+  batches to the operator. Fixed-identity conflicts abort safely.
+- **Migration reproducibility defect confirmed:** replaying the six original
+  migrations in fresh temporary Postgres (PGlite with a minimal Supabase
+  auth schema) creates 20 RLS tables but grants no authenticated reads.
+  Added `20260905000001_explicit_api_permissions.sql` to specify CRUD and
+  sequence access explicitly and deny API `TRUNCATE`/schema creation.
+  Seven-migration local replay and corrected RLS audit pass; rollback leaves
+  0 users, 0 foods, 0 logs and exactly 4 reference meal types. This local
+  result does not substitute for a production Supabase check.
+- **Development verified live:** corrected RLS audit passed in a single
+  rollback transaction. 20 RLS tables / 80 policies. Before/after user and
+  profile fingerprints match; 2 accounts, 2 food logs, 1 weight entry remain.
+  Existing authenticated role has `TRUNCATE`, confirming the new migration
+  removes an unnecessary permission. The new migration plus stricter grant/role assertions passed in a second
+  development rollback transaction; no persistent dev change was made.
+- Development CLI dry-run found historical remote migration timestamps
+  `20260810035422` … `20260810035940` differ from committed filenames.
+  No migration repair/reset was performed; development history is preserved.
+  Production is empty and will be built from committed files directly.
+- Production migrations, permissions/RLS, environment variables, deployed
+  flows, and physical iPhone checks are **not yet verified**.
+
 
 | Date | Command / suite | Result |
 |------|-----------------|--------|
@@ -1143,7 +1194,6 @@ kg/week, with noise) and 28 days of food logs at 2100 kcal.
 | Intake attribution | PASS after fix — "Across the 20 days you logged, you averaged 2180 kcal" |
 | Teardown | PASS — test accounts removed by email prefix; the real account and login fixture untouched, 0 orphaned foods/milestones/estimates |
 
-Every test account has been torn down. The database holds the 4 seeded
-`meal_types` rows and the retained login fixture (see KNOWN ISSUES) —
-verified directly after the Phase 6 run: 0 foods, 0 logs, 0 weigh-ins,
-0 targets, 0 estimates, 0 check-ins.
+Historical Phase 6 teardown result: its test accounts were removed and
+fixture tables were empty then. This is not the current development data
+state; the owner's real account and history now exist and are preserved.

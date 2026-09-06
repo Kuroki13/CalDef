@@ -17,7 +17,7 @@ Keep this synchronized with the implementation.
 | Framework  | Next.js 16 (App Router), React 19 |
 | Language   | TypeScript, `strict` |
 | Styling    | Tailwind CSS v4 + shadcn/ui |
-| Database   | Postgres 17 on Supabase (project `CalDef`, free plan, eu-west-1) |
+| Database   | Postgres 17 on Supabase (`CalDef` development, `CalDef-prod` production; Free, eu-west-1) |
 | Auth       | Supabase Auth, email/password |
 | Hosting    | Vercel Hobby |
 | Food data  | USDA FoodData Central, Open Food Facts (v3 product, cgi search) |
@@ -310,3 +310,20 @@ are encoded as test cases so the safety behaviour cannot silently drift.
 Names only are mirrored in `.env.example`. Real values live in
 `.env.local`, which is gitignored. The service_role key is deliberately
 absent.
+
+## 10. Production isolation
+
+Production is `CalDef-prod` (`ccllzuelnjikmdtpuyhj`); development remains
+`CalDef` (`tcgtimmyakysjdgxugfp`). Production schema comes from committed
+migrations over an authorized migration connection. Supabase MCP may only
+connect to development. Never copy development auth users or diary history.
+The migrations seed only the four built-in meal types.
+
+Migration `20260905000001` makes authenticated CRUD and sequence grants
+explicit rather than relying on Supabase project defaults. API roles cannot
+truncate tables or create schema objects. RLS continues to enforce row
+ownership; trigger helpers are unavailable as client RPCs.
+
+The SQL isolation audit runs as one transaction, uses known foreign parent
+IDs, asserts failures, and rolls back its fixtures. Migration and audit
+credentials are operational secrets and are never Vercel app variables.

@@ -146,3 +146,16 @@ in the browser; it bypasses RLS entirely.
 
 ## Division of labor
 Claude Code is the main developer for this project.
+
+## Codex takeover — approved production plan (2026-09-06)
+
+Codex continues the existing implementation through deployment. The owner's
+approved separate production project is now `CalDef-prod`
+(`ccllzuelnjikmdtpuyhj`); `CalDef` (`tcgtimmyakysjdgxugfp`) remains development
+with the owner's account and history preserved. This supersedes the earlier
+"ONE project / for now" state above. Both remain in Melo Org on Free.
+Production receives committed, tested migrations through an authorized
+migration connection, never Supabase MCP. Any future Supabase MCP connection
+must be explicitly scoped to development. Production starts with reference
+data only; audit fixtures must roll back or be removed by exact test identity.
+Vercel remains Hobby; Gemini billing must not be enabled.

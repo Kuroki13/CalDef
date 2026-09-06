@@ -4,22 +4,52 @@
 -- on every table, and that anon reaches nothing.
 --
 -- HOW TO RUN
---   Each numbered section is a separate statement batch. `set local` only
---   survives one batch, so run them as separate calls (Supabase MCP
---   execute_sql, or psql with an explicit transaction per section).
---   Section 0 seeds, sections 1-4 assert, section 5 tears everything down.
---   Run against the development project only.
+--   Run this ENTIRE file on one authorized Postgres connection, with
+--   ON_ERROR_STOP enabled (psql -X -v ON_ERROR_STOP=1 -f ...).
+--   Use development first; production verification uses a migration
+--   connection, never Supabase MCP. All fixtures roll back. Identity
+--   sequences may advance, which does not create food or user history.
+--   Any failed assertion aborts the transaction; disconnect to roll back.
+--   Fixed test identities must not already exist: seed conflicts abort.
 --
--- WHAT "PASS" LOOKS LIKE
---   1: every `seen` equals its `expected`
---   2: every count is 0 except own_profile_updated, which is 1
---   3 and 4: return their result row without raising
---
--- Section 1 asserts what B must NOT see, and asserts the shared tables by
--- what is hidden rather than by a row count. An earlier version expected
--- exactly one global food, which was true only while the database was empty
--- and started failing as soon as real foods were cached — a test that goes
--- red for a reason that is not a defect is a test people stop running.
+-- PASS means every assertion completes and the final ROLLBACK succeeds.
+
+begin;
+
+-- Table grants and role attributes are independent of row policies.
+do $$
+declare t record; operation text; policy_count int; table_count int;
+begin
+  if exists (select 1 from pg_roles where rolname in ('anon', 'authenticated')
+             and (rolsuper or rolbypassrls)) then
+    raise exception 'FAIL: API role bypasses RLS';
+  end if;
+  select count(*) into table_count from pg_class
+    where relnamespace = 'public'::regnamespace and relkind = 'r';
+  if table_count <> 20 then raise exception 'FAIL: expected 20 tables'; end if;
+  for t in select relname, relrowsecurity from pg_class
+    where relnamespace = 'public'::regnamespace and relkind = 'r'
+  loop
+    if not t.relrowsecurity then raise exception 'FAIL: RLS disabled on %', t.relname; end if;
+    select count(distinct cmd) into policy_count from pg_policies
+      where schemaname = 'public' and tablename = t.relname
+      and cmd in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');
+    if policy_count <> 4 then raise exception 'FAIL: missing policies on %', t.relname; end if;
+    foreach operation in array array['SELECT', 'INSERT', 'UPDATE', 'DELETE'] loop
+      if not has_table_privilege('authenticated', 'public.' || t.relname, operation) then
+        raise exception 'FAIL: authenticated lacks % on %', operation, t.relname;
+      end if;
+      if has_table_privilege('anon', 'public.' || t.relname, operation) then
+        raise exception 'FAIL: anon has % on %', operation, t.relname;
+      end if;
+    end loop;
+    if has_table_privilege('authenticated', 'public.' || t.relname, 'TRUNCATE')
+      or has_table_privilege('anon', 'public.' || t.relname, 'TRUNCATE') then
+      raise exception 'FAIL: API role can truncate %', t.relname;
+    end if;
+  end loop;
+  raise notice 'PASS: grants, API roles, RLS and four policies on all 20 tables';
+end $$;
 
 -- =====================================================================
 -- 0. SEED — two users, one row per table owned by user A
@@ -34,8 +64,7 @@ values
    '{"provider":"email","providers":["email"]}', '{}', now(), now()),
   ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'rls-test-b@example.test', '', now(),
-   '{"provider":"email","providers":["email"]}', '{}', now(), now())
-on conflict (id) do nothing;
+   '{"provider":"email","providers":["email"]}', '{}', now(), now());
 
 -- profiles are expected to appear here on their own, via handle_new_user.
 
@@ -56,6 +85,8 @@ begin
   insert into public.foods (source, name, user_id)
   values ('custom', 'A Private Food', a) returning id into v_custom_food_id;
   insert into public.food_nutrients (food_id, kcal) values (v_custom_food_id, 100);
+  insert into public.food_servings (food_id, label, grams)
+    values (v_custom_food_id, 'private portion', 100);
 
   select id into v_meal_id from public.meal_types where user_id is null and slug = 'lunch';
 
@@ -101,6 +132,11 @@ begin
     values (v_phase_id, 1, current_date + 7, 110.7, 110.2);
 
   insert into public.meal_types (user_id, slug, name) values (a, 'pre_workout', 'Pre-workout');
+  perform set_config('caldef_test.recipe_id', v_recipe_id::text, true);
+  perform set_config('caldef_test.saved_meal_id', v_saved_id::text, true);
+  perform set_config('caldef_test.conversation_id', v_conv_id::text, true);
+  perform set_config('caldef_test.food_id', v_food_id::text, true);
+  perform set_config('caldef_test.private_food_id', v_custom_food_id::text, true);
 end $$;
 
 -- =====================================================================
@@ -110,6 +146,10 @@ end $$;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
+do $$
+declare result record;
+begin
+for result in (
 select 'profiles' as t, count(*) as seen, 1 as expected from public.profiles
 union all select 'goals', count(*), 0 from public.goals
 union all select 'daily_targets', count(*), 0 from public.daily_targets
@@ -131,13 +171,25 @@ union all select 'cut_phase_milestones', count(*), 0 from public.cut_phase_miles
 -- and the row seeded as global is still reachable.
 union all select 'foods: A private food hidden', count(*), 0
   from public.foods where name = 'A Private Food'
+union all select 'food_nutrients: A private food hidden', count(*), 0
+  from public.food_nutrients where food_id = current_setting('caldef_test.private_food_id')::bigint
+union all select 'food_servings: A private food hidden', count(*), 0
+  from public.food_servings where food_id = current_setting('caldef_test.private_food_id')::bigint
 union all select 'foods: shared row reachable', count(*), 1
   from public.foods where source_id = 'TEST-1'
 union all select 'meal_types: A custom hidden', count(*), 0
   from public.meal_types where slug = 'pre_workout'
 union all select 'meal_types: builtins reachable', count(*), 4
   from public.meal_types where user_id is null
-order by 1;
+order by 1
+) loop
+  if result.seen <> result.expected then
+    raise exception 'FAIL: read isolation on %: saw %, expected %',
+      result.t, result.seen, result.expected;
+  end if;
+end loop;
+raise notice 'PASS: read isolation';
+end $$;
 
 -- =====================================================================
 -- 2. WRITE ISOLATION — B mutates everything it can reach.
@@ -148,38 +200,37 @@ order by 1;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
-with
-  u_weight  as (update public.weight_entries set weight_kg = 1 returning 1),
-  d_logs    as (delete from public.food_logs returning 1),
-  u_phase   as (update public.cut_phases set start_weight_kg = 1 returning 1),
-  d_miles   as (delete from public.cut_phase_milestones returning 1),
-  u_msg     as (update public.ai_messages set content = 'hacked' returning 1),
-  d_conv    as (delete from public.ai_conversations returning 1),
-  d_recipe  as (delete from public.recipe_ingredients returning 1),
-  u_recipe  as (update public.recipes set name = 'hacked' returning 1),
-  d_smitem  as (delete from public.saved_meal_items returning 1),
-  u_smeal   as (update public.saved_meals set name = 'hacked' returning 1),
-  d_fav     as (delete from public.favorite_foods returning 1),
-  u_food    as (update public.foods set name = 'hacked' returning 1),
-  d_serv    as (delete from public.food_servings returning 1),
-  d_nutr    as (delete from public.food_nutrients returning 1),
-  u_prof    as (update public.profiles set display_name = 'hacked' returning 1)
-select
-  (select count(*) from u_weight) as weight_updated,
-  (select count(*) from d_logs)   as logs_deleted,
-  (select count(*) from u_phase)  as phases_updated,
-  (select count(*) from d_miles)  as milestones_deleted,
-  (select count(*) from u_msg)    as ai_messages_updated,
-  (select count(*) from d_conv)   as ai_conversations_deleted,
-  (select count(*) from d_recipe) as recipe_ingredients_deleted,
-  (select count(*) from u_recipe) as recipes_updated,
-  (select count(*) from d_smitem) as saved_meal_items_deleted,
-  (select count(*) from u_smeal)  as saved_meals_updated,
-  (select count(*) from d_fav)    as favorites_deleted,
-  (select count(*) from u_food)   as foods_updated,
-  (select count(*) from d_serv)   as servings_deleted,
-  (select count(*) from d_nutr)   as nutrients_deleted,
-  (select count(*) from u_prof)   as own_profile_updated;
+do $$
+declare t text; affected bigint; predicate text;
+begin
+  foreach t in array array[
+    'profiles','goals','daily_targets','weight_entries','tdee_estimates',
+    'weekly_checkins','food_logs','recipes','recipe_ingredients','saved_meals',
+    'saved_meal_items','favorite_foods','ai_conversations','ai_messages',
+    'cut_phases','cut_phase_milestones','foods','food_nutrients',
+    'food_servings','meal_types']
+  loop
+    predicate := case when t = 'profiles'
+      then ' where id <> auth.uid()' else '' end;
+    execute format('update public.%I set updated_at = updated_at%s', t, predicate);
+    get diagnostics affected = row_count;
+    if affected <> 0 then
+      raise exception 'FAIL: foreign update on % affected % rows', t, affected;
+    end if;
+    execute format('delete from public.%I%s', t, predicate);
+    get diagnostics affected = row_count;
+    if affected <> 0 then
+      raise exception 'FAIL: foreign delete on % affected % rows', t, affected;
+    end if;
+  end loop;
+  update public.profiles set display_name = 'RLS positive control'
+    where id = auth.uid();
+  get diagnostics affected = row_count;
+  if affected <> 1 then
+    raise exception 'FAIL: own profile update affected % rows', affected;
+  end if;
+  raise notice 'PASS: update/delete isolation on all 20 tables; own update allowed';
+end $$;
 
 -- =====================================================================
 -- 3. FORGED OWNERSHIP — B may not insert a row it claims A owns
@@ -197,12 +248,15 @@ declare
   a uuid := '11111111-1111-1111-1111-111111111111';
   v_recipe bigint; v_meal bigint; v_conv bigint; v_food bigint;
 begin
-  -- Read as the definer, since B cannot see these. Knowing an id must not
-  -- be enough, which is precisely the assumption under test.
-  select id into v_recipe from public.recipes where user_id = a limit 1;
-  select id into v_meal from public.saved_meals where user_id = a limit 1;
-  select id into v_conv from public.ai_conversations where user_id = a limit 1;
-  select id into v_food from public.foods where source_id = 'TEST-1' limit 1;
+  -- Capture known foreign IDs before switching roles, not via a SELECT
+  -- that RLS would hide. A null ID would not test forged parentage.
+  v_recipe := current_setting('caldef_test.recipe_id')::bigint;
+  v_meal := current_setting('caldef_test.saved_meal_id')::bigint;
+  v_conv := current_setting('caldef_test.conversation_id')::bigint;
+  v_food := current_setting('caldef_test.food_id')::bigint;
+  if v_recipe is null or v_meal is null or v_conv is null or v_food is null then
+    raise exception 'FAIL: missing forged-parent fixture IDs';
+  end if;
 
   begin
     insert into public.weight_entries (user_id, entry_date, weight_kg)
@@ -292,11 +346,7 @@ end $$;
 select 'anon denied on all 20 tables' as result;
 
 -- =====================================================================
--- 5. TEARDOWN — removes only what section 0 created
+-- 5. TEARDOWN — rollback, including on a production migration connection.
 -- =====================================================================
 
-delete from auth.users
- where id in ('11111111-1111-1111-1111-111111111111',
-              '22222222-2222-2222-2222-222222222222');
-
-delete from public.foods where source = 'usda' and source_id = 'TEST-1';
+rollback;
