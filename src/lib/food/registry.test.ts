@@ -5,6 +5,7 @@ import type { Food, ProviderResult } from "@/lib/food/types";
 const searchCache = vi.fn();
 const findCachedByBarcode = vi.fn();
 const cacheFood = vi.fn();
+const refreshCachedFood = vi.fn();
 const usdaSearch = vi.fn();
 const offSearch = vi.fn();
 const offLookupBarcode = vi.fn();
@@ -13,6 +14,7 @@ vi.mock("@/lib/food/cache", () => ({
   searchCache: (...a: unknown[]) => searchCache(...a),
   findCachedByBarcode: (...a: unknown[]) => findCachedByBarcode(...a),
   cacheFood: (...a: unknown[]) => cacheFood(...a),
+  refreshCachedFood: (...a: unknown[]) => refreshCachedFood(...a),
 }));
 
 vi.mock("@/lib/food/usda", () => ({
@@ -245,12 +247,65 @@ describe("describeDegradation", () => {
 });
 
 describe("lookupBarcode", () => {
-  it("returns a cache hit without touching the network", async () => {
-    findCachedByBarcode.mockResolvedValue({ ...food("off", "1"), id: 7 });
+  const fresh = new Date().toISOString();
+  const longAgo = new Date("2020-01-01T00:00:00Z").toISOString();
+
+  it("returns a fresh cache hit without touching the network", async () => {
+    findCachedByBarcode.mockResolvedValue({
+      ...food("off", "1"),
+      id: 7,
+      refreshedAt: fresh,
+    });
 
     const result = await lookupBarcode("3017624010701");
 
     expect(result?.sourceId).toBe("1");
+    expect(offLookupBarcode).not.toHaveBeenCalled();
+  });
+
+  it("re-asks the provider when the cached row has expired", async () => {
+    // A scanned product is exactly where a corrected figure matters, and the
+    // request is one the cache was only ever deferring, not avoiding.
+    findCachedByBarcode.mockResolvedValue({
+      ...food("off", "1"),
+      id: 7,
+      refreshedAt: longAgo,
+    });
+    offLookupBarcode.mockResolvedValue(food("off", "1", "Nutella"));
+
+    const result = await lookupBarcode("3017624010701");
+
+    expect(offLookupBarcode).toHaveBeenCalledOnce();
+    expect(refreshCachedFood).toHaveBeenCalledWith(7, expect.objectContaining({ name: "Nutella" }));
+    expect(result?.name).toBe("Nutella");
+  });
+
+  it("keeps the stale copy when the provider cannot be reached", async () => {
+    // Degrading, not failing: the copy we hold is better than nothing, and
+    // the user asked about a packet in their hand.
+    findCachedByBarcode.mockResolvedValue({
+      ...food("off", "1", "Old Nutella"),
+      id: 7,
+      refreshedAt: longAgo,
+    });
+    offLookupBarcode.mockResolvedValue(null);
+
+    const result = await lookupBarcode("3017624010701");
+
+    expect(result?.name).toBe("Old Nutella");
+    expect(refreshCachedFood).not.toHaveBeenCalled();
+  });
+
+  it("never re-asks a provider about the user's own food", async () => {
+    findCachedByBarcode.mockResolvedValue({
+      ...food("custom", "own-uuid", "My Flapjack"),
+      id: 7,
+      refreshedAt: longAgo,
+    });
+
+    const result = await lookupBarcode("3017624010701");
+
+    expect(result?.name).toBe("My Flapjack");
     expect(offLookupBarcode).not.toHaveBeenCalled();
   });
 

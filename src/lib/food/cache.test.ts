@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 const createClient = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => createClient() }));
 
-const { __searchTerms, cacheFood, rowToFood } = await import("@/lib/food/cache");
+const { __searchTerms, cacheFood, refreshCachedFood, rowToFood } = await import(
+  "@/lib/food/cache"
+);
 
 describe("searchTerms", () => {
   it("splits on whitespace", () => {
@@ -126,5 +128,97 @@ describe("cacheFood and the ownership boundary", () => {
     await expect(cacheFood(customFood)).rejects.toThrow(
       /only be created by its owner/,
     );
+  });
+});
+
+describe("refreshCachedFood", () => {
+  /** Records every table written, so a test can assert one was not. */
+  function recordingClient(rows: { id: number; label: string }[] = []) {
+    const writes: { table: string; op: string; payload?: unknown }[] = [];
+    const builder = (table: string, op: string, payload?: unknown) => {
+      if (op !== "select") writes.push({ table, op, payload });
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        eq: () => chain,
+        is: () => chain,
+        then: (onFulfilled: (v: unknown) => unknown) =>
+          Promise.resolve({ data: rows, error: null }).then(onFulfilled),
+      };
+      return chain;
+    };
+    return {
+      writes,
+      client: {
+        from: (table: string) => ({
+          select: () => builder(table, "select"),
+          update: (payload: unknown) => builder(table, "update", payload),
+          insert: (payload: unknown) => builder(table, "insert", payload),
+        }),
+      },
+    };
+  }
+
+  const fresh = {
+    sourceId: "171515",
+    source: "usda" as const,
+    name: "Chicken breast",
+    brand: null,
+    description: null,
+    barcode: null,
+    isVerified: true,
+    nutrients: { kcal: 172, protein_g: 32, carbs_g: 0, fat_g: 4 },
+    servings: [{ label: "100 g", grams: 100, isDefault: true }],
+    dataUpdatedAt: "2026-09-01",
+  };
+
+  it("never writes a logging table", async () => {
+    // The guarantee the whole feature stands on: a corrected provider figure
+    // changes what the next log of this food says and nothing that has
+    // already been written. `food_logs` holds its own macros for exactly
+    // this reason.
+    const { client, writes } = recordingClient([{ id: 9, label: "100 g" }]);
+    createClient.mockResolvedValue(client);
+
+    await refreshCachedFood(7, fresh);
+
+    expect(writes.map((w) => w.table)).not.toContain("food_logs");
+    expect(new Set(writes.map((w) => w.table))).toEqual(
+      new Set(["food_nutrients", "food_servings", "foods"]),
+    );
+  });
+
+  it("updates a serving it already has rather than adding a second", async () => {
+    const { client, writes } = recordingClient([{ id: 9, label: "100 g" }]);
+    createClient.mockResolvedValue(client);
+
+    await refreshCachedFood(7, fresh);
+
+    const servingWrites = writes.filter((w) => w.table === "food_servings");
+    expect(servingWrites.every((w) => w.op === "update")).toBe(true);
+  });
+
+  it("adds a serving the provider has grown, and deletes none", async () => {
+    // Removing one would be `on delete set null` on an entry already
+    // written, turning "1 slice" into a bare gram figure.
+    const { client, writes } = recordingClient([{ id: 9, label: "1 slice" }]);
+    createClient.mockResolvedValue(client);
+
+    await refreshCachedFood(7, fresh);
+
+    expect(writes.some((w) => w.table === "food_servings" && w.op === "insert")).toBe(true);
+    expect(writes.some((w) => w.op === "delete")).toBe(false);
+  });
+
+  it("stamps the row last, so a half-done refresh does not look finished", async () => {
+    // `refreshed_at` is what the policy reads. Writing it before the
+    // nutrition would close the window on a refresh that had not happened.
+    const { client, writes } = recordingClient([{ id: 9, label: "100 g" }]);
+    createClient.mockResolvedValue(client);
+
+    await refreshCachedFood(7, fresh);
+
+    const last = writes.at(-1);
+    expect(last?.table).toBe("foods");
+    expect(last?.payload).toMatchObject({ refreshed_at: expect.any(String) });
   });
 });

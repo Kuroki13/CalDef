@@ -450,6 +450,7 @@ export type Database = {
           id: number
           is_verified: boolean
           name: string
+          refreshed_at: string
           search_text: string | null
           source: Database["public"]["Enums"]["food_source"]
           source_id: string | null
@@ -466,6 +467,7 @@ export type Database = {
           id?: never
           is_verified?: boolean
           name: string
+          refreshed_at?: string
           search_text?: string | null
           source: Database["public"]["Enums"]["food_source"]
           source_id?: string | null
@@ -482,6 +484,7 @@ export type Database = {
           id?: never
           is_verified?: boolean
           name?: string
+          refreshed_at?: string
           search_text?: string | null
           source?: Database["public"]["Enums"]["food_source"]
           source_id?: string | null

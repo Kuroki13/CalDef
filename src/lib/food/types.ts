@@ -46,8 +46,15 @@ export type Food = {
   dataUpdatedAt: string | null;
 };
 
-/** A food that has been cached locally, so it carries a database id. */
-export type CachedFood = Food & { id: number };
+/**
+ * A food that has been cached locally, so it carries a database id.
+ *
+ * `refreshedAt` is when the row last agreed with its provider. It is what
+ * decides whether a search that just heard from that provider should write
+ * the answer back — see `lib/food/staleness.ts`. Null on a row that predates
+ * the column, which counts as stale.
+ */
+export type CachedFood = Food & { id: number; refreshedAt?: string | null };
 
 export type FoodSearchQuery = {
   text: string;

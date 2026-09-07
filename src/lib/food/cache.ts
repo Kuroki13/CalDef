@@ -59,7 +59,7 @@ export async function searchCache({
     .from("foods")
     .select(
       `id, source, source_id, name, brand, description, barcode, is_verified,
-       data_updated_at,
+       data_updated_at, refreshed_at,
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
@@ -100,7 +100,7 @@ export async function findCachedByBarcode(
     .from("foods")
     .select(
       `id, source, source_id, name, brand, description, barcode, is_verified,
-       data_updated_at,
+       data_updated_at, refreshed_at,
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
@@ -215,6 +215,90 @@ export async function cacheFood(food: Food): Promise<number> {
 }
 
 /**
+ * Rewrites a stale cached food from a fresh provider response.
+ *
+ * The counterpart to `cacheFood` being insert-only. A provider food is
+ * immutable while it is fresh; once it is older than the window, a search or
+ * a barcode lookup that has just heard from the provider anyway writes the
+ * answer back. There is no extra network call in it — the response was
+ * already fetched for the thing the user asked for.
+ *
+ * **This cannot reach a diary entry.** `food_logs` holds the macros computed
+ * at log time, so what changes here is what the *next* log of this food will
+ * say. Nothing already written moves, which is the whole reason those
+ * columns are a snapshot rather than a join.
+ *
+ * Failure is silent by design: a refusal here means the row stopped being
+ * stale between the read and the write, or the policy declined it, and
+ * neither is a reason to fail the search the user actually asked for. The
+ * caller gets the food it already had.
+ */
+export async function refreshCachedFood(
+  foodId: number,
+  food: Food,
+): Promise<boolean> {
+  const supabase = await createClient();
+
+  const { error: nutrientError } = await supabase
+    .from("food_nutrients")
+    .update({
+      kcal: food.nutrients.kcal,
+      protein_g: food.nutrients.protein_g,
+      carbs_g: food.nutrients.carbs_g,
+      fat_g: food.nutrients.fat_g,
+      fiber_g: food.nutrients.fiber_g ?? null,
+      sugar_g: food.nutrients.sugar_g ?? null,
+      sat_fat_g: food.nutrients.sat_fat_g ?? null,
+      sodium_mg: food.nutrients.sodium_mg ?? null,
+    })
+    .eq("food_id", foodId);
+  if (nutrientError) return false;
+
+  // Servings are added and corrected, never removed: `food_logs.serving_id`
+  // is `on delete set null`, so dropping one would turn "1 slice" into a
+  // bare gram figure on an entry already written.
+  const { data: existing } = await supabase
+    .from("food_servings")
+    .select("id, label")
+    .eq("food_id", foodId);
+  const byLabel = new Map((existing ?? []).map((row) => [row.label, row.id]));
+
+  for (const serving of food.servings) {
+    const id = byLabel.get(serving.label);
+    if (id) {
+      await supabase
+        .from("food_servings")
+        .update({ grams: serving.grams })
+        .eq("id", id);
+    } else {
+      await supabase.from("food_servings").insert({
+        food_id: foodId,
+        label: serving.label,
+        grams: serving.grams,
+        is_default: false,
+      });
+    }
+  }
+
+  // Last, and the row is only considered refreshed if this lands: the
+  // timestamp is what the policy reads, so writing it first would close the
+  // window on a refresh that had not happened yet.
+  const { error } = await supabase
+    .from("foods")
+    .update({
+      name: food.name,
+      brand: food.brand,
+      is_verified: food.isVerified,
+      data_updated_at: food.dataUpdatedAt,
+      refreshed_at: new Date().toISOString(),
+    })
+    .eq("id", foodId)
+    .is("user_id", null);
+
+  return !error;
+}
+
+/**
  * Resolves one of the user's own custom foods by its `source_id`.
  *
  * RLS is what makes this safe: another user's custom food is not selectable,
@@ -246,6 +330,7 @@ type FoodRow = {
   barcode: string | null;
   is_verified: boolean;
   data_updated_at: string | null;
+  refreshed_at?: string | null;
   food_nutrients: {
     kcal: number;
     protein_g: number;
@@ -289,6 +374,7 @@ export function rowToFood(row: FoodRow): CachedFood[] {
         isDefault: s.is_default,
       })),
       dataUpdatedAt: row.data_updated_at,
+      refreshedAt: row.refreshed_at ?? null,
     },
   ];
 }
