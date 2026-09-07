@@ -3,18 +3,21 @@ import "server-only";
 /**
  * Assistant threads.
  *
- * Stored so a conversation survives a page reload, and so the account owner
- * can see and delete what they have asked. Nothing here is ever sent to
- * Gemini: each question is answered on its own, with the anonymous figures
- * of the moment, and the stored history is for the user's screen only.
+ * Stored so a conversation survives a page reload, so the account owner can
+ * see and delete what they have asked, and — through `recentTurns` — so a
+ * follow-up like "and how much protein was that?" has something to refer to.
  *
- * That is a deliberate limitation rather than an oversight — replaying a
- * thread would mean sending back everything previously typed, which is
- * exactly the accumulation of personal detail the data-minimization rule
- * exists to prevent. A follow-up question therefore has to restate its own
- * context, and the UI says so.
+ * Carrying a thread forward is exactly where the data-minimization rule
+ * could quietly be lost, so the way out is narrow. `recentTurns` re-checks
+ * every stored message with `toFoodText` and drops the ones that no longer
+ * pass, which means what crosses the boundary is `FoodText` and nothing
+ * else — the same branded type every other call site takes. A message the
+ * gate refuses is not trimmed or masked; it simply does not go, and the
+ * conversation carries on without it.
  */
 
+import { toFoodText } from "@/lib/llm/food-text";
+import type { ChatTurn } from "@/lib/llm/types";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 import type { Tables } from "@/types/database";
 
@@ -54,6 +57,55 @@ async function messagesFor(conversationId: number): Promise<Message[]> {
   if (error) throw new Error(error.message);
 
   return data ?? [];
+}
+
+/**
+ * How many turns of context a follow-up gets.
+ *
+ * Six messages is roughly three exchanges: enough for "and how much protein
+ * was that?" to find its referent, short enough that a long conversation
+ * does not accumulate into a dossier or a prompt that costs more of a free
+ * quota than the question is worth.
+ */
+export const HISTORY_TURNS = 6;
+
+/**
+ * The tail of a thread, as food text.
+ *
+ * Ordered oldest to newest, because that is the order a reader — human or
+ * model — needs to follow a reference backwards. Anything the gate refuses
+ * is dropped silently: it was already stored and already shown on the
+ * user's own screen, and this is only about what may leave.
+ */
+export async function recentTurns(
+  conversationId: number,
+  limit: number = HISTORY_TURNS,
+): Promise<ChatTurn[]> {
+  const supabase = await createClient();
+
+  // RLS scopes this to the owner's own thread; the filter is what makes the
+  // query mean "this conversation" rather than "any of mine".
+  const { data, error } = await supabase
+    .from("ai_messages")
+    .select("role, content")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+
+  return (data ?? [])
+    .reverse()
+    .flatMap((message): ChatTurn[] => {
+      // A system message is instruction, not conversation, and has no place
+      // in a transcript being replayed to the model.
+      if (message.role !== "user" && message.role !== "assistant") return [];
+
+      const text = toFoodText(message.content);
+      if (!text.ok) return [];
+
+      return [{ role: message.role, text: text.value }];
+    });
 }
 
 /**

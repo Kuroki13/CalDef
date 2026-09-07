@@ -3,10 +3,12 @@
 /**
  * The assistant thread.
  *
- * Each question is answered on its own: the stored history is on screen for
- * the user, not sent back to the model. The note under the box says so,
- * because a chat window that silently forgets would otherwise look broken
- * rather than deliberate.
+ * A follow-up works: the last few turns of the thread go back with the
+ * question, so "and how much protein was that?" has a referent. What goes is
+ * food text only — every stored message is re-checked on its way out and
+ * dropped if it no longer passes the gate — and the note under the box says
+ * exactly that, because the boundary is the sort of thing a user is entitled
+ * to know the shape of.
  */
 
 import { useState } from "react";
@@ -150,10 +152,11 @@ export function Chat({
         Food proposals stay in this session until you confirm them. Saved foods and confirmed meals remain in your account. Restaurant references show their source and review date; general live web search is not enabled.
       </p>
       <p className="text-muted-foreground text-xs">
-        Each question is answered on its own — earlier messages are kept for
-        you to read, not sent back to the assistant, so a follow-up needs to
-        restate what it is about. Your targets and today&rsquo;s totals go with
-        the question as plain numbers; your name, email and weight history do
+        The last few turns of this thread go back with your question, so a
+        follow-up can say &ldquo;and how much protein was that?&rdquo;. Only
+        the food text goes: anything that looks like an address, a link or an
+        identifier is dropped rather than sent. Your targets and today&rsquo;s
+        totals go as plain numbers; your name, email and weight history do
         not.
       </p>
     </div>

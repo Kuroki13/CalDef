@@ -226,6 +226,38 @@ describe("answer", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.generationConfig.responseMimeType).toBeUndefined();
   });
+
+  it("carries the earlier turns so a follow-up has a referent", async () => {
+    const fetchMock = reply("About 31 g.");
+
+    await geminiProvider.answer(
+      text("and how much protein was that?"),
+      { targetCalories: 2250 },
+      [
+        { role: "user", text: text("how many calories in chicken breast?") },
+        { role: "assistant", text: text("About 165 kcal per 100 g.") },
+      ],
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const sent = body.contents[0].parts[0].text as string;
+
+    expect(sent).toContain("how many calories in chicken breast?");
+    expect(sent).toContain("About 165 kcal per 100 g.");
+    // The question being answered is still the last thing in the prompt.
+    expect(sent.indexOf("Question:")).toBeGreaterThan(
+      sent.indexOf("Earlier in this conversation"),
+    );
+  });
+
+  it("sends no transcript at all when there is nothing to carry", async () => {
+    const fetchMock = reply("ok");
+    await geminiProvider.answer(text("hi"), {});
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const sent = body.contents[0].parts[0].text as string;
+    expect(sent).not.toContain("Earlier in this conversation");
+  });
 });
 
 describe("failure handling", () => {

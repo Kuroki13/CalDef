@@ -95,6 +95,19 @@ export type LLMFailure =
 
 export type LLMResult<T> = { ok: true; value: T } | LLMFailure;
 
+/**
+ * One earlier turn of a conversation, carried forward so a follow-up works.
+ *
+ * `text` is `FoodText` and nothing else, which is what keeps the
+ * data-minimization rule structural rather than a promise: a stored message
+ * is re-checked by `toFoodText` on its way back out, and one that no longer
+ * passes is dropped rather than trimmed. The assistant's own replies go
+ * through the same gate — it only ever saw food text and numbers, so its
+ * answers cannot contain identity that never went in, but the invariant is
+ * worth more when it has no exceptions.
+ */
+export type ChatTurn = { role: "user" | "assistant"; text: FoodText };
+
 export type LLMProvider = {
   readonly name: string;
   /** False when there is no key, or the user has switched the AI off. */
@@ -111,9 +124,13 @@ export type LLMProvider = {
     text: FoodText,
     entry: { description: FoodText; amount: number; unit: PortionUnit },
   ): Promise<LLMResult<CorrectionIntent>>;
-  /** A nutrition question, answered against anonymous figures. */
+  /**
+   * A nutrition question, answered against anonymous figures and — when the
+   * question is a follow-up — the food text of what was said before it.
+   */
   answer(
     question: FoodText,
     figures: AnonymousFigures,
+    history?: readonly ChatTurn[],
   ): Promise<LLMResult<string>>;
 };

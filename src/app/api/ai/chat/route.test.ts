@@ -10,6 +10,7 @@ const resolveIntents = vi.fn();
 const isAvailable = vi.fn();
 const currentFigures = vi.fn();
 const openThread = vi.fn();
+const recentTurns = vi.fn();
 const appendMessage = vi.fn();
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -37,6 +38,7 @@ vi.mock("@/lib/ai/figures", () => ({
 vi.mock("@/lib/ai/conversations", () => ({
   openThread: (...a: unknown[]) => openThread(...a),
   appendMessage: (...a: unknown[]) => appendMessage(...a),
+  recentTurns: (...a: unknown[]) => recentTurns(...a),
 }));
 
 const { POST } = await import("@/app/api/ai/chat/route");
@@ -60,6 +62,7 @@ beforeEach(() => {
     targetProteinG: 180,
   });
   openThread.mockResolvedValue({ id: 5 });
+  recentTurns.mockResolvedValue([]);
   parseFoods.mockResolvedValue({ ok: true, value: { foods: [{ query: "Harvey's Big Angus Burger", amount: 1, unit: "serving" }] } });
   resolveIntents.mockResolvedValue({ proposals: [{ intent: { query: "Harvey's Big Angus Burger", amount: 1, unit: "serving" }, match: null, alternatives: [], grams: null, macros: null }], degraded: false });
 });
@@ -135,20 +138,42 @@ describe("POST /api/ai/chat", () => {
     await call({ message: "what should I eat?" });
 
     expect(answer).toHaveBeenCalledTimes(1);
-    expect(answer).toHaveBeenCalledWith("what should I eat?", {
-      targetCalories: 2250,
-      targetProteinG: 180,
-    });
+    expect(answer).toHaveBeenCalledWith(
+      "what should I eat?",
+      { targetCalories: 2250, targetProteinG: 180 },
+      // A first question has no thread behind it, so nothing is carried.
+      [],
+    );
   });
 
-  it("does not replay the stored thread to the model", async () => {
-    await call({ conversationId: 5, message: "and after that?" });
+  it("carries the thread's tail so a follow-up has a referent", async () => {
+    recentTurns.mockResolvedValue([
+      { role: "user", text: "how many calories in chicken breast?" },
+      { role: "assistant", text: "About 165 kcal per 100 g." },
+    ]);
 
-    // Only the new question. Replaying a thread would send back everything
-    // previously typed, which is what the minimization rule prevents.
-    const [sent] = answer.mock.calls[0];
-    expect(sent).toBe("and after that?");
-    expect(answer.mock.calls[0]).toHaveLength(2);
+    await call({ conversationId: 5, message: "and how much protein was that?" });
+
+    expect(recentTurns).toHaveBeenCalledWith(5);
+    const [, , history] = answer.mock.calls[0];
+    expect(history).toHaveLength(2);
+  });
+
+  it("sends only what the gate let out, never the raw thread", async () => {
+    // The route does not read `ai_messages` itself. Everything it can carry
+    // comes back from `recentTurns`, which re-checks each stored message
+    // with `toFoodText` and drops the ones that no longer pass — so what
+    // crosses the boundary is food text and nothing else.
+    recentTurns.mockResolvedValue([
+      { role: "user", text: "how many calories in rice?" },
+    ]);
+
+    await call({ conversationId: 5, message: "and the protein?" });
+
+    const [, , history] = answer.mock.calls[0];
+    expect(history).toEqual([
+      { role: "user", text: "how many calories in rice?" },
+    ]);
   });
 
   it("refuses a question carrying an identifier before the model", async () => {

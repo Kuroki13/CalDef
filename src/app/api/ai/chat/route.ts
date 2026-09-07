@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { appendMessage, openThread } from "@/lib/ai/conversations";
+import { appendMessage, openThread, recentTurns } from "@/lib/ai/conversations";
 import { currentFigures } from "@/lib/ai/figures";
 import { assistantIntent } from "@/lib/ai/message-intent";
 import { resolveIntents } from "@/lib/ai/resolve";
@@ -100,7 +100,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ kind: intent, answer, ...resolved, stored: false }, { headers });
   }
 
-  const answer = await llm.answer(question.value, await currentFigures());
+  // A follow-up needs to know what it is following. Only the tail of this
+  // thread, and only the part of it that still passes the food-text gate —
+  // see `recentTurns`.
+  const history = body.data.conversationId
+    ? await recentTurns(body.data.conversationId)
+    : [];
+
+  const answer = await llm.answer(
+    question.value,
+    await currentFigures(),
+    history,
+  );
   if (!answer.ok) {
     return NextResponse.json(
       { error: answer.message, reason: answer.reason },

@@ -18,6 +18,7 @@ import "server-only";
 import { GEMINI_API_KEY } from "@/lib/env.server";
 import type {
   AnonymousFigures,
+  ChatTurn,
   CorrectionIntent,
   FoodText,
   LLMProvider,
@@ -135,7 +136,12 @@ figure as a diagnosis.
 
 If you state a calorie or macro figure for a specific food, say plainly that
 it is a rough guide and that logging the food gives the real number from the
-food database.`;
+food database.
+
+You may be shown a few earlier turns of this conversation. Use them only to
+understand what the last question refers to — "and how much protein was that?"
+means the food in the previous turn. Answer the last question, not the earlier
+ones.`;
 
 export const geminiProvider: LLMProvider = {
   name: "Gemini",
@@ -205,8 +211,13 @@ export const geminiProvider: LLMProvider = {
   async answer(
     question: FoodText,
     figures: AnonymousFigures,
+    history: readonly ChatTurn[] = [],
   ): Promise<LLMResult<string>> {
-    const prompt = [describeFigures(figures), `Question: ${question}`]
+    const prompt = [
+      describeFigures(figures),
+      describeHistory(history),
+      `Question: ${question}`,
+    ]
       .filter(Boolean)
       .join("\n\n");
 
@@ -219,6 +230,28 @@ export const geminiProvider: LLMProvider = {
     return { ok: true, value: text };
   },
 };
+
+/**
+ * Renders the earlier turns of this thread.
+ *
+ * Every line is `FoodText` — the caller cannot construct a `ChatTurn` any
+ * other way — so this function has no filtering to do and deliberately does
+ * none. Adding a "just in case" strip here would put the boundary in two
+ * places and make it easy to believe the wrong one.
+ *
+ * Labelled rather than role-tagged in the model's own format: this is
+ * context for a single question, not a chat session being resumed, and the
+ * instruction below tells the model to answer the last line.
+ */
+function describeHistory(history: readonly ChatTurn[]): string {
+  if (history.length === 0) return "";
+
+  const lines = history.map((turn) =>
+    `${turn.role === "user" ? "They asked" : "You answered"}: ${turn.text}`,
+  );
+
+  return `Earlier in this conversation:\n${lines.join("\n")}`;
+}
 
 /**
  * Renders the anonymous figures as a few lines of numbers.
