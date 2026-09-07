@@ -13,6 +13,7 @@ import "server-only";
 import { cacheFood, refreshCachedFood, searchCache } from "@/lib/food/cache";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
+import { loggedFoodCounts } from "@/lib/food/history";
 import { safeProviderCall } from "@/lib/food/provider";
 import { isStale } from "@/lib/food/staleness";
 import { searchRestaurantCatalogue } from "@/lib/food/restaurant-catalogue";
@@ -36,7 +37,10 @@ export const PROVIDERS = [usdaProvider, offProvider];
 export async function searchFoods(
   query: FoodSearchQuery,
 ): Promise<SearchOutcome> {
-  const cacheResult = await safeProviderCall("cache", () => searchCache(query));
+  const [cacheResult, history] = await Promise.all([
+    safeProviderCall("cache", () => searchCache(query)),
+    loggedFoodCounts(),
+  ]);
 
   const providerResults = await Promise.all(
     PROVIDERS.map((provider) => provider.search(query)),
@@ -55,7 +59,11 @@ export async function searchFoods(
   const references = searchRestaurantCatalogue(query.text);
   const foods = dedupe([
     ...references,
-    ...rank(dedupe([...refreshed, ...results.flatMap((r) => r.foods)]), query.text),
+    ...rank(
+      dedupe([...refreshed, ...results.flatMap((r) => r.foods)]),
+      query.text,
+      history,
+    ),
   ]);
 
   return {
@@ -108,19 +116,49 @@ async function refreshStaleHits(
  * one word of two. The first result is the one the AI path proposes and the
  * one a hurried user taps, so its order is not cosmetic.
  *
- * The sort is stable, so equally relevant foods keep the fan-out's order and
- * cache hits still come first among them — they are foods this user has
- * actually eaten, which is the better tie-break.
+ * Relevance cannot settle a single word: every chicken row matches
+ * "chicken" exactly as well as every other, so the fan-out order used to
+ * decide and USDA's "Chicken spread" could lead. The user's own diary
+ * breaks that tie — a food they have logged before is nearly always the one
+ * they mean. It is a tie-break and not a term in the score, deliberately: a
+ * food eaten weekly must not outrank an exact match on what was typed just
+ * because it is familiar.
+ *
+ * The sort is stable, so foods equal on both still keep the fan-out's order,
+ * and cache hits come first among them.
  */
-function rank(foods: readonly Food[], text: string): Food[] {
+function rank(
+  foods: readonly Food[],
+  text: string,
+  history: ReadonlyMap<number, number> = new Map(),
+): Food[] {
   const scored = foods.map((food, index) => ({
     food,
     index,
     score: relevance(food, text),
+    familiarity: familiarityOf(food, history),
   }));
 
-  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  scored.sort(
+    (a, b) =>
+      b.score - a.score || b.familiarity - a.familiarity || a.index - b.index,
+  );
   return scored.map((s) => s.food);
+}
+
+/**
+ * How often this user has logged this food.
+ *
+ * Zero for anything that is not a cached row, which is the honest answer:
+ * a food that has never been in the cache has never been in the diary
+ * either, because logging is what puts it there.
+ */
+function familiarityOf(
+  food: Food,
+  history: ReadonlyMap<number, number>,
+): number {
+  const id = (food as { id?: number }).id;
+  return typeof id === "number" ? (history.get(id) ?? 0) : 0;
 }
 
 /**

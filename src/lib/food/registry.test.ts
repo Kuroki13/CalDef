@@ -6,6 +6,7 @@ const searchCache = vi.fn();
 const findCachedByBarcode = vi.fn();
 const cacheFood = vi.fn();
 const refreshCachedFood = vi.fn();
+const loggedFoodCounts = vi.fn();
 const usdaSearch = vi.fn();
 const offSearch = vi.fn();
 const offLookupBarcode = vi.fn();
@@ -15,6 +16,10 @@ vi.mock("@/lib/food/cache", () => ({
   findCachedByBarcode: (...a: unknown[]) => findCachedByBarcode(...a),
   cacheFood: (...a: unknown[]) => cacheFood(...a),
   refreshCachedFood: (...a: unknown[]) => refreshCachedFood(...a),
+}));
+
+vi.mock("@/lib/food/history", () => ({
+  loggedFoodCounts: () => loggedFoodCounts(),
 }));
 
 vi.mock("@/lib/food/usda", () => ({
@@ -67,6 +72,7 @@ const failed = (source: ProviderResult["source"]): ProviderResult => ({
 beforeEach(() => {
   vi.clearAllMocks();
   searchCache.mockResolvedValue([]);
+  loggedFoodCounts.mockResolvedValue(new Map());
   usdaSearch.mockResolvedValue(ok("usda", []));
   offSearch.mockResolvedValue(ok("off", []));
 });
@@ -327,5 +333,81 @@ describe("lookupBarcode", () => {
 
     expect(await lookupBarcode("0000000000000")).toBeNull();
     expect(cacheFood).not.toHaveBeenCalled();
+  });
+});
+
+describe("ranking a one-word query", () => {
+  const fresh = new Date().toISOString();
+
+  it("puts a food the user has logged before ahead of one they never have", async () => {
+    // "chicken" matches every chicken row equally, so relevance cannot
+    // separate them and the fan-out order used to decide — which is how
+    // USDA's "Chicken spread" came to lead a search for chicken.
+    searchCache.mockResolvedValue([
+      { ...food("usda", "spread", "Chicken spread"), id: 1, refreshedAt: fresh },
+      { ...food("usda", "breast", "Chicken breast"), id: 2, refreshedAt: fresh },
+    ]);
+    loggedFoodCounts.mockResolvedValue(new Map([[2, 12]]));
+
+    const outcome = await searchFoods({ text: "chicken" });
+
+    expect(outcome.foods[0].name).toBe("Chicken breast");
+  });
+
+  it("prefers the food logged more often when both are familiar", async () => {
+    searchCache.mockResolvedValue([
+      { ...food("usda", "a", "Chicken thigh"), id: 1, refreshedAt: fresh },
+      { ...food("usda", "b", "Chicken breast"), id: 2, refreshedAt: fresh },
+    ]);
+    loggedFoodCounts.mockResolvedValue(new Map([[1, 2], [2, 30]]));
+
+    const outcome = await searchFoods({ text: "chicken" });
+
+    expect(outcome.foods[0].name).toBe("Chicken breast");
+  });
+
+  it("does not let familiarity beat a better match on what was typed", async () => {
+    // The tie-break is a tie-break. A food eaten weekly must not outrank an
+    // exact match on the phrase the user actually typed.
+    searchCache.mockResolvedValue([
+      { ...food("usda", "a", "Chicken breast"), id: 1, refreshedAt: fresh },
+    ]);
+    usdaSearch.mockResolvedValue(
+      ok("usda", [food("usda", "b", "Dubai chocolate")]),
+    );
+    loggedFoodCounts.mockResolvedValue(new Map([[1, 50]]));
+
+    const outcome = await searchFoods({ text: "dubai chocolate" });
+
+    expect(outcome.foods[0].name).toBe("Dubai chocolate");
+  });
+
+  it("keeps the old order when nothing has been logged", async () => {
+    searchCache.mockResolvedValue([
+      { ...food("usda", "a", "Chicken spread"), id: 1, refreshedAt: fresh },
+      { ...food("usda", "b", "Chicken breast"), id: 2, refreshedAt: fresh },
+    ]);
+    loggedFoodCounts.mockResolvedValue(new Map());
+
+    const outcome = await searchFoods({ text: "chicken" });
+
+    expect(outcome.foods.map((f) => f.name)).toEqual([
+      "Chicken spread",
+      "Chicken breast",
+    ]);
+  });
+
+  it("ranks a search normally when the history cannot be read", async () => {
+    // Not knowing what someone has eaten is a reason to rank slightly worse,
+    // never a reason to fail the search.
+    searchCache.mockResolvedValue([
+      { ...food("usda", "a", "Chicken breast"), id: 1, refreshedAt: fresh },
+    ]);
+    loggedFoodCounts.mockResolvedValue(new Map());
+
+    const outcome = await searchFoods({ text: "chicken" });
+
+    expect(outcome.foods).toHaveLength(1);
+    expect(outcome.degraded).toBe(false);
   });
 });
