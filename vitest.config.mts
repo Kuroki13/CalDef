@@ -23,5 +23,15 @@ export default defineConfig({
     // down is a suite people learn to ignore.
     exclude: ["**/node_modules/**", "src/**/*.integration.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
+    // Vitest's 5s default is a budget for a test's own work, but these run
+    // 50 jsdom environments across every core at once, and the slowest cases
+    // reset the module registry and re-import a component graph. Measured on
+    // this machine, the same file took 394ms alone and over 5s under that
+    // contention — three consecutive full runs failed 2, then 4, then 0
+    // tests, always on timeout and never on an assertion. A suite that fails
+    // on machine load rather than on merit is one people learn to re-run
+    // instead of read, so the budget is raised to cover the contention.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
   },
 });
