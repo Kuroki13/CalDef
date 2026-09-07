@@ -88,6 +88,25 @@ begin
   end if;
   raise notice 'PASS: the diary entry kept the numbers it was logged with';
 
+  -- The other half, and the two together are the whole guarantee: what a
+  -- *new* log reads has moved to the corrected figure, while the row above
+  -- has not. `logCachedFood` computes from this row at the moment of
+  -- logging, which `src/lib/food-log.test.ts` asserts directly; here it is
+  -- the source itself being checked, beside the entry that predates it.
+  select kcal into v_kcal from public.food_nutrients where food_id = v_stale;
+  if v_kcal <> 250 then
+    raise exception 'FAIL: the refreshed nutrients did not take (%)', v_kcal;
+  end if;
+
+  -- Stated as the comparison it is, so the pairing cannot be read as an
+  -- accident: same food, same instant, two different numbers, and that is
+  -- correct.
+  if (select kcal from public.food_logs where id = v_log) =
+     (select kcal * 2 from public.food_nutrients where food_id = v_stale) then
+    raise exception 'FAIL: the old entry tracked the new nutrition';
+  end if;
+  raise notice 'PASS: a new log would read 250 where the old entry still reads 100';
+
   -- 3. Now that it has been stamped, it is fresh again and locked again.
   update public.food_nutrients set kcal = 999 where food_id = v_stale;
   get diagnostics affected = row_count;

@@ -747,10 +747,14 @@ What is left, and **Phase 11 stays open until it is done**:
   - After these fixes `npm run test:live` passes, though roughly one run
     in four still fails on an upstream blip. A failing live run is not by
     itself evidence of a defect here — check the reported status code.
-- **The food cache never expires.** Nothing re-fetches a cached food, and
-  per the entry above nothing can update one either. Combined, a food
-  cached today is the food the app uses forever. Acceptable for now;
-  worth revisiting alongside the refresh question.
+- ~~**The food cache never expires.**~~ **Already resolved on 2026-09-07**
+  by migration 0010 and `lib/food/staleness.ts` — this was a second entry
+  for the same gap as "the food cache cannot refresh a provider food"
+  above, and only that one was struck through at the time. Left visible
+  rather than deleted, because a stale KNOWN ISSUE sends the next reader
+  to build something that exists. That is twice this has happened now:
+  **when resolving an issue, search this file for other entries describing
+  the same thing.**
 
 ## DECISIONS
 
