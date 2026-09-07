@@ -547,11 +547,14 @@ What is left, and **Phase 11 stays open until it is done**:
   so RLS still decides what it may touch, and a function body is one
   transaction. `supabase/tests/custom_food_atomicity.sql` fails the
   middle statement on purpose and asserts the earlier one rolled back.
-- **A retired custom food cannot be brought back from the UI.**
-  Archiving is reversible in the database — `archived_at` back to null —
-  but nothing offers it, because there is nowhere sensible to list foods
-  that are deliberately hidden. If the owner ever retires one by mistake,
-  it is one `update` away.
+- ~~**A retired custom food cannot be brought back from the UI.**~~
+  **RESOLVED 2026-09-07.** The food library now has a "Show retired foods"
+  section with a Restore beside each one. It is behind a toggle rather than
+  in the list, because a retired food is deliberately out of the way and
+  the reason to look is a specific one. Verified end to end: created a
+  food, logged it, retired it, saw it leave the library and appear under
+  the toggle with its retirement date, restored it, and watched it come
+  back to both the library and search with its usage count intact.
 - **Signup is closed, in two places, and both have to be undone to open
   it.** As of 2026-09-07 `SIGNUP_ALLOWLIST` is unset in production, which
   means nobody, and `disable_signup` is `true` on the Supabase project,

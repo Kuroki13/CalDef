@@ -77,6 +77,89 @@ export async function listCustomFoods(): Promise<CustomFoodSummary[]> {
   }));
 }
 
+/**
+ * The owner's retired foods.
+ *
+ * Kept out of `listCustomFoods` on purpose — the library is what is
+ * currently in use — but readable, because archiving was otherwise a
+ * one-way door: the row stayed in the database with no way to see it or
+ * bring it back. A food is usually retired because it is finished or
+ * because it was a mistake, and the second of those needs an undo.
+ */
+export async function listArchivedCustomFoods(): Promise<CustomFoodSummary[]> {
+  const userId = await requireUserId();
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("foods")
+    // Spelled out rather than concatenated: PostgREST infers the row type
+    // from the literal, and a built string collapses it to an error type.
+    .select(
+      `id, source, source_id, name, brand, description, barcode,
+       is_verified, data_updated_at, archived_at,
+       food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
+                       sat_fat_g, sodium_mg),
+       food_servings (label, grams, is_default)`,
+    )
+    .eq("user_id", userId)
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(error.message);
+
+  const foods = (data ?? []).flatMap(rowToFood);
+  if (foods.length === 0) return [];
+
+  const counts = await countUses(foods.map((food) => food.id));
+
+  const archivedAt = new Map(
+    (data ?? []).map((row) => [row.id, row.archived_at]),
+  );
+
+  return foods.map((food) => ({
+    ...food,
+    useCount: counts.get(food.id) ?? 0,
+    archivedAt: archivedAt.get(food.id) ?? null,
+  }));
+}
+
+/**
+ * Puts a retired food back in the library.
+ *
+ * The exact inverse of the archive half of `deleteCustomFood`, and nothing
+ * more: `archived_at` back to null. Its nutrition, its servings and every
+ * entry that referenced it are untouched — they never went anywhere, which
+ * is the point of archiving rather than deleting.
+ *
+ * Scoped to the owner like every other statement here, so a food that is
+ * not theirs comes back as "not one of yours" rather than as a database
+ * error.
+ */
+export async function restoreCustomFood(
+  id: number,
+): Promise<{ restored: true } | { error: string }> {
+  const userId = await requireUserId();
+  const supabase = await createClient();
+
+  const { data: owned, error: lookupError } = await supabase
+    .from("foods")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  if (!owned) return { error: "That food is not one of yours." };
+
+  const { error } = await supabase
+    .from("foods")
+    .update({ archived_at: null })
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) return { error: error.message };
+
+  return { restored: true };
+}
+
 /** One of the owner's foods, or null when it is not theirs or not there. */
 export async function getCustomFood(id: number): Promise<CachedFood | null> {
   const userId = await requireUserId();

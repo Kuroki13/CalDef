@@ -90,6 +90,7 @@ const {
   createCustomFood,
   updateCustomFood,
   deleteCustomFood,
+  restoreCustomFood,
 } = await import("@/lib/food/custom");
 
 /** A stored row shaped the way the select in `custom.ts` asks for it. */
@@ -347,5 +348,41 @@ describe("deleteCustomFood", () => {
     expect(await deleteCustomFood(7)).toEqual({
       error: "That food is not one of yours.",
     });
+  });
+});
+
+describe("restoreCustomFood", () => {
+  it("clears the archive stamp and nothing else", async () => {
+    // The exact inverse of the archive half of removing one. Its nutrition,
+    // its servings and every entry that referenced it never went anywhere.
+    const { client, calls } = fakeSupabase((call) =>
+      call.table === "foods" && call.op === "select"
+        ? { data: { id: 42 } }
+        : { data: [] },
+    );
+    createClient.mockResolvedValue(client);
+
+    expect(await restoreCustomFood(42)).toEqual({ restored: true });
+
+    const update = calls.find(
+      (call) => call.table === "foods" && call.op === "update",
+    );
+    expect(update?.payload).toEqual({ archived_at: null });
+    expect(update?.filters).toContainEqual(["user_id", OWNER]);
+
+    // Nothing else is touched — least of all a logging table.
+    expect(
+      new Set(calls.filter((c) => c.op !== "select").map((c) => c.table)),
+    ).toEqual(new Set(["foods"]));
+  });
+
+  it("refuses a food that is not the user's", async () => {
+    const { client, calls } = fakeSupabase(() => ({ data: null }));
+    createClient.mockResolvedValue(client);
+
+    expect(await restoreCustomFood(99)).toEqual({
+      error: "That food is not one of yours.",
+    });
+    expect(calls.some((call) => call.op === "update")).toBe(false);
   });
 });

@@ -26,7 +26,10 @@ import {
 import { todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
 import { getFavorites } from "@/lib/favorites";
-import { listCustomFoods } from "@/lib/food/custom";
+import {
+  listArchivedCustomFoods,
+  listCustomFoods,
+} from "@/lib/food/custom";
 import { describePortion } from "@/lib/nutrition/units";
 import { getAccountSetup } from "@/lib/profile";
 import { listRecipes } from "@/lib/recipes";
@@ -41,12 +44,14 @@ export default async function RecipesPage() {
 
   const today = todayInTimeZone(profile.timezone);
 
-  const [day, recipes, savedMeals, favorites, customFoods] = await Promise.all([
+  const [day, recipes, savedMeals, favorites, customFoods, retiredFoods] =
+    await Promise.all([
     getDiaryDay(today),
     listRecipes(),
     listSavedMeals(),
     getFavorites(),
     listCustomFoods(),
+    listArchivedCustomFoods(),
   ]);
 
   const entryOptions = day.entries.map((entry) => ({
@@ -74,7 +79,7 @@ export default async function RecipesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CustomFoodLibrary foods={customFoods} />
+          <CustomFoodLibrary foods={customFoods} retired={retiredFoods} />
         </CardContent>
       </Card>
 

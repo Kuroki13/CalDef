@@ -19,6 +19,7 @@ import { z } from "zod";
 import {
   createCustomFood,
   deleteCustomFood,
+  restoreCustomFood,
   updateCustomFood,
 } from "@/lib/food/custom";
 import { customFoodInputSchema } from "@/lib/food/custom-input";
@@ -110,6 +111,28 @@ export async function deleteCustomFoodAction(
   }
 
   return { ok: true, notice: "Deleted." };
+}
+
+/**
+ * Puts a retired food back in the library.
+ *
+ * Archiving was a one-way door: the row survived so that history kept
+ * resolving, but nothing could bring it back, so a mistaken "Remove" was
+ * permanent in practice while being reversible in the database. This is the
+ * one `update` that undoes it.
+ */
+export async function restoreCustomFoodAction(
+  _prev: CustomFoodState,
+  formData: FormData,
+): Promise<CustomFoodState> {
+  const parsed = deleteSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "That food could not be identified." };
+
+  const outcome = await restoreCustomFood(parsed.data.foodId);
+  if ("error" in outcome) return { error: outcome.error };
+
+  revalidateAll();
+  return { ok: true, notice: "Back in your foods, and in search." };
 }
 
 /** The first validation message, with the field named where zod named it. */
