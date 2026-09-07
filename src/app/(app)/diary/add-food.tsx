@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
 import type { MealType } from "@/lib/diary";
 
@@ -229,11 +230,22 @@ export function AddFood({
               </Alert>
             ) : null}
 
-            {search.status === "done" && search.foods.length === 0 ? (
+            {/*
+              Offered when the results are useless, not only when there are
+              none — which is the case that actually happens. "Chicken
+              maqlouba" returns chicken spread, chicken fat and chicken
+              frankfurters: eight results, none of them the dish. The test is
+              whether anything accounts for every word that was typed.
+            */}
+            {search.status === "done" &&
+            !hasStrongMatch(query, search.foods) ? (
               <div className="space-y-2">
                 <p className="text-muted-foreground text-sm">
-                  Nothing found. Try a simpler description, add it yourself
-                  from the packet, or — for something home-cooked —{" "}
+                  {search.foods.length === 0
+                    ? "Nothing found."
+                    : "Nothing here looks like what you asked for."}{" "}
+                  Try a simpler description, add it yourself from the packet,
+                  or — for something home-cooked —{" "}
                   {aiReady
                     ? "have the assistant draft the ingredients."
                     : "build it as a recipe on the Recipes screen, one ingredient at a time."}

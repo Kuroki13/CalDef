@@ -15,6 +15,7 @@ import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
 import { loggedFoodCounts } from "@/lib/food/history";
 import { safeProviderCall } from "@/lib/food/provider";
+import { fold } from "@/lib/food/text-match";
 import { isStale } from "@/lib/food/staleness";
 import { searchRestaurantCatalogue } from "@/lib/food/restaurant-catalogue";
 import type {
@@ -182,22 +183,6 @@ function relevance(food: Food, text: string): number {
   const phraseBonus = haystack.includes(needle) ? 0.5 : 0;
 
   return matched / terms.length + phraseBonus;
-}
-
-/**
- * Lowercased, accent-folded, punctuation reduced to spaces.
- *
- * Provider names are punctuated in ways nobody types ("Chicken, breast,
- * boneless") and the branded data is multilingual — the French entries for
- * Dubai chocolate spell it "Dubaï".
- */
-function fold(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
 }
 
 /**
