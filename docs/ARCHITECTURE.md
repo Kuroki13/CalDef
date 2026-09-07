@@ -98,8 +98,11 @@ src/
     food-log.ts        the single-food logging convergence point
     ai/                resolve.ts · figures.ts · conversations.ts
     supabase/          client.ts · server.ts · proxy.ts
+    barcode.ts         scanner capability; barcode-fallback.ts holds the
+                       JS decoder and is reached only by dynamic import
     food/              types.ts · provider.ts · usda.ts · off.ts
                        cache.ts · registry.ts
+                       custom.ts · custom-input.ts (the user's own foods)
     llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
@@ -246,6 +249,16 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     double-submission guard, so the two must not be separated: the
     plain server-action forms that had no pending state were the ones
     that fired twice on a double tap.
+
+12. **A logged entry is history, and editing a food does not rewrite it.**
+    `food_logs` stores the macros computed at log time instead of joining
+    to `food_nutrients`, so correcting a label — or a provider revising
+    its data — cannot change what a past day says it ate. Custom foods
+    make this reachable by hand for the first time, so it is asserted
+    rather than assumed: `lib/food/custom.ts` writes to no logging table,
+    and the RLS suite logs an entry, edits the food and checks the entry
+    is unchanged. The corollary is that removing a food that history
+    points at archives it rather than deleting it.
 
 ## 6. Adaptive TDEE model
 

@@ -26,7 +26,7 @@ Last updated: 2026-09-06
 | 8 | Recipes, saved meals, favorites, barcode | DONE |
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
-| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; physical iPhone checks remain |
+| 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 
 ---
 
@@ -366,6 +366,21 @@ Two deliberate departures worth knowing about:
   was telling someone who logged 20 days of a 56-day phase that they had
   averaged 715 kcal a day.
 
+### Custom user foods (Phase 11 addition)
+
+- `foods.archived_at` (migration 0008) and `lib/food/custom.ts`, the
+  owner-scoped writer of `foods` that `cacheFood` deliberately is not.
+- Create, edit, remove and log, from two places: the food library on
+  `/recipes` and an "Add your own food" path in the diary that jumps
+  straight to the portion fields, because someone adds a food while
+  holding the packet.
+- Figures are entered as the packet prints them, per 100 g or per serving,
+  and converted server-side in `custom-input.ts`.
+- Removing a food that history references archives it; one nothing
+  references is deleted. The row says which before the tap.
+- Verified on the deployment, including that two edits left an existing
+  diary entry untouched. See TEST RESULTS.
+
 ### Phase 8 — recipes, saved meals, favourites, barcode
 
 Verified end to end on 2026-09-05 against the real database with a real
@@ -516,16 +531,34 @@ AI parsing and correction, the assistant, weight tracking, saved meals and the
 cut phase were all exercised end to end against that deployment with a real
 signed-in account (2026-09-06, see TEST RESULTS).
 
-What is left:
+What is left, and **Phase 11 stays open until it is done**:
 
-- The physical iPhone visit: the PWA install tap, the barcode camera, and a
-  look at the Safari console for CSP violations.
-- A decision on the 7 shared `foods` rows the deployment verification cached
-  into production (see KNOWN ISSUES). They hold no personal data; deleting
-  them is a production `DELETE` and therefore the owner's call.
+- The physical iPhone visit: the PWA install tap, the barcode camera —
+  now with a decoder that WebKit can actually run — and a look at the
+  Safari console for CSP violations. None of it can be checked from here,
+  and desktop Chrome takes a different decoder path, so it is not
+  evidence.
 
 ## KNOWN ISSUES
 
+- **Editing a custom food is three statements, not one transaction.**
+  PostgREST gives no transaction across them, so a failure part-way
+  through can leave a food with its new name and old nutrition, or the
+  reverse. This is not theoretical: it happened during the deployment
+  verification, when a serving collided with its own unique constraint
+  after the nutrition had already been written, and the page went on
+  showing the stale figures because the error path does not revalidate.
+  The collision itself is fixed, and the order is now servings first —
+  they are the only part that can hit a constraint, so a rejected edit
+  changes nothing. Closing the window properly needs the whole write to
+  move into a `security invoker` database function, which is a migration
+  and an RPC rather than a patch, and is not worth it for a
+  single-user app until something else forces it.
+- **A retired custom food cannot be brought back from the UI.**
+  Archiving is reversible in the database — `archived_at` back to null —
+  but nothing offers it, because there is nowhere sensible to list foods
+  that are deliberately hidden. If the owner ever retires one by mistake,
+  it is one `update` away.
 - **Production accepts a signup without confirming the email address.**
   `mailer_autoconfirm` is `true` on CalDef-prod, so an account is usable
   the moment it is created. That is deliberate: the free plan's built-in
@@ -536,16 +569,15 @@ What is left:
   is ever handed to anyone else. The signup action already handles both
   outcomes, so turning confirmation on is a settings change, not a code
   change.
-- **Seven shared `foods` rows are left in production.** They are the
-  provider cache written by the 2026-09-06 deployment verification —
-  chicken breast, rice crackers, mayonnaise, Greek yogurt, egg white,
-  cheddar and one more — with `user_id is null` and no personal data of
-  any kind. The smoke account itself was deleted by exact identity and
-  everything private to it went with it: 0 users, 0 profiles, 0 goals,
-  0 food logs, 0 weigh-ins, 0 daily targets, 0 private foods. Deleting
-  the cache rows would restore the documented "reference data only"
-  baseline exactly, but it is a `DELETE` against a production table with
-  data in it, so it waits for the owner.
+- **Production is no longer empty, and it is not test data.** As of
+  2026-09-06 it holds 4 accounts, 8 food logs, 4 weigh-ins and 15 shared
+  `foods` cache rows. Those accounts arrived between deployments and
+  belong to the owner, not to any harness — **every future cleanup must
+  target fixtures by their exact `caldef.<slug>.` identity and nothing
+  else.** The two fixture accounts this project has created since the
+  deploy were both removed that way, each verified by counting before and
+  after. The shared cache rows carry `user_id is null` and no personal
+  data; they refill on demand and are left alone.
 - **A deleted account keeps a working session until its JWT expires.**
   Observed while cleaning up the smoke account: with the row already gone
   from `auth.users`, the browser's still-valid access token took
@@ -630,16 +662,12 @@ What is left:
   for a PWA whose whole point is a JS runtime, but it means the
   no-JS fallback React renders for free is not actually functional here.
   Fix by defaulting to UTC server-side when the field is empty.
-- **The one spec item that is not implemented: custom user foods.**
-  `PRODUCT_SPEC.md` §4 lists them as a search source, and the schema
-  anticipates them — `foods` has a `foods_custom_requires_owner` check —
-  but no code path can create one, because `cacheFood` is the only writer
-  of `foods` and it never sets `user_id`. Nothing in the UI offers the
-  feature, so there is no broken button; it is simply absent. Building it
-  needs an owner-scoped insert path and a form, and it is a product call
-  rather than a defect fix, so it is listed here rather than quietly
-  added. Everything else in §10's acceptance list is implemented and
-  verified.
+- ~~**The one spec item that is not implemented: custom user foods.**~~
+  **RESOLVED 2026-09-06.** `lib/food/custom.ts` is the owner-scoped writer
+  the note called for, the form reads figures off a packet in whichever
+  panel the manufacturer printed, and the foods appear in search beside
+  USDA and Open Food Facts. Verified on the deployment — see TEST RESULTS.
+  Every item in §10's acceptance list is now implemented and verified.
 - **The PWA install tap and the barcode camera are still unverified.**
   Both need a physical iPhone, which this environment does not have.
   Everything either depends on is verified against the served bytes and
@@ -788,6 +816,76 @@ What is left:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Custom user foods, 2026-09-06 (Claude Code)
+
+Built, tested locally, migrated, deployed and then exercised against the
+live deployment with a fixture account, which was removed afterwards.
+
+- **Schema:** one additive migration, `20260906000001_custom_food_archive`,
+  adding `foods.archived_at`. Applied to development through the Supabase
+  MCP server — which stays pointed at development only — and to production
+  through the authorized migration connection over TLS. Production now
+  reports 8 migrations applied.
+- **Reading a label:** figures go in per 100 g or per serving, and the
+  conversion happens server-side in `custom-input.ts`. The caps are
+  checked after the conversion, where an impossible figure actually shows
+  up: 20 g of protein in a 45 g bar is ordinary, the same figure against
+  a 5 g serving is 400 g per 100 g and is refused by name rather than by
+  constraint violation.
+- **Search:** custom foods come back from the cache query, badged "Yours",
+  and are visible to nobody else — RLS does that, and the query does not
+  filter by user at all.
+- **Ownership, proven from outside the app:** the RLS suite now has a
+  custom-food section. As user B: A's food is invisible, and rename,
+  archive and delete each match zero rows; an insert claiming A's
+  ownership is rejected outright. The section was checked by inverting one
+  of its assertions and watching the audit fail, so it is not passing
+  vacuously.
+- **History, proven at the database level:** the same section logs an
+  entry against a custom food, corrects the food's calories and protein,
+  and asserts the entry's own figures are unchanged; then archives the
+  food and checks the entry still resolves; then confirms the database
+  refuses to delete a food a diary entry references.
+- **History, proven on the deployment:** a food entered as 200 kcal per
+  45 g bar stored as 444 kcal/100 g and logged at 200 kcal. Editing it
+  twice — to 500, then to 600 kcal/100 g with the bar re-weighed to 50 g —
+  left that entry at exactly 45 g and 200 kcal, in the UI and in the
+  database, while a fresh log of the same food came out at 50 g and
+  300 kcal. Retiring it removed it from the library and from search and
+  left both entries named and intact.
+- **DEFECT FOUND AND FIXED during that pass:** the second edit of any food
+  with a serving failed with `food_servings_food_label_key`. Servings were
+  being replaced wholesale, but a serving pinned by a diary entry is
+  deliberately kept, so the row being re-inserted was still there.
+  Servings are now matched by label and the default flag is cleared before
+  it is reclaimed. Two regression tests cover it. The failure also left
+  nutrition already written while the page showed the old figures, so the
+  writes are now ordered servings-first; the residual window is under
+  KNOWN ISSUES.
+- **Barcode changes confirmed deployed** at the same time: with no
+  `BarcodeDetector` in the audit browser the scan button is enabled and
+  carries no "this browser cannot read barcodes" alert, which is the whole
+  point of the fallback. Pressing it fails with `no-camera` rather than
+  `decoder-unavailable`, and since the decoder loads before the camera is
+  requested, that is proof the ZXing chunk downloaded and instantiated
+  from the deployment. Typing 3017624010701 into the new manual field
+  resolved Nutella (Ferrero, 539 kcal/100 g) through Open Food Facts.
+- **Tests:** 539 total, up from 512. New: 14 on reading a label, 11 on the
+  CRUD decisions (including that the update path writes to no logging
+  table, and that a rejected edit writes no nutrition), 2 on `cacheFood`
+  refusing to create an ownerless custom food. `npm run typecheck`,
+  `npm run lint` and `npm run build` all pass.
+- **Production afterwards:** the RLS audit passes, and the fixture account
+  was deleted by exact identity — 4 users, 4 profiles, 8 food logs,
+  4 weigh-ins, 0 custom foods, and 15 shared cache rows (one more than
+  before, from the barcode lookup). Those 4 accounts are the owner's; see
+  KNOWN ISSUES.
+- **Deployment:** `caldef-woad.vercel.app` serves the build containing all
+  of this. Two production deployments appeared within a minute of two
+  `git push`es earlier in the session, which suggests the project now
+  auto-deploys `main` — worth confirming before treating a push as
+  internal.
 
 ### Pending states on every server-bound control, 2026-09-06 (Claude Code)
 
