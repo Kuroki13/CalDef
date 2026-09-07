@@ -211,6 +211,70 @@ describe("updateCustomFood", () => {
     ).toEqual(new Set(["foods", "food_nutrients", "food_servings"]));
   });
 
+  it("re-labels an existing serving instead of inserting a duplicate", async () => {
+    // Found on the deployed app: the second edit of any food with a serving
+    // failed with `food_servings_food_label_key`, because the serving being
+    // re-inserted was the one a diary entry had pinned in place.
+    const { client, calls } = fakeSupabase((call) => {
+      if (call.table === "foods" && call.op === "select") {
+        return { data: storedRow() };
+      }
+      if (call.table === "food_servings" && call.op === "select") {
+        return { data: [{ id: 29, label: "1 bar" }] };
+      }
+      return { data: [] };
+    });
+    createClient.mockResolvedValue(client);
+
+    const result = await updateCustomFood(
+      42,
+      input({ servingGrams: 50, servingLabel: "1 bar" }),
+    );
+    if ("error" in result) throw new Error(result.error);
+
+    const servingWrites = calls.filter(
+      (call) => call.table === "food_servings" && call.op !== "select",
+    );
+    expect(servingWrites.some((call) => call.op === "insert")).toBe(false);
+    // The default flag is cleared across the food first, so claiming it
+    // again cannot collide with the single-default index either.
+    expect(servingWrites[0]).toMatchObject({
+      op: "update",
+      payload: { is_default: false },
+    });
+    expect(servingWrites[1]).toMatchObject({
+      op: "update",
+      payload: { grams: 50, is_default: true },
+    });
+    // And the pinned row is never deleted.
+    expect(servingWrites.some((call) => call.op === "delete")).toBe(false);
+  });
+
+  it("writes the servings before the nutrition, so a rejected edit changes nothing", async () => {
+    // There is no transaction across these statements. Servings are the only
+    // part that can hit a constraint, so they go first: the failure that was
+    // actually observed left the nutrition already rewritten and the page
+    // still showing the old figures.
+    const { client, calls } = fakeSupabase((call) => {
+      if (call.table === "foods" && call.op === "select") {
+        return { data: storedRow() };
+      }
+      if (call.table === "food_servings" && call.op === "insert") {
+        return { error: { message: "duplicate key value" } };
+      }
+      return { data: [] };
+    });
+    createClient.mockResolvedValue(client);
+
+    const result = await updateCustomFood(
+      42,
+      input({ servingGrams: 45, servingLabel: "1 bar" }),
+    );
+
+    expect(result).toEqual({ error: "duplicate key value" });
+    expect(calls.some((call) => call.table === "food_nutrients")).toBe(false);
+  });
+
   it("scopes every statement to the owner", async () => {
     const { client, calls } = fakeSupabase((call) =>
       call.table === "foods" && call.op === "select"

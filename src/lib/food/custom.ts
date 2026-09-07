@@ -247,11 +247,15 @@ export async function deleteCustomFood(id: number): Promise<DeleteOutcome> {
 }
 
 /**
- * Replaces a food's nutrition and servings.
+ * Writes a food's servings and then its nutrition.
  *
- * `food_nutrients` is upserted because a food always has exactly one row,
- * and the servings are replaced wholesale because editing a label can change
- * what a portion weighs — and a stale second serving is worse than none.
+ * That order is deliberate. These are separate statements — PostgREST gives
+ * no transaction across them — so if one is going to fail it should fail
+ * before anything the user can see has changed. Servings are the only part
+ * that can collide with a constraint, so they go first: a rejected edit then
+ * leaves the food exactly as it was rather than half-updated. See KNOWN
+ * ISSUES for the window this still leaves.
+ *
  * Returns an error object or nothing, so callers can `if (result) return
  * result`.
  */
@@ -259,32 +263,82 @@ async function writeNutritionAndServings(
   foodId: number,
   normalised: Exclude<ReturnType<typeof normaliseCustomFood>, { error: string }>,
 ): Promise<{ error: string } | null> {
-  const supabase = await createClient();
+  const servingError = await writeServings(foodId, normalised.servings);
+  if (servingError) return servingError;
 
+  const supabase = await createClient();
   const { error: nutrientError } = await supabase
     .from("food_nutrients")
     .upsert({ food_id: foodId, ...normalised.nutrients }, { onConflict: "food_id" });
   if (nutrientError) return { error: nutrientError.message };
 
-  // Servings a diary entry points at are kept: `food_logs.serving_id` is
-  // `on delete set null`, so deleting one would quietly turn "1 bar" into a
-  // bare gram figure on an entry already written.
-  const { data: used } = await supabase
-    .from("food_logs")
-    .select("serving_id")
-    .eq("food_id", foodId)
-    .not("serving_id", "is", null);
-  const keep = new Set((used ?? []).map((row) => row.serving_id));
+  return null;
+}
+
+/**
+ * Brings a food's servings to what the label now says.
+ *
+ * Matched by label rather than replaced wholesale, which is what an earlier
+ * version did — and it failed on the second edit of any food with a serving,
+ * because `food_servings_food_label_key` is unique on `(food_id, label)` and
+ * the row being re-inserted was one a diary entry had pinned in place. The
+ * same is true of `food_servings_one_default_idx`, so the default flag is
+ * cleared across the food before any row claims it.
+ *
+ * A serving that an entry, a recipe or a saved meal points at is never
+ * deleted: those foreign keys are `on delete set null`, so removing one would
+ * quietly turn "1 bar" into a bare gram figure on a row already written.
+ * Changing its weight is fine and is the point — the entries that used it
+ * carry their own grams, so only future logs move.
+ */
+async function writeServings(
+  foodId: number,
+  servings: readonly { label: string; grams: number; isDefault: boolean }[],
+): Promise<{ error: string } | null> {
+  const supabase = await createClient();
 
   const { data: existing, error: readError } = await supabase
     .from("food_servings")
-    .select("id")
+    .select("id, label")
     .eq("food_id", foodId);
   if (readError) return { error: readError.message };
 
-  const removable = (existing ?? [])
+  const byLabel = new Map((existing ?? []).map((row) => [row.label, row.id]));
+
+  // Cleared first so that setting a new default cannot collide with the old
+  // one on the single-default index.
+  if ((existing ?? []).length > 0) {
+    const { error } = await supabase
+      .from("food_servings")
+      .update({ is_default: false })
+      .eq("food_id", foodId);
+    if (error) return { error: error.message };
+  }
+
+  for (const serving of servings) {
+    const id = byLabel.get(serving.label);
+    const { error } = id
+      ? await supabase
+          .from("food_servings")
+          .update({ grams: serving.grams, is_default: serving.isDefault })
+          .eq("id", id)
+      : await supabase.from("food_servings").insert({
+          food_id: foodId,
+          label: serving.label,
+          grams: serving.grams,
+          is_default: serving.isDefault,
+        });
+    if (error) return { error: error.message };
+  }
+
+  const keepLabels = new Set(servings.map((serving) => serving.label));
+  const orphans = (existing ?? []).filter((row) => !keepLabels.has(row.label));
+  if (orphans.length === 0) return null;
+
+  const pinned = await pinnedServingIds(orphans.map((row) => row.id));
+  const removable = orphans
     .map((row) => row.id)
-    .filter((servingId) => !keep.has(servingId));
+    .filter((id) => !pinned.has(id));
 
   if (removable.length > 0) {
     const { error } = await supabase
@@ -294,19 +348,34 @@ async function writeNutritionAndServings(
     if (error) return { error: error.message };
   }
 
-  if (normalised.servings.length > 0) {
-    const { error } = await supabase.from("food_servings").insert(
-      normalised.servings.map((serving) => ({
-        food_id: foodId,
-        label: serving.label,
-        grams: serving.grams,
-        is_default: serving.isDefault,
-      })),
-    );
-    if (error) return { error: error.message };
+  return null;
+}
+
+/** Serving ids that something already written points at. */
+async function pinnedServingIds(
+  ids: readonly number[],
+): Promise<Set<number>> {
+  const supabase = await createClient();
+  const pinned = new Set<number>();
+  if (ids.length === 0) return pinned;
+
+  for (const table of [
+    "food_logs",
+    "recipe_ingredients",
+    "saved_meal_items",
+  ] as const) {
+    const { data, error } = await supabase
+      .from(table)
+      .select("serving_id")
+      .in("serving_id", [...ids]);
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      if (row.serving_id !== null) pinned.add(row.serving_id);
+    }
   }
 
-  return null;
+  return pinned;
 }
 
 /**
