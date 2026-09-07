@@ -15,3 +15,13 @@ export const USDA_API_KEY = process.env.USDA_API_KEY?.trim() || null;
 
 export const hasGeminiKey = () => GEMINI_API_KEY !== null;
 export const hasUsdaKey = () => USDA_API_KEY !== null;
+
+/**
+ * Who may create an account, as a comma-separated list of addresses.
+ *
+ * Unlike the keys above, absence here does not disable a feature — it closes
+ * one. Signup with no allowlist admits nobody, because a deployed personal
+ * app with open signup hands strangers the owner's Gemini quota. Read
+ * through `lib/signup-allowlist.ts`, which holds the parsing and the rule.
+ */
+export const SIGNUP_ALLOWLIST = process.env.SIGNUP_ALLOWLIST?.trim() || null;
