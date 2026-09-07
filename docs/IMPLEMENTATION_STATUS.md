@@ -630,11 +630,18 @@ What is left, and **Phase 11 stays open until it is done**:
     and Firefox do not), `no-camera`, and `permission-denied`. Collapsing
     them would send someone to check permissions when the real problem is
     plain HTTP.
-- **A dev test user is still in the database**:
-  `caldef.dev.tester@gmail.com`, created 2026-08-10, email confirmed. It
-  has a `profiles` row but no `goals` or `weight_entries`, so it has
-  never completed onboarding. Retained deliberately as a login fixture;
-  delete it before any real use. It is the **only** test account left:
+- **A dev test user is still in the development database** —
+  `CalDef` (`tcgtimmyakysjdgxugfp`), **not production**. Checked directly
+  on 2026-09-07: CalDef-prod holds four accounts, all real addresses
+  created 2026-09-06, and **no `caldef.`-prefixed row at all**. It could
+  not be there — the account predates the production project, which was
+  created 2026-09-05 and started empty. The entry used to say only "in the
+  database", which reads as production to anyone who did not already know.
+  The account is `caldef.dev.tester@gmail.com`, created 2026-08-10, email
+  confirmed. It has a `profiles` row but no `goals` or `weight_entries`, so
+  it has never completed onboarding. Retained deliberately as a login
+  fixture for development; delete it before any real use *of development*.
+  It is the **only** test account left there:
   the Phase 8 account from 2026-08-23 and the three created by the
   2026-09-05 end-to-end run were deleted afterwards, along with the
   shared `foods` rows their fixtures wrote. The 2026-08-10 note claiming the
