@@ -817,6 +817,53 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### Named restaurant meals and assistant intent, 2026-09-06 (Claude Code)
+
+Finishing work the Codex session left uncommitted when it hit its usage
+limit. That session reported "all 574 tests, type checking, lint and the
+production build pass" and said it was still checking the real Gemini
+parsing path before committing. The first claim did not hold; the second
+check had not been done.
+
+| Check | Result |
+|-------|--------|
+| `npm run test`, first run | **572/574** — 2 failed in `barcode-scanner.test.tsx` |
+| Same file, run alone | PASS 6/6 in 394ms |
+| `npm run test`, second run | **570/574** — 4 failed across 3 different files |
+| `npm run test`, third run | 574/574 |
+| After raising the timeout budget | PASS — three consecutive runs, 574/574 each |
+| `npm run typecheck` | PASS |
+| `npm run lint` | PASS, 0 problems |
+| `npm run build` | PASS |
+| `npm run test:live` | **PASS 13/13** against the real providers |
+
+**The suite was flaky, not broken.** Every failure was a timeout, none
+was an assertion, and the files involved changed between runs. The same
+barcode-scanner file took 394ms alone and over five seconds inside a
+full run: fifty jsdom environments start across all 32 cores at once,
+and its cases reset the module registry and re-import a component graph
+per test. Vitest's 5s default budgets a test's own work, not its share
+of a loaded machine. `testTimeout` and `hookTimeout` raised to 20s.
+
+A run that passes on the third attempt is not a passing suite, and
+reporting it as one is how a real regression gets waved through later.
+
+**The Gemini path is verified.** `test:live` exercised it against the
+real API on the pinned model, `gemini-3.5-flash-lite`: the spec's worked
+example parsed to intent only, a branded product resolved, text
+describing no food returned nothing, the correction example read
+correctly, an unspecified amount came back as unclear rather than
+guessed, and a nutrition question was answered from anonymous figures.
+This closes the check the Codex session named but did not complete.
+
+The model note in `gemini.ts` stands: `gemini-2.5-flash` is closed to
+new keys and answers 404, so the pin matters and is not cosmetic.
+
+**Not verified here.** Neither the restaurant import nor the proposal
+review UI has been exercised in a browser or against production — only
+their unit tests and the build. The owner's iPhone checks remain open,
+and Phase 11 stays IN PROGRESS for that reason.
+
 ### Custom user foods, 2026-09-06 (Claude Code)
 
 Built, tested locally, migrated, deployed and then exercised against the
