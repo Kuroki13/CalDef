@@ -845,6 +845,69 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### Five requested items, 2026-09-07 (Claude Code)
+
+Two of the five turned out to be already done or not true; the other three
+were real. Each was committed and pushed on its own.
+
+**1. Cache expiry — already built, half-tested.** The staleness window and
+refresh path landed on 2026-09-07 (migration 0010). KNOWN ISSUES carried a
+*second* entry for the same gap that was never struck through, which is why
+it still read as outstanding — the second time that has happened, so the
+entry now carries a note to search for duplicates when resolving one. What
+was genuinely missing was the other half of the guarantee: the SQL test
+proved a refresh leaves written rows alone but never that a *new* log picks
+up the corrected figure. `logCachedFood` — the convergence point every
+logging path goes through — had no direct test at all. It has six now,
+including the same food logging 200 kcal for 200 g and then 500 after a
+refresh to 250. The SQL test states the pairing explicitly and its negative
+control fires. Passes against development and production.
+
+**2. Gemini quota as a first-class state — partly there, and misleading.**
+The three states were already distinct in the types, and a 429 already
+mapped to `rate-limited`. What was wrong was the sentence: "try again in a
+minute", which is right for the per-minute allowance and wrong for the
+per-day one that the free tier also meters. The 429 body names which quota
+was spent, so that is now read — yielding "day", "minute" or "not stated"
+and never any of the body's text, because an error body can quote the
+request and the request URL carries the key. Every failure message now
+names what still works. **Simulating a 429 caught a regression the change
+introduced**: a throw while parsing the body landed in the outer catch and
+sent the call back round the retry loop, turning one over-quota request
+into three. Fixed, with a test for a 429 whose body cannot be read at all.
+Verified with four simulated 429s (per-day, per-minute, unnamed,
+unparseable) and at the route level.
+
+**3. Dev test user in production — not there, and could not be.**
+Checked directly over the authorized connection: CalDef-prod holds four
+accounts, all real addresses created 2026-09-06, and **no `caldef.`-prefixed
+row of any kind**. Nothing was deleted because there was nothing to delete;
+the fixture lives in development and predates the production project by
+almost a month. The KNOWN ISSUE said only "in the database", which reads as
+production to anyone who does not know there are two — that ambiguity is
+the actual defect, and it is fixed. Row count before and after: 4 and 4.
+
+**4. Restoring a retired custom food — real, and built.** Archiving was
+reversible in the database and irreversible in the app. The library now has
+a "Show retired foods" toggle with a Restore beside each, each row dated.
+`restoreCustomFood` writes one column and touches one table, asserted by a
+test so it cannot become a second path that rewrites nutrition. Verified
+end to end against a production build: created a food, logged it so removal
+would retire rather than delete, retired it, watched it leave the library
+and appear under the toggle dated today, restored it, and found it back in
+the library with "used once" intact and back in search.
+
+**5. Shared rate limiter — recommended against, with the reasoning
+corrected.** See DECISIONS. The code's stated justification ("needs a paid
+add-on") was false and is fixed; Postgres is already here. The real reason
+is that signup is closed, every limited route needs a session, and none of
+the protected quotas can produce a bill — they refuse. What would change
+that is written down, along with which bucket to move first.
+
+**Throughout:** 678 unit tests (up from 663), typecheck, lint and build
+clean. No migrations were needed. Development is back to 2 accounts after
+the fixture was removed; production was read but never written.
+
 ### AI-drafted recipes, 2026-09-07 (Claude Code)
 
 Built for the case that started it: "chicken maqlouba", a home-cooked dish
