@@ -380,19 +380,123 @@ describe("failure handling", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("does not retry a 429, and names the quota", async () => {
+  /** A 429 whose body names the quota that was spent, as Gemini's does. */
+  function overQuota(quotaId: string | null) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () =>
+        quotaId === null
+          ? { error: { code: 429, status: "RESOURCE_EXHAUSTED" } }
+          : {
+              error: {
+                code: 429,
+                status: "RESOURCE_EXHAUSTED",
+                message: "Quota exceeded for quota metric ...",
+                details: [
+                  {
+                    "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                    violations: [{ quotaId, quotaValue: "20" }],
+                  },
+                  {
+                    "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                    retryDelay: "39s",
+                  },
+                ],
+              },
+            },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("does not retry a 429", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 429 });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await geminiProvider.parseFoods(text("x"));
+    await geminiProvider.parseFoods(text("x"));
 
     // Retrying an over-quota call spends more of the quota. One request in,
     // one request out.
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("still does not retry when the body cannot be read at all", async () => {
+    // The body is read to name the quota. If that read could throw, it
+    // would land in the outer catch and send the call back round the retry
+    // loop — which is the one thing 429 handling exists to prevent.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => {
+        throw new Error("not json");
+      },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await geminiProvider.parseFoods(text("x"));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("rate-limited");
+  });
+
+  it("says the allowance comes back tomorrow when the day is spent", async () => {
+    // 20 requests a day on the free tier. "Try again in a minute" would be
+    // wrong for the next fourteen hours.
+    overQuota("GenerateRequestsPerDayPerProjectPerModel-FreeTier");
+
+    const result = await geminiProvider.parseFoods(text("x"));
+
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toBe("rate-limited");
-      expect(result.message).toContain("Try again in a minute");
+      expect(result.message).toMatch(/today/i);
+      expect(result.message).toMatch(/tomorrow/i);
+      // And it names what still works, because most of the app does.
+      expect(result.message).toMatch(/search for the food|by hand/i);
+    }
+  });
+
+  it("says try again shortly when only the minute is spent", async () => {
+    overQuota("GenerateRequestsPerMinutePerProjectPerModel-FreeTier");
+
+    const result = await geminiProvider.parseFoods(text("x"));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toMatch(/minute/i);
+      expect(result.message).not.toMatch(/tomorrow/i);
+    }
+  });
+
+  it("claims neither when the body does not say which", async () => {
+    // Guessing "a minute" for a spent day is the failure this avoids, and
+    // guessing "tomorrow" for a busy minute is no better.
+    overQuota(null);
+
+    const result = await geminiProvider.parseFoods(text("x"));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).not.toMatch(/tomorrow/i);
+      expect(result.message).not.toMatch(/in a minute/i);
+      expect(result.message).toMatch(/by hand/i);
+    }
+  });
+
+  it("never lets the upstream body reach the message", async () => {
+    // An error body can quote the request, and the request URL carries the
+    // key. What comes out of it is a value from a fixed set, not text.
+    overQuota("GenerateRequestsPerDayPerProjectPerModel-FreeTier");
+
+    const result = await geminiProvider.parseFoods(text("x"));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).not.toContain("quota metric");
+      expect(result.message).not.toContain("GenerateRequests");
+      expect(result.message).not.toContain("test-key-do-not-log");
     }
   });
 
@@ -437,7 +541,8 @@ describe("failure handling", () => {
     const result = await geminiProvider.parseFoods(text("x"));
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toBe("The assistant returned 403.");
+      expect(result.message).toContain("403");
+      expect(result.message).toMatch(/by hand/i);
       expect(result.message).not.toContain("test-key-do-not-log");
     }
   });

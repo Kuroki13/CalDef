@@ -16,6 +16,7 @@ import "server-only";
  */
 
 import { GEMINI_API_KEY } from "@/lib/env.server";
+import { AI_UNCONFIGURED_MESSAGE } from "@/lib/llm/unavailable";
 import type {
   AnonymousFigures,
   ChatTurn,
@@ -356,10 +357,14 @@ async function callGemini(
   schema: object | null,
 ): Promise<LLMResult<string>> {
   if (GEMINI_API_KEY === null) {
+    // The same sentence the unavailable provider gives, so "no key" reads
+    // identically wherever it is reached from. Reaching here at all means
+    // the provider was selected before the key was checked, which
+    // `llmFor` normally prevents.
     return {
       ok: false,
       reason: "unconfigured",
-      message: "The assistant is not configured.",
+      message: AI_UNCONFIGURED_MESSAGE,
     };
   }
 
@@ -398,7 +403,17 @@ async function callGemini(
       if (!response.ok) {
         lastStatus = response.status;
         if (RETRY_STATUSES.includes(response.status)) continue;
-        return httpFailure(response.status);
+
+        // The body is read for one purpose: to tell a spent *day* from a
+        // busy *minute*. Nothing from it is shown — an upstream error body
+        // can quote the request, and the request URL carries the key. What
+        // comes out is a value from a fixed set, not text.
+        //
+        // Wrapped whole, because reading it must not be able to fail: a
+        // throw here would land in the outer catch and send an over-quota
+        // call back round the retry loop, which is the one thing 429
+        // handling exists to prevent.
+        return httpFailure(response.status, await quotaWindowOf(response));
       }
 
       const payload = (await response.json()) as GeminiResponse;
@@ -419,18 +434,72 @@ async function callGemini(
     ? {
         ok: false,
         reason: "unavailable",
-        message: "The assistant did not respond.",
+        message:
+          "The assistant did not respond. Search for the food and log it by hand.",
       }
     : httpFailure(lastStatus);
 }
 
-function httpFailure(status: number): LLMResult<never> {
+/**
+ * Which allowance a 429 spent, when the body says.
+ *
+ * The free tier meters two things at once — requests per minute and
+ * requests per day — and they mean entirely different things to someone
+ * standing in a kitchen. A minute is a pause; a day is the end of the
+ * assistant until tomorrow, and being told to "try again in a minute" for
+ * the next fourteen hours is worse than being told nothing.
+ *
+ * Returns a value from a fixed set and never the body's text.
+ */
+export type QuotaWindow = "day" | "minute" | null;
+
+async function quotaWindowOf(response: Response): Promise<QuotaWindow> {
+  if (response.status !== 429) return null;
+  try {
+    return readQuotaWindow(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+function readQuotaWindow(payload: unknown): QuotaWindow {
+  const details = (
+    payload as { error?: { details?: { violations?: unknown[] }[] } } | null
+  )?.error?.details;
+  if (!Array.isArray(details)) return null;
+
+  const ids = details
+    .flatMap((detail) =>
+      Array.isArray(detail?.violations) ? detail.violations : [],
+    )
+    .map((violation) => String((violation as { quotaId?: unknown })?.quotaId ?? ""));
+
+  // Gemini names these `GenerateRequestsPerDayPerProjectPerModel-FreeTier`
+  // and `...PerMinutePerProjectPerModel-FreeTier`. Matching on the window
+  // rather than the whole id, because the rest of the name has changed
+  // before and the window is the part that carries the meaning.
+  if (ids.some((id) => /PerDay/i.test(id))) return "day";
+  if (ids.some((id) => /PerMinute/i.test(id))) return "minute";
+  return null;
+}
+
+function httpFailure(status: number, quota: QuotaWindow = null): LLMResult<never> {
   if (status === 429) {
     return {
       ok: false,
       reason: "rate-limited",
       message:
-        "The assistant has used its free allowance for the moment. Try again in a minute.",
+        quota === "day"
+          ? "The assistant has used its free allowance for today. It comes " +
+            "back tomorrow. Everything else works meanwhile: search for the " +
+            "food and log it, or build the recipe by hand."
+          : quota === "minute"
+            ? "The assistant is over its free allowance for the minute. Try " +
+              "again shortly, or search for the food and log it by hand."
+            : // The body did not say which. Neither claim is safe, so it
+              // says what is certain and points at the way round it.
+              "The assistant has used its free allowance for now. Search for " +
+              "the food and log it by hand, or try again later.",
     };
   }
 
@@ -438,7 +507,7 @@ function httpFailure(status: number): LLMResult<never> {
     ok: false,
     reason: "unavailable",
     // The status only. An upstream error body can quote the request.
-    message: `The assistant returned ${status}.`,
+    message: `The assistant could not be reached (${status}). Search for the food and log it by hand.`,
   };
 }
 

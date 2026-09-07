@@ -147,6 +147,44 @@ describe("POST /api/ai/recipe-draft", () => {
     expect(resolveIntents).not.toHaveBeenCalled();
   });
 
+  it("passes a spent quota through as 429, with what still works", async () => {
+    // The free tier is measured in requests and the ceiling is low, so this
+    // is an ordinary state rather than a fault. The client shows the
+    // message; it must name the way round it, not read as a generic error.
+    draftRecipe.mockResolvedValue({
+      ok: false,
+      reason: "rate-limited",
+      message:
+        "The assistant has used its free allowance for today. It comes back " +
+        "tomorrow. Everything else works meanwhile: search for the food and " +
+        "log it, or build the recipe by hand.",
+    });
+
+    const response = await call({ dish: "chicken maqlouba" });
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body.reason).toBe("rate-limited");
+    expect(body.error).toMatch(/tomorrow/i);
+    expect(body.error).toMatch(/by hand/i);
+    expect(resolveIntents).not.toHaveBeenCalled();
+  });
+
+  it("keeps a spent quota distinct from a failure to reach the model", async () => {
+    // Same 503 family in HTTP terms, entirely different things to the
+    // person reading it: one waits, the other is over for the day.
+    draftRecipe.mockResolvedValue({
+      ok: false,
+      reason: "unavailable",
+      message: "The assistant did not respond. Search for the food and log it by hand.",
+    });
+
+    const response = await call({ dish: "chicken maqlouba" });
+
+    expect(response.status).toBe(503);
+    expect((await response.json()).reason).toBe("unavailable");
+  });
+
   it("says it does not know a dish rather than inventing one", async () => {
     draftRecipe.mockResolvedValue({ ok: true, value: { foods: [] } });
 

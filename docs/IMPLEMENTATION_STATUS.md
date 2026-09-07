@@ -697,10 +697,14 @@ What is left, and **Phase 11 stays open until it is done**:
   `gemini-3.5-flash-lite`, which took 16 requests in a single burst
   before refusing and refused on the **per-minute** quota (15/min) rather
   than a daily one. `GEMINI_MODEL` overrides the pin without a code
-  change, because these allowances move. A spent quota surfaces as the
-  `rate-limited` reason and a message saying to try again shortly — it is
-  not reported as a fault, because it is not one. `npm run test:live`
-  paces its Gemini calls 7 s apart for the same reason.
+  change, because these allowances move. **Since 2026-09-07 the message
+  distinguishes the two windows**: the 429 body names the quota that was
+  spent, so a spent *day* says the allowance returns tomorrow and a busy
+  *minute* says to try again shortly. Telling someone to wait a minute for
+  the next fourteen hours was the failure worth fixing. Every one of these
+  messages names what still works — search, log, build a recipe by hand —
+  because a spent quota is a state, not a fault. `npm run test:live` paces
+  its Gemini calls 7 s apart for the same reason.
 - ~~**The assistant has no memory within a thread.**~~ **RESOLVED
   2026-09-07**, and by exactly the route the old note asked for: a way to
   carry the nutrition of a conversation without its personal content.
