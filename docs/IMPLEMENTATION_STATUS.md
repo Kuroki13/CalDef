@@ -882,10 +882,13 @@ live deployment with a fixture account, which was removed afterwards.
   before, from the barcode lookup). Those 4 accounts are the owner's; see
   KNOWN ISSUES.
 - **Deployment:** `caldef-woad.vercel.app` serves the build containing all
-  of this. Two production deployments appeared within a minute of two
-  `git push`es earlier in the session, which suggests the project now
-  auto-deploys `main` — worth confirming before treating a push as
-  internal.
+  of this. **The project auto-deploys `main`** — confirmed by watching a
+  production build start six seconds after a `git push` and take the
+  production alias when it went ready. That is new since the CLI deploys
+  earlier in the session, and it changes what a push means: pushing to
+  `main` now ships to production. Nothing here relies on it — every
+  deployment in this session was also made explicitly — but a future
+  session should not treat a push as an internal act.
 
 ### Pending states on every server-bound control, 2026-09-06 (Claude Code)
 
