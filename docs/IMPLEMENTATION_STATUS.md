@@ -541,34 +541,27 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## KNOWN ISSUES
 
-- **Editing a custom food is three statements, not one transaction.**
-  PostgREST gives no transaction across them, so a failure part-way
-  through can leave a food with its new name and old nutrition, or the
-  reverse. This is not theoretical: it happened during the deployment
-  verification, when a serving collided with its own unique constraint
-  after the nutrition had already been written, and the page went on
-  showing the stale figures because the error path does not revalidate.
-  The collision itself is fixed, and the order is now servings first —
-  they are the only part that can hit a constraint, so a rejected edit
-  changes nothing. Closing the window properly needs the whole write to
-  move into a `security invoker` database function, which is a migration
-  and an RPC rather than a patch, and is not worth it for a
-  single-user app until something else forces it.
+- ~~**Editing a custom food is three statements, not one transaction.**~~
+  **RESOLVED 2026-09-07.** The whole write moved into
+  `save_custom_food` (migration 0009), a `security invoker` function —
+  so RLS still decides what it may touch, and a function body is one
+  transaction. `supabase/tests/custom_food_atomicity.sql` fails the
+  middle statement on purpose and asserts the earlier one rolled back.
 - **A retired custom food cannot be brought back from the UI.**
   Archiving is reversible in the database — `archived_at` back to null —
   but nothing offers it, because there is nowhere sensible to list foods
   that are deliberately hidden. If the owner ever retires one by mistake,
   it is one `update` away.
-- **Production accepts a signup without confirming the email address.**
-  `mailer_autoconfirm` is `true` on CalDef-prod, so an account is usable
-  the moment it is created. That is deliberate: the free plan's built-in
-  mailer is rate-limited to a handful of messages an hour and no custom
-  SMTP is configured, so requiring confirmation would make signup fail
-  unpredictably. The cost is that someone could register an address they
-  do not own. Acceptable for a single-owner app; revisit before the app
-  is ever handed to anyone else. The signup action already handles both
-  outcomes, so turning confirmation on is a settings change, not a code
-  change.
+- **Signup is closed, in two places, and both have to be undone to open
+  it.** As of 2026-09-07 `SIGNUP_ALLOWLIST` is unset in production, which
+  means nobody, and `disable_signup` is `true` on the Supabase project,
+  which closes `/auth/v1/signup` to the publishable key as well. To let an
+  address in: add it to the Vercel variable **and redeploy** — Next inlines
+  `process.env` at build time, so the variable must exist before the build
+  — and turn `disable_signup` off. Sign-in is unaffected by either.
+  `mailer_autoconfirm` remains `true`, so a permitted signup is usable
+  immediately; that mattered when anyone could sign up and matters much
+  less now that nobody can.
 - **Production is no longer empty, and it is not test data.** As of
   2026-09-06 it holds 4 accounts, 8 food logs, 4 weigh-ins and 15 shared
   `foods` cache rows. Those accounts arrived between deployments and
@@ -578,17 +571,13 @@ What is left, and **Phase 11 stays open until it is done**:
   deploy were both removed that way, each verified by counting before and
   after. The shared cache rows carry `user_id is null` and no personal
   data; they refill on demand and are left alone.
-- **A deleted account keeps a working session until its JWT expires.**
-  Observed while cleaning up the smoke account: with the row already gone
-  from `auth.users`, the browser's still-valid access token took
-  `/dashboard` to `/onboarding` rather than to `/login`. This follows
-  from `getUserId` using `getClaims()`, which verifies the token's
-  signature locally instead of asking the auth server on every request —
-  the documented, recommended pattern. The window is `jwt_exp`, one hour,
-  and inside it the holder can do nothing: every table is behind RLS and
-  every user-owned row references `auth.users`, so writes fail on the
-  foreign key. Recorded because it is surprising, not because it is a
-  hole to plug.
+- ~~**A deleted account keeps a working session until its JWT expires.**~~
+  **RESOLVED 2026-09-07.** A verified token with no `profiles` row behind
+  it is a deleted account — the trigger writes that row on signup and the
+  cascade removes it — so the two signed-in surfaces, which load the
+  profile anyway, now recognise it and send the session to
+  `/auth/session-ended`. It is a route handler because a server component
+  cannot write cookies, which is what an earlier attempt got wrong.
 - **Leaked-password protection is unavailable on Free.** The prior "no
   cost" guidance was wrong. [Supabase password security](https://supabase.com/docs/guides/auth/password-security)
   specifies Pro and above. Leave disabled under the owner's zero-cost plan;
@@ -712,46 +701,35 @@ What is left, and **Phase 11 stays open until it is done**:
   `rate-limited` reason and a message saying to try again shortly — it is
   not reported as a fault, because it is not one. `npm run test:live`
   paces its Gemini calls 7 s apart for the same reason.
-- **The assistant has no memory within a thread.** Each question is
-  answered on its own; the stored history is for the user's screen and is
-  never sent back. Deliberate, not missing: replaying a thread would mean
-  sending back everything previously typed, which is exactly the
-  accumulation of personal detail the data-minimization rule prevents. A
-  follow-up has to restate its context and the UI says so. Revisiting
-  this would need a way to carry forward the *nutrition* of a
-  conversation without carrying forward its personal content.
-- **A one-word query can match a poor food.** Search ranking scores how
-  much of the query a food's name and brand account for, which settles
-  "dubai chocolate" but cannot settle "chicken" — every chicken row
-  scores the same, so the fan-out order decides and USDA's "Chicken
-  spread" can lead. Observed during the Phase 9 end-to-end run, where the
-  model faithfully returned the bare word the user typed. The
-  alternatives list on each proposal exists for this, and the figure
-  shown is always the matched food's own. A better tie-break would need a
-  notion of how typical a food is, which no provider gives us.
-- **A custom food cannot be created.** `foods` has a
-  `foods_custom_requires_owner` check, so a row with `source = 'custom'`
-  must carry a `user_id` — but `cacheFood` never sets one, because it
-  writes shared provider rows. Every path into `foods` therefore goes
-  through `cacheFood`, and none can produce a custom food. Found on
-  2026-09-05 when a Phase 8 end-to-end fixture tried to cache one and the
-  check rejected it. Spec §4 lists custom user foods as a search source,
-  so this is a real gap rather than a design choice; it needs an
-  owner-scoped insert path of its own. Not in any phase's scope yet.
-- **The food cache cannot refresh a provider food.** Shared cache rows
-  carry `user_id IS NULL`, and `foods_update_own` reads
-  `auth.uid() = user_id`, which is never true for a null owner — so no
-  authenticated user may update a shared row. `cacheFood` is therefore
-  insert-only and reuses an existing food as-is. This was caught by
-  reading the policies, not by a test: a plain `update` would have
-  reported success having matched zero rows, and the `upsert` it replaced
-  would have raised an RLS violation the first time a food was
-  re-resolved. Refreshing stale provider data would need either a
-  deliberate policy change (which grants every authenticated user write
-  access to shared nutrition data — a real multi-tenant hole) or an
-  owner-scoped copy of the row. Deferred as a product decision; provider
-  nutrient data for a given `source_id` is stable enough that this is not
-  urgent.
+- ~~**The assistant has no memory within a thread.**~~ **RESOLVED
+  2026-09-07**, and by exactly the route the old note asked for: a way to
+  carry the nutrition of a conversation without its personal content.
+  `recentTurns` re-checks every stored message with `toFoodText` — the
+  same gate a new question passes — and drops the ones that fail, so what
+  crosses the boundary is still `FoodText` and nothing else. Six messages,
+  so a thread cannot accumulate into a dossier.
+- ~~**A one-word query can match a poor food.**~~ **RESOLVED 2026-09-07.**
+  The owner's own diary turned out to be a better notion than "typical":
+  `loggedFoodCounts` breaks the tie, so a food they have logged before
+  outranks one they never have. It is a tie-break and not a term in the
+  score — a familiar food must not beat an exact match on what was typed,
+  and a test holds that line.
+- ~~**A custom food cannot be created.**~~ **Already resolved on
+  2026-09-06** by `lib/food/custom.ts`, and this entry was simply left
+  behind — there were two notes for the same gap and only the other one
+  was struck through. Recorded rather than deleted because a stale KNOWN
+  ISSUE is worse than none: it sends the next reader to build something
+  that exists.
+- ~~**The food cache cannot refresh a provider food.**~~ **RESOLVED
+  2026-09-07** by migration 0010, and narrowly. A shared row may be
+  updated only once it is more than thirty days old; inside that window it
+  is immutable to everyone. The blanket policy change the old note
+  rejected is still rejected. What made the narrow version defensible is
+  that any authenticated user could already *insert* a shared cache row
+  with arbitrary nutrition, so this closes an asymmetry under a condition
+  rather than opening a new door. A genuinely multi-tenant deployment
+  would want the refresh to run as a trusted job, and the staleness window
+  is what keeps that change small when it is wanted.
 - **Both food providers are intermittently unreliable.** Resolved as far
   as this codebase can, on 2026-08-23; recorded because the flakiness is
   a permanent property of these APIs, not a one-off.
@@ -816,6 +794,77 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Hardening pass, 2026-09-07 (Claude Code)
+
+Six items, each committed, pushed and deployed on its own, and each tested
+before the next was started.
+
+**1. Signup closed.** `SIGNUP_ALLOWLIST` gates the signup action before
+Supabase is reached; unset means nobody, which is the direction it has to
+fail in. The allowlist alone would not have closed this: the publishable
+key is in the client bundle by design, so Supabase's own `/auth/v1/signup`
+is reachable without going near our code — verified by creating an account
+that way against development, which the gate never saw. `disable_signup`
+is therefore set on the production project, and that endpoint now answers
+422 `signup_disabled` while the sign-in endpoint still answers 400 on bad
+credentials. Verified against `npm run build` + `npm start`: a
+non-allowlisted address is refused and creates no row; an allowlisted one
+passes and the account appears in the database. Both fixtures deleted.
+Live: `/signup` on the deployment renders the closed state, not a form.
+
+**2. Custom food edits are atomic.** `save_custom_food` (migration 0009)
+does the whole three-table write in one `security invoker` function, so
+RLS still decides what it may touch and a function body is one
+transaction. `supabase/tests/custom_food_atomicity.sql` hands it a calorie
+figure the column will not accept and asserts the name and brand changed
+by the earlier statement are back as they were; it also checks the good
+path lands in full, that another user cannot edit through the function,
+and that anon cannot execute it. Inverting one assertion makes the run
+fail. Passes against development and production.
+
+**3. A deleted account's session ends.** A verified token with no
+`profiles` row behind it is a deleted account, and the signed-in surfaces
+already load the profile, so nothing extra is asked of the database. The
+sign-out happens in `/auth/session-ended` because a server component
+cannot write cookies — the first attempt cleared them from the layout,
+which looked like it worked and left the browser presenting the same dead
+token. Verified against the production build: signed up, deleted the
+account underneath the live session, and watched `/dashboard` go 307 to
+`/auth/session-ended` to `/login`, with four Supabase cookies before and
+zero after.
+
+**4. The food cache expires.** `foods.refreshed_at` and a thirty-day
+window (migration 0010). A search already fans out to the providers, so a
+stale row whose provider answered in that same search is written back for
+no extra request; a barcode lookup adds one request, because a scanned
+packet is where a corrected figure matters most. The permission is
+narrow — a shared row is writable only when stale, and a fresh one is
+immutable to everyone. `supabase/tests/cache_refresh_history.sql` logs an
+entry, refreshes the food underneath it, and asserts the entry still reads
+200 kcal; then that the refresh closed the window behind it, that a
+private food is never unlocked by staleness, and that anon can write
+nothing. Inverting the history assertion makes it fail.
+
+**5. The assistant remembers a thread.** `recentTurns` carries the last
+six messages back through `toFoodText` — the same gate a new question
+passes — and drops what fails, so the boundary is unchanged in kind.
+Verified against the real model: asked for the calories in chicken breast,
+then asked "and how much protein was that?", a sentence naming no food,
+and got an answer about chicken breast's protein. That check is kept as a
+live test.
+
+**6. One-word searches rank by what the owner eats.** `loggedFoodCounts`
+breaks a relevance tie with the user's own diary, so a food they have
+logged before outranks one they never have. Strictly a tie-break: with
+fifty logged entries behind "Chicken breast", a search for "dubai
+chocolate" still returns Dubai chocolate first.
+
+**Throughout:** 629 unit tests (up from 591), 14 live provider tests,
+typecheck, lint and build all pass. Migrations 0009 and 0010 applied to
+development and production, and the production RLS audit passes with them.
+Production data untouched: 4 accounts, 8 food logs, 4 weigh-ins, 15 shared
+cache rows, as before.
 
 ### Named restaurant meals and assistant intent, 2026-09-06 (Claude Code)
 

@@ -100,9 +100,13 @@ src/
     supabase/          client.ts · server.ts · proxy.ts
     barcode.ts         scanner capability; barcode-fallback.ts holds the
                        JS decoder and is reached only by dynamic import
+    account-status.ts  a session whose account has been deleted
+    signup-allowlist.ts who may create one in the first place
     food/              types.ts · provider.ts · usda.ts · off.ts
                        cache.ts · registry.ts
                        custom.ts · custom-input.ts (the user's own foods)
+                       staleness.ts · history.ts (when to refetch, and
+                       whose diary breaks a ranking tie)
     llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
@@ -260,6 +264,20 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     is unchanged. The corollary is that removing a food that history
     points at archives it rather than deleting it.
 
+13. **Signup is closed unless an address is named, in two places.**
+    `SIGNUP_ALLOWLIST` gates the server action, and `disable_signup` on
+    the Supabase project closes `/auth/v1/signup` to the publishable key
+    that ships in the browser bundle. Either alone is insufficient: the
+    action cannot see a request that never reaches it, and the project
+    setting gives no message a user can read. Unset means nobody — the
+    direction this must fail in.
+
+14. **Anything replayed to the model goes back through the gate.**
+    Thread memory carries earlier turns, and every one of them is
+    re-checked by `toFoodText` on the way out, so what crosses the
+    boundary is `FoodText` whether it was typed a second ago or last
+    week. A message the gate refuses is dropped whole, never trimmed.
+
 ## 6. Adaptive TDEE model
 
 Two signals, one estimate:
@@ -342,10 +360,16 @@ are encoded as test cases so the safety behaviour cannot silently drift.
 | `GEMINI_API_KEY` | server | Gemini Developer API, free tier |
 | `GEMINI_MODEL` | server | Optional. Overrides the pinned model; the default is chosen for its free-tier allowance |
 | `USDA_API_KEY` | server | FoodData Central |
+| `SIGNUP_ALLOWLIST` | server | Comma-separated addresses permitted to create an account. **Unset means nobody** |
 
 Names only are mirrored in `.env.example`. Real values live in
 `.env.local`, which is gitignored. The service_role key is deliberately
 absent.
+
+Next inlines `process.env` into the server bundle at build time, so a
+variable has to exist **before the build**, not merely before the process
+starts. Setting one in Vercel therefore takes effect on the next
+deployment, not on the running one.
 
 ## 10. Production isolation
 
