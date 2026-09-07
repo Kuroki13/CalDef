@@ -8,11 +8,20 @@ import "server-only";
  *
  * The honest limitation: serverless instances do not share memory, so on
  * Vercel the effective limit is per-instance rather than global, and it
- * resets on a cold start. For a single-user personal app that is adequate —
- * it stops a runaway client loop from burning the USDA quota, which is the
+ * resets on a cold start. It stops a runaway client loop, which is the
  * actual risk here. It is *not* a defence against a distributed attacker,
- * and it should not be described as one. A real limiter needs shared state,
- * which needs a paid add-on, which CLAUDE.md forbids.
+ * and it should not be described as one.
+ *
+ * This file used to claim that a shared limiter "needs a paid add-on, which
+ * CLAUDE.md forbids". That was wrong, and worth correcting rather than
+ * quietly deleting: there is a Postgres database already paid for at zero,
+ * and a counter table with an atomic increment would work. The reason not
+ * to build it is cost against benefit, not impossibility — see DECISIONS in
+ * IMPLEMENTATION_STATUS.md. The short version: signup is closed, every
+ * limited route requires a session, and none of the quotas this protects
+ * can produce a bill — they refuse. A loose limit therefore buys a worse
+ * error message, and the price would be a database write on the hot path of
+ * every search.
  */
 
 type Window = { count: number; resetAt: number };

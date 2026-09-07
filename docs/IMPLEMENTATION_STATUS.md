@@ -229,7 +229,9 @@ session on 2026-08-23.
   memory, so the effective limit is per-instance. That is enough to stop
   a runaway client burning the USDA quota, which is the actual risk; it
   is not a defence against a distributed attacker and is not described
-  as one. A real limiter needs shared state, which needs a paid add-on.
+  as one. The claim that a shared limiter would need a paid add-on was
+  wrong and is corrected under DECISIONS: Postgres is already there. The
+  reason it stays per-instance is cost against benefit.
 - `api/foods/search` and `api/foods/barcode` — authenticate, then rate
   limit, then validate, in that order. Limiting before authenticating
   would let an anonymous caller spend another user's budget. The barcode
@@ -771,6 +773,36 @@ What is left, and **Phase 11 stays open until it is done**:
   the same thing.**
 
 ## DECISIONS
+
+- **The rate limiter stays in process, and that is a decision rather than
+  a limitation.** Settled 2026-09-07, having been asked to move it to
+  Postgres and having looked at what that would buy.
+  - The premise the code used to state — that a shared limiter needs a
+    paid add-on — was **wrong**. Supabase Postgres is already here at zero
+    cost, a counter table with an atomic increment in a `security invoker`
+    function would work, and `pg_cron` is available on Free to sweep old
+    windows. Nothing about the zero-cost rule prevents this.
+  - What made it not worth building is the threat model as it now stands.
+    Signup is closed in two places, every limited route requires a session,
+    and the accounts that exist are the owner's and three people they
+    invited. The limiter is no longer standing between the internet and a
+    quota; it is standing between a runaway `useEffect` and one, which
+    per-instance counting already does.
+  - **No quota it protects can produce a bill.** The Gemini key has no
+    billing account attached and refuses when the free tier is spent; USDA
+    and Open Food Facts refuse; Vercel Hobby throttles rather than charges.
+    So the cost of the limit being loose is a provider refusal instead of
+    ours — and since 2026-09-07 that refusal is a first-class state with an
+    honest message naming what still works. The failure mode is a slightly
+    worse sentence, not money.
+  - The price would be a database write on the hot path of every food
+    search and barcode frame, against the one resource with a real free
+    ceiling, plus a migration, an RPC, a sweep and the tests for all three.
+  - **When this changes**: if signup is ever reopened, if the app is put in
+    front of people the owner does not know, or if a provider that *does*
+    bill is added. The Gemini bucket is the one to move first, because its
+    quota is per-day and shared across everyone, and a per-instance counter
+    cannot bound a daily budget at all.
 
 - **`connect-src` is `'self'` alone.** Settled 2026-09-05 while verifying
   the headers. `lib/supabase/client.ts` is imported by nothing — every
