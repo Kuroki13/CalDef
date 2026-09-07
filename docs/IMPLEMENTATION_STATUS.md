@@ -789,6 +789,50 @@ What is left:
 
 ## TEST RESULTS
 
+### Pending states on every server-bound control, 2026-09-06 (Claude Code)
+
+- **The complaint:** tapping a control gave no sign it had registered, so
+  the app read as broken and invited a second tap.
+- **What was actually true**, established by a probe test rather than by
+  eye: the `useActionState` forms — logging a food, saving settings,
+  recording a weigh-in — did disable on pending and did *not* double-fire.
+  The plain `<form action={serverAction}>` forms had no pending state at
+  all and **did** fire twice on two clicks: Remove entry, the favourite
+  star, delete weigh-in, delete recipe, delete saved meal, remove
+  ingredient, end phase, sign out, delete conversation. On the star that
+  is not harmless — twice means back where it started.
+- **One component, everywhere:** `PendingButton` takes its pending state
+  from `useFormStatus` when it sits in a form and from a `pending` prop
+  otherwise, so a plain server-action form in a server component gets
+  feedback without becoming a client component. It disables, sets
+  `aria-busy`, swaps in a spinner, and takes an optional `pendingLabel`.
+  It also refuses a second click within 600 ms — `disabled` arrives with
+  a re-render, and a re-render is what a loaded phone defers, which is
+  exactly when people tap twice.
+- **Navigation too.** Every page here is server-rendered per request, so
+  a nav tap is a round trip. `LinkPending` swaps a nav icon (or the
+  diary's day arrows) for a spinner via `useLinkStatus` while the route
+  loads. Error-boundary retries run through a transition and show the
+  same state.
+- **Reduced motion:** the spinner carries `motion-reduce:animate-none`.
+  The label change, the dimming and `aria-busy` do not depend on motion,
+  so nothing is lost when the animation is off.
+- **Verified in a real browser**, against the production build running
+  locally with a real signed-in account on the development database:
+  Search read "Searching…" with `aria-busy="true"`, disabled, spinning;
+  Add to diary read "Adding…" the same way; and Remove — the plain
+  server-action form that previously showed nothing — came back
+  `aria-busy="true"`, disabled, spinning. A nav spinner was observed
+  during a real navigation by sampling the DOM across the transition.
+  No console errors. The fixture account was deleted afterwards by exact
+  identity; development is back to 2 accounts, 2 food logs, 1 weigh-in.
+- **Tests:** 512 total, up from 501. Eleven new: the pending states, the
+  double-submit guard (including that it clears itself, so a form the
+  browser rejected cannot leave a button stuck), the reduced-motion
+  class, and `LinkPending` in both states.
+- **Still true afterwards:** `npm run typecheck`, `npm run lint`,
+  `npm run build` all pass.
+
 ### Barcode decoding on iOS, 2026-09-06 (Claude Code)
 
 - **The scanner could never have worked on the owner's phone.**

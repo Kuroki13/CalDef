@@ -12,7 +12,7 @@
 import { useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import { Textarea } from "@/components/ui/textarea";
 
 export type Turn = { role: "user" | "assistant"; content: string };
@@ -101,9 +101,14 @@ export function Chat({
           placeholder="Am I on track for protein today?"
           aria-label="Ask the assistant"
         />
-        <Button type="submit" disabled={pending || question.trim().length === 0}>
-          {pending ? "Thinking…" : "Ask"}
-        </Button>
+        <PendingButton
+          type="submit"
+          pending={pending}
+          pendingLabel="Thinking…"
+          disabled={question.trim().length === 0}
+        >
+          Ask
+        </PendingButton>
       </form>
 
       <p className="text-muted-foreground text-xs">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { signOut } from "@/app/auth/actions";
 import { AiToggle, SettingsForm } from "@/app/(app)/settings/settings-form";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import {
   Card,
   CardContent,
@@ -65,9 +65,13 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <form action={signOut}>
-            <Button type="submit" variant="outline">
+            <PendingButton
+              type="submit"
+              variant="outline"
+              pendingLabel="Signing out…"
+            >
               Sign out
-            </Button>
+            </PendingButton>
           </form>
         </CardContent>
       </Card>

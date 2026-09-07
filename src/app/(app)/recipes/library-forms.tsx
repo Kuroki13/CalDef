@@ -12,7 +12,7 @@ import {
   type LibraryState,
 } from "@/app/(app)/recipes/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -88,7 +88,7 @@ function collapseEntryIds(formData: FormData): FormData {
 }
 
 export function CreateRecipeForm({ entries }: { entries: EntryOption[] }) {
-  const [state, formAction, pending] = useActionState<LibraryState, FormData>(
+  const [state, formAction] = useActionState<LibraryState, FormData>(
     (prev, formData) => createRecipeAction(prev, collapseEntryIds(formData)),
     {},
   );
@@ -118,9 +118,9 @@ export function CreateRecipeForm({ entries }: { entries: EntryOption[] }) {
 
       <EntryPicker entries={entries} />
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Creating…" : "Create recipe"}
-      </Button>
+      <PendingButton type="submit" className="w-full" pendingLabel="Creating…">
+        Create recipe
+      </PendingButton>
     </form>
   );
 }
@@ -132,7 +132,7 @@ export function CreateSavedMealForm({
   entries: EntryOption[];
   mealTypes: MealType[];
 }) {
-  const [state, formAction, pending] = useActionState<LibraryState, FormData>(
+  const [state, formAction] = useActionState<LibraryState, FormData>(
     (prev, formData) => createSavedMealAction(prev, collapseEntryIds(formData)),
     {},
   );
@@ -167,9 +167,9 @@ export function CreateSavedMealForm({
 
       <EntryPicker entries={entries} />
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Saving…" : "Save this meal"}
-      </Button>
+      <PendingButton type="submit" className="w-full" pendingLabel="Saving…">
+        Save this meal
+      </PendingButton>
     </form>
   );
 }
@@ -183,7 +183,7 @@ export function LogRecipeForm({
   logDate: string;
   mealTypes: MealType[];
 }) {
-  const [state, formAction, pending] = useActionState<LibraryState, FormData>(
+  const [state, formAction] = useActionState<LibraryState, FormData>(
     logRecipeAction,
     {},
   );
@@ -225,9 +225,9 @@ export function LogRecipeForm({
             </SelectContent>
           </Select>
         </div>
-        <Button type="submit" disabled={pending}>
-          {pending ? "…" : "Log"}
-        </Button>
+        <PendingButton type="submit" pendingLabel="Logging…">
+          Log
+        </PendingButton>
       </div>
     </form>
   );
@@ -244,7 +244,7 @@ export function LogSavedMealForm({
   mealTypes: MealType[];
   defaultMealTypeId: number | null;
 }) {
-  const [state, formAction, pending] = useActionState<LibraryState, FormData>(
+  const [state, formAction] = useActionState<LibraryState, FormData>(
     logSavedMealAction,
     {},
   );
@@ -276,9 +276,9 @@ export function LogSavedMealForm({
             </SelectContent>
           </Select>
         </div>
-        <Button type="submit" disabled={pending}>
-          {pending ? "…" : "Log"}
-        </Button>
+        <PendingButton type="submit" pendingLabel="Logging…">
+          Log
+        </PendingButton>
       </div>
     </form>
   );
@@ -297,7 +297,7 @@ export function AddIngredientsForm({
   recipeId: number;
   entries: EntryOption[];
 }) {
-  const [state, formAction, pending] = useActionState<LibraryState, FormData>(
+  const [state, formAction] = useActionState<LibraryState, FormData>(
     (prev, formData) => addIngredientsAction(prev, collapseEntryIds(formData)),
     {},
   );
@@ -337,9 +337,14 @@ export function AddIngredientsForm({
         ))}
       </fieldset>
 
-      <Button type="submit" size="sm" variant="secondary" disabled={pending}>
-        {pending ? "Adding…" : "Add ingredients"}
-      </Button>
+      <PendingButton
+        type="submit"
+        size="sm"
+        variant="secondary"
+        pendingLabel="Adding…"
+      >
+        Add ingredients
+      </PendingButton>
     </form>
   );
 }
@@ -359,7 +364,7 @@ export function LogFavoriteForm({
   logDate: string;
   mealTypes: MealType[];
 }) {
-  const [state, formAction, pending] = useActionState<LibraryState, FormData>(
+  const [state, formAction] = useActionState<LibraryState, FormData>(
     logFavoriteAction,
     {},
   );
@@ -401,9 +406,9 @@ export function LogFavoriteForm({
             </SelectContent>
           </Select>
         </div>
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? "…" : "Log"}
-        </Button>
+        <PendingButton type="submit" size="sm" pendingLabel="Logging…">
+          Log
+        </PendingButton>
       </div>
     </form>
   );

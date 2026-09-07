@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LinkPending } from "@/components/pending-nav";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Not found · CalDef" };
@@ -20,7 +21,9 @@ export default function NotFound() {
         That address does not exist in CalDef.
       </p>
       <Button asChild className="self-start">
-        <Link href="/dashboard">Go to dashboard</Link>
+        <Link href="/dashboard">
+          <LinkPending>Go to dashboard</LinkPending>
+        </Link>
       </Button>
     </main>
   );

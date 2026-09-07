@@ -7,7 +7,7 @@ import {
   type OnboardingState,
 } from "@/app/onboarding/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,7 +28,7 @@ const ACTIVITY_LEVELS = [
 ] as const;
 
 export function OnboardingForm() {
-  const [state, formAction, pending] = useActionState<OnboardingState, FormData>(
+  const [state, formAction] = useActionState<OnboardingState, FormData>(
     completeOnboarding,
     {},
   );
@@ -198,9 +198,9 @@ export function OnboardingForm() {
         </div>
       </fieldset>
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Saving…" : "Finish setup"}
-      </Button>
+      <PendingButton type="submit" className="w-full" pendingLabel="Saving…">
+        Finish setup
+      </PendingButton>
     </form>
   );
 }

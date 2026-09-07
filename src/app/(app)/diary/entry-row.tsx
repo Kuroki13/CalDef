@@ -9,6 +9,7 @@ import {
 } from "@/app/(app)/diary/actions";
 import { applyCorrection, type AiLogState } from "@/app/(app)/diary/ai-actions";
 import { toggleFavoriteAction } from "@/app/(app)/recipes/actions";
+import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { DiaryEntry } from "@/lib/diary";
@@ -24,10 +25,10 @@ export function EntryRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [amending, setAmending] = useState(false);
-  const [state, formAction, pending] = useActionState<
-    DiaryActionState,
-    FormData
-  >(updateEntryAmount, {});
+  const [state, formAction] = useActionState<DiaryActionState, FormData>(
+    updateEntryAmount,
+    {},
+  );
 
   return (
     <li className="py-3">
@@ -60,9 +61,9 @@ export function EntryRow({
               className="w-24"
               aria-label={`Amount for ${entry.foodName}`}
             />
-            <Button type="submit" size="sm" disabled={pending}>
-              {pending ? "…" : "Save"}
-            </Button>
+            <PendingButton type="submit" size="sm" pendingLabel="Saving…">
+              Save
+            </PendingButton>
             <Button
               type="button"
               size="sm"
@@ -86,7 +87,7 @@ export function EntryRow({
                   name="favorite"
                   value={String(entry.isFavorite)}
                 />
-                <Button
+                <PendingButton
                   type="submit"
                   size="sm"
                   variant="ghost"
@@ -98,7 +99,7 @@ export function EntryRow({
                   aria-pressed={entry.isFavorite}
                 >
                   {entry.isFavorite ? "★" : "☆"}
-                </Button>
+                </PendingButton>
               </form>
             ) : null}
             {aiEnabled && entry.foodId !== null ? (
@@ -124,14 +125,14 @@ export function EntryRow({
             </Button>
             <form action={deleteEntry}>
               <input type="hidden" name="entryId" value={entry.id} />
-              <Button
+              <PendingButton
                 type="submit"
                 size="sm"
                 variant="ghost"
                 aria-label={`Remove ${entry.foodName}`}
               >
                 Remove
-              </Button>
+              </PendingButton>
             </form>
           </div>
         )}
@@ -170,7 +171,7 @@ function AmendInWords({
     preview?: { grams: number; kcal: number } | null;
   } | null>(null);
 
-  const [state, formAction, pending] = useActionState<AiLogState, FormData>(
+  const [state, formAction] = useActionState<AiLogState, FormData>(
     applyCorrection,
     {},
   );
@@ -216,14 +217,16 @@ function AmendInWords({
           placeholder="actually that was 250g"
           aria-label={`Describe the change to ${entry.foodName}`}
         />
-        <Button
+        <PendingButton
           type="submit"
           size="sm"
           variant="secondary"
-          disabled={reading || text.trim().length === 0}
+          pending={reading}
+          pendingLabel="Reading…"
+          disabled={text.trim().length === 0}
         >
-          {reading ? "Reading…" : "Read"}
-        </Button>
+          Read
+        </PendingButton>
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>
           Close
         </Button>
@@ -246,9 +249,9 @@ function AmendInWords({
               : ""}
             .
           </p>
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? "…" : "Apply"}
-          </Button>
+          <PendingButton type="submit" size="sm" pendingLabel="Applying…">
+            Apply
+          </PendingButton>
         </form>
       ) : null}
 
@@ -256,9 +259,9 @@ function AmendInWords({
         <form action={deleteEntry} className="flex items-center gap-2">
           <input type="hidden" name="entryId" value={entry.id} />
           <p className="text-xs">Remove this entry?</p>
-          <Button type="submit" size="sm" variant="destructive">
+          <PendingButton type="submit" size="sm" variant="destructive">
             Remove
-          </Button>
+          </PendingButton>
         </form>
       ) : null}
 

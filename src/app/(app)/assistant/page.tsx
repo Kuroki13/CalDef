@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { clearThread } from "@/app/(app)/assistant/actions";
 import { Chat, type Turn } from "@/app/(app)/assistant/chat";
+import { PendingButton } from "@/components/pending-button";
+import { LinkPending } from "@/components/pending-nav";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,7 +51,9 @@ export default async function AssistantPage() {
           {switchedOff ? (
             <CardContent>
               <Button asChild variant="secondary">
-                <Link href="/settings">Open settings</Link>
+                <Link href="/settings">
+                  <LinkPending>Open settings</LinkPending>
+                </Link>
               </Button>
             </CardContent>
           ) : null}
@@ -76,9 +80,14 @@ export default async function AssistantPage() {
       </Card>
       {turns.length > 0 ? (
         <form action={clearThread}>
-          <Button type="submit" variant="ghost" size="sm">
+          <PendingButton
+            type="submit"
+            variant="ghost"
+            size="sm"
+            pendingLabel="Deleting…"
+          >
             Delete this conversation
-          </Button>
+          </PendingButton>
         </form>
       ) : null}
 

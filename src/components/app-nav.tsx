@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { LinkPending } from "@/components/pending-nav";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,9 @@ export function AppSidebar() {
               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
           )}
         >
-          <Icon className="size-4" aria-hidden />
+          <LinkPending>
+            <Icon className="size-4" aria-hidden />
+          </LinkPending>
           {label}
         </Link>
       ))}
@@ -57,7 +60,9 @@ export function AppTabBar() {
               : "text-muted-foreground",
           )}
         >
-          <Icon className="size-5" aria-hidden />
+          <LinkPending spinnerClassName="size-5">
+            <Icon className="size-5" aria-hidden />
+          </LinkPending>
           {label}
         </Link>
       ))}

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { stopPhase } from "@/app/(app)/phase/actions";
 import { StartPhaseForm } from "@/app/(app)/phase/start-form";
 import { PhaseChart } from "@/components/phase-chart";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import {
   Card,
   CardContent,
@@ -123,9 +123,14 @@ export default async function PhasePage() {
           </p>
         </div>
         <form action={stopPhase}>
-          <Button type="submit" variant="outline" size="sm">
+          <PendingButton
+            type="submit"
+            variant="outline"
+            size="sm"
+            pendingLabel="Ending…"
+          >
             {active.hasElapsed ? "Finish phase" : "End early"}
-          </Button>
+          </PendingButton>
         </form>
       </header>
 

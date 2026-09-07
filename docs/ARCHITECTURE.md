@@ -238,6 +238,15 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     import of it anywhere would put that weight on the first load of
     every page, silently.
 
+11. **Every control that reaches the server says so while it works.**
+    Form submits, server actions, navigation and error-boundary retries
+    all go through `components/pending-button.tsx` or
+    `components/pending-nav.tsx` — one component each, not a variation
+    per screen. A control that disables itself on pending is also the
+    double-submission guard, so the two must not be separated: the
+    plain server-action forms that had no pending state were the ones
+    that fired twice on a double tap.
+
 ## 6. Adaptive TDEE model
 
 Two signals, one estimate:

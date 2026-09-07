@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { deleteWeighIn } from "@/app/(app)/weight/actions";
 import { WeighInForm } from "@/app/(app)/weight/weigh-in-form";
 import { TrendChart } from "@/components/trend-chart";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import {
   Card,
   CardContent,
@@ -195,14 +195,14 @@ export default async function WeightPage() {
                   </div>
                   <form action={deleteWeighIn}>
                     <input type="hidden" name="entryId" value={entry.id} />
-                    <Button
+                    <PendingButton
                       type="submit"
                       size="sm"
                       variant="ghost"
                       aria-label={`Remove weigh-in for ${entry.entry_date}`}
                     >
                       Remove
-                    </Button>
+                    </PendingButton>
                   </form>
                 </li>
               ))}

@@ -5,7 +5,7 @@ import { useActionState } from "react";
 
 import type { AuthState } from "@/app/auth/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -26,10 +26,9 @@ export function AuthForm({
   initialError,
   footer,
 }: Props) {
-  const [state, formAction, pending] = useActionState<AuthState, FormData>(
-    action,
-    { error: initialError },
-  );
+  const [state, formAction] = useActionState<AuthState, FormData>(action, {
+    error: initialError,
+  });
 
   return (
     <form action={formAction} className="space-y-4">
@@ -72,9 +71,9 @@ export function AuthForm({
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? pendingLabel : submitLabel}
-      </Button>
+      <PendingButton type="submit" className="w-full" pendingLabel={pendingLabel}>
+        {submitLabel}
+      </PendingButton>
 
       <p className="text-muted-foreground text-center text-sm">{footer}</p>
     </form>

@@ -16,8 +16,9 @@
  * explanation from a digest would be worse than admitting we do not know.
  */
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 
+import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 
 export default function AppError({
@@ -27,6 +28,10 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Retrying re-runs the render that failed, which is a round trip like any
+  // other — and slower than most when the database is waking up.
+  const [retrying, startRetry] = useTransition();
+
   useEffect(() => {
     // Reaches the server logs in production, where the digest is the only
     // way to tie a user's report to the actual stack.
@@ -49,7 +54,13 @@ export default function AppError({
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button onClick={reset}>Try again</Button>
+        <PendingButton
+          onClick={() => startRetry(reset)}
+          pending={retrying}
+          pendingLabel="Trying again…"
+        >
+          Try again
+        </PendingButton>
         <Button variant="secondary" asChild>
           <a href="/dashboard">Go to dashboard</a>
         </Button>

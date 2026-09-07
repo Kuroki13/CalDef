@@ -8,7 +8,7 @@ import {
   type SettingsState,
 } from "@/app/(app)/settings/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton, Spinner } from "@/components/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,7 +48,7 @@ export type SettingsFormProps = {
 };
 
 export function SettingsForm(props: SettingsFormProps) {
-  const [state, formAction, pending] = useActionState<SettingsState, FormData>(
+  const [state, formAction] = useActionState<SettingsState, FormData>(
     updateSettings,
     {},
   );
@@ -225,9 +225,9 @@ export function SettingsForm(props: SettingsFormProps) {
         </p>
       </div>
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save settings"}
-      </Button>
+      <PendingButton type="submit" pendingLabel="Saving…">
+        Save settings
+      </PendingButton>
     </form>
   );
 }
@@ -246,17 +246,23 @@ export function AiToggle({ enabled }: { enabled: boolean }) {
           else in CalDef works with this off.
         </p>
       </div>
-      <Switch
-        id="ai-enabled"
-        checked={optimistic}
-        disabled={pending}
-        onCheckedChange={(next) => {
-          setOptimistic(next);
-          startTransition(async () => {
-            await setAiEnabled(next);
-          });
-        }}
-      />
+      <div className="flex items-center gap-2">
+        {/* The switch moves optimistically, so without this there is nothing
+            to say the change has not reached the server yet. */}
+        {pending ? <Spinner className="text-muted-foreground size-4" /> : null}
+        <Switch
+          id="ai-enabled"
+          checked={optimistic}
+          disabled={pending}
+          aria-busy={pending}
+          onCheckedChange={(next) => {
+            setOptimistic(next);
+            startTransition(async () => {
+              await setAiEnabled(next);
+            });
+          }}
+        />
+      </div>
     </div>
   );
 }

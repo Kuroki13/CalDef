@@ -15,6 +15,7 @@ import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -101,10 +102,10 @@ export function AddFood({
     }
   }
 
-  const [state, formAction, pending] = useActionState<
-    DiaryActionState,
-    FormData
-  >(logFood, {});
+  const [state, formAction] = useActionState<DiaryActionState, FormData>(
+    logFood,
+    {},
+  );
 
   // Clearing the selection after a successful log returns the form to the
   // search box, which is where the next entry starts.
@@ -182,9 +183,13 @@ export function AddFood({
                   placeholder="Search foods, e.g. chicken breast"
                   aria-label="Search foods"
                 />
-                <Button type="submit" disabled={search.status === "loading"}>
-                  {search.status === "loading" ? "Searching…" : "Search"}
-                </Button>
+                <PendingButton
+                  type="submit"
+                  pending={search.status === "loading"}
+                  pendingLabel="Searching…"
+                >
+                  Search
+                </PendingButton>
                 <Button
                   type="button"
                   variant="outline"
@@ -267,9 +272,13 @@ export function AddFood({
 
             <PortionFields food={chosen} mealTypes={mealTypes} />
 
-            <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? "Adding…" : "Add to diary"}
-            </Button>
+            <PendingButton
+              type="submit"
+              className="w-full"
+              pendingLabel="Adding…"
+            >
+              Add to diary
+            </PendingButton>
           </form>
         )}
       </CardContent>

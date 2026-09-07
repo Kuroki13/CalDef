@@ -7,7 +7,7 @@ import {
   type WeightActionState,
 } from "@/app/(app)/weight/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -20,10 +20,10 @@ export function WeighInForm({
   unitLabel: string;
   defaultWeight: number | null;
 }) {
-  const [state, formAction, pending] = useActionState<
-    WeightActionState,
-    FormData
-  >(recordWeighIn, {});
+  const [state, formAction] = useActionState<WeightActionState, FormData>(
+    recordWeighIn,
+    {},
+  );
 
   // Cleared during render rather than in an effect, so the success message
   // is not painted alongside a stale value first.
@@ -82,9 +82,9 @@ export function WeighInForm({
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Saving…" : "Record weigh-in"}
-      </Button>
+      <PendingButton type="submit" className="w-full" pendingLabel="Saving…">
+        Record weigh-in
+      </PendingButton>
     </form>
   );
 }

@@ -39,6 +39,7 @@ import {
   isPlausibleBarcode,
 } from "@/lib/barcode";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -258,20 +259,19 @@ export function BarcodeScanner({
       ) : (
         <>
           <div className="flex gap-2">
-            <Button
+            <PendingButton
               type="button"
               onClick={start}
-              disabled={capability?.manualOnly === true || preparing}
-              aria-busy={preparing}
+              disabled={capability?.manualOnly === true}
+              pending={preparing}
+              pendingLabel="Starting the camera…"
               className="flex-1"
             >
-              {preparing
-                ? "Starting the camera…"
-                : capability?.status === "permission-denied" ||
-                    capability?.status === "decoder-unavailable"
-                  ? "Try again"
-                  : "Scan a barcode"}
-            </Button>
+              {capability?.status === "permission-denied" ||
+              capability?.status === "decoder-unavailable"
+                ? "Try again"
+                : "Scan a barcode"}
+            </PendingButton>
             <Button type="button" variant="ghost" onClick={onCancel}>
               Cancel
             </Button>
@@ -330,9 +330,9 @@ function ManualEntry({
           autoComplete="off"
           placeholder="e.g. 3017624010701"
         />
-        <Button type="submit" variant="secondary">
+        <PendingButton type="submit" variant="secondary">
           Look up
-        </Button>
+        </PendingButton>
       </div>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </form>

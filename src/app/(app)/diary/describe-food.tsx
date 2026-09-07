@@ -21,7 +21,7 @@ import {
 } from "@/app/(app)/diary/ai-actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import {
   Card,
   CardContent,
@@ -71,7 +71,7 @@ export function DescribeFood({
   const [choices, setChoices] = useState<Choice[]>([]);
   const [mealTypeId, setMealTypeId] = useState(String(mealTypes[0]?.id ?? ""));
 
-  const [state, formAction, pending] = useActionState<AiLogState, FormData>(
+  const [state, formAction] = useActionState<AiLogState, FormData>(
     logParsedFoods,
     {},
   );
@@ -179,13 +179,15 @@ export function DescribeFood({
             rows={2}
             placeholder="200g chicken breast, 150g rice and a tablespoon of olive oil"
           />
-          <Button
+          <PendingButton
             type="submit"
             variant="secondary"
-            disabled={parse.status === "loading" || text.trim().length === 0}
+            pending={parse.status === "loading"}
+            pendingLabel="Reading…"
+            disabled={text.trim().length === 0}
           >
-            {parse.status === "loading" ? "Reading…" : "Read this"}
-          </Button>
+            Read this
+          </PendingButton>
         </form>
 
         {parse.status === "error" ? (
@@ -322,15 +324,14 @@ export function DescribeFood({
               </Select>
             </div>
 
-            <Button
+            <PendingButton
               type="submit"
               className="w-full"
-              disabled={pending || loggable.length === 0}
+              pendingLabel="Adding…"
+              disabled={loggable.length === 0}
             >
-              {pending
-                ? "Adding…"
-                : `Add ${loggable.length} item${loggable.length === 1 ? "" : "s"} to diary`}
-            </Button>
+              {`Add ${loggable.length} item${loggable.length === 1 ? "" : "s"} to diary`}
+            </PendingButton>
           </form>
         ) : null}
       </CardContent>

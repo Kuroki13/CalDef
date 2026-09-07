@@ -14,7 +14,7 @@ import {
   LogRecipeForm,
   LogSavedMealForm,
 } from "@/app/(app)/recipes/library-forms";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import {
   Card,
   CardContent,
@@ -89,14 +89,14 @@ export default async function RecipesPage() {
                     <form action={toggleFavoriteAction}>
                       <input type="hidden" name="foodId" value={food.id} />
                       <input type="hidden" name="favorite" value="true" />
-                      <Button
+                      <PendingButton
                         type="submit"
                         size="sm"
                         variant="ghost"
                         aria-label={`Unstar ${food.name}`}
                       >
                         Unstar
-                      </Button>
+                      </PendingButton>
                     </form>
                   </div>
                   <LogFavoriteForm
@@ -138,9 +138,14 @@ export default async function RecipesPage() {
                     </div>
                     <form action={deleteSavedMealAction}>
                       <input type="hidden" name="savedMealId" value={meal.id} />
-                      <Button type="submit" size="sm" variant="ghost">
+                      <PendingButton
+                        type="submit"
+                        size="sm"
+                        variant="ghost"
+                        pendingLabel="Deleting…"
+                      >
                         Delete
-                      </Button>
+                      </PendingButton>
                     </form>
                   </div>
                   <LogSavedMealForm
@@ -192,9 +197,14 @@ export default async function RecipesPage() {
                     </div>
                     <form action={deleteRecipeAction}>
                       <input type="hidden" name="recipeId" value={recipe.id} />
-                      <Button type="submit" size="sm" variant="ghost">
+                      <PendingButton
+                        type="submit"
+                        size="sm"
+                        variant="ghost"
+                        pendingLabel="Deleting…"
+                      >
                         Delete
-                      </Button>
+                      </PendingButton>
                     </form>
                   </div>
 
@@ -220,12 +230,14 @@ export default async function RecipesPage() {
                               name="ingredientId"
                               value={ing.id}
                             />
-                            <button
+                            <PendingButton
                               type="submit"
-                              className="hover:text-foreground underline"
+                              variant="link"
+                              size="xs"
+                              className="text-muted-foreground hover:text-foreground h-auto px-0 underline"
                             >
                               remove
-                            </button>
+                            </PendingButton>
                           </form>
                         </li>
                       ))}

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import { startPhase, type PhaseActionState } from "@/app/(app)/phase/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -15,10 +15,10 @@ export function StartPhaseForm({
   unitLabel: string;
   suggestedStretch: number | null;
 }) {
-  const [state, formAction, pending] = useActionState<
-    PhaseActionState,
-    FormData
-  >(startPhase, {});
+  const [state, formAction] = useActionState<PhaseActionState, FormData>(
+    startPhase,
+    {},
+  );
 
   return (
     <form action={formAction} className="space-y-4">
@@ -60,9 +60,9 @@ export function StartPhaseForm({
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Starting…" : "Start the phase"}
-      </Button>
+      <PendingButton type="submit" className="w-full" pendingLabel="Starting…">
+        Start the phase
+      </PendingButton>
     </form>
   );
 }

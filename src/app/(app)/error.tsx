@@ -9,10 +9,10 @@
  * boundary stays as the backstop for anything above this.
  */
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 
+import { PendingButton } from "@/components/pending-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 
 export default function AppSectionError({
   error,
@@ -21,6 +21,10 @@ export default function AppSectionError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Retrying re-runs the server render that failed, which takes as long as
+  // any other round trip — and on a sleeping free-tier database, longer.
+  const [retrying, startRetry] = useTransition();
+
   useEffect(() => {
     console.error("Screen failed", error.digest ?? error.message);
   }, [error]);
@@ -39,7 +43,13 @@ export default function AppSectionError({
           Reference: {error.digest}
         </p>
       ) : null}
-      <Button onClick={reset}>Try again</Button>
+      <PendingButton
+        onClick={() => startRetry(reset)}
+        pending={retrying}
+        pendingLabel="Trying again…"
+      >
+        Try again
+      </PendingButton>
     </div>
   );
 }

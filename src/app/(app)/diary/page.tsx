@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { LinkPending } from "@/components/pending-nav";
 import { Progress } from "@/components/ui/progress";
 import { addDays, isIsoDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
@@ -96,11 +97,11 @@ export default async function DiaryPage({
             className="hover:bg-accent rounded-md px-3 py-2"
             aria-label="Previous day"
           >
-            ←
+            <LinkPending>←</LinkPending>
           </Link>
           {date !== today ? (
             <Link href="/diary" className="hover:bg-accent rounded-md px-3 py-2">
-              Today
+              <LinkPending>Today</LinkPending>
             </Link>
           ) : null}
           <Link
@@ -108,7 +109,7 @@ export default async function DiaryPage({
             className="hover:bg-accent rounded-md px-3 py-2"
             aria-label="Next day"
           >
-            →
+            <LinkPending>→</LinkPending>
           </Link>
         </nav>
       </header>
