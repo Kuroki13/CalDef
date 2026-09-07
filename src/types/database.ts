@@ -661,6 +661,7 @@ export type Database = {
       }
       recipes: {
         Row: {
+          ai_drafted_at: string | null
           created_at: string
           id: number
           name: string
@@ -670,6 +671,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_drafted_at?: string | null
           created_at?: string
           id?: never
           name: string
@@ -679,6 +681,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_drafted_at?: string | null
           created_at?: string
           id?: never
           name?: string

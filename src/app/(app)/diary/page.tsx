@@ -167,7 +167,7 @@ export default async function DiaryPage({
         ) : null}
       </Card>
 
-      <AddFood logDate={date} mealTypes={day.mealTypes} />
+      <AddFood logDate={date} mealTypes={day.mealTypes} aiReady={aiReady} />
 
       {/*
         Rendered only when the user has the assistant on. The manual search

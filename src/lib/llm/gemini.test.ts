@@ -9,7 +9,7 @@ vi.mock("@/lib/env.server", () => ({
   hasUsdaKey: () => false,
 }));
 
-const { geminiProvider } = await import("@/lib/llm/gemini");
+const { MAX_INTENTS, geminiProvider } = await import("@/lib/llm/gemini");
 
 /** A Gemini response whose single part carries `text`. */
 function reply(text: string, init: { ok?: boolean; status?: number } = {}) {
@@ -148,6 +148,107 @@ describe("parseFoods", () => {
 
     const result = await geminiProvider.parseFoods(text("x"));
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("draftRecipe", () => {
+  it("turns a dish name into ingredients and amounts", async () => {
+    const fetchMock = reply(
+      JSON.stringify({
+        foods: [
+          { query: "chicken thigh", amount: 800, unit: "g" },
+          { query: "basmati rice", amount: 500, unit: "g" },
+          { query: "aubergine", amount: 400, unit: "g" },
+          { query: "olive oil", amount: 60, unit: "ml" },
+        ],
+      }),
+    );
+
+    const result = await geminiProvider.draftRecipe(text("chicken maqlouba"));
+
+    expect(result.ok && result.value.foods).toHaveLength(4);
+    expect(result.ok && result.value.foods[0]).toEqual({
+      query: "chicken thigh",
+      amount: 800,
+      unit: "g",
+    });
+
+    // Only the dish name crosses the boundary — no figures, no history.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.contents[0].parts[0].text).toBe("chicken maqlouba");
+  });
+
+  it("ignores a calorie figure the model volunteers", async () => {
+    // The invariant, at the one place a model response becomes data. There
+    // is no `kcal` field on `FoodIntent`, so this is not a rejection — the
+    // value has nowhere to go and is dropped when the payload is read.
+    const fetchMock = reply(
+      JSON.stringify({
+        foods: [
+          {
+            query: "chicken thigh",
+            amount: 800,
+            unit: "g",
+            kcal: 1800,
+            protein_g: 150,
+            calories_total: 2400,
+          },
+        ],
+        totalCalories: 3200,
+        nutrition: { kcal: 3200 },
+      }),
+    );
+
+    const result = await geminiProvider.draftRecipe(text("chicken maqlouba"));
+    if (!result.ok) throw new Error("expected a draft");
+
+    expect(result.value.foods).toEqual([
+      { query: "chicken thigh", amount: 800, unit: "g" },
+    ]);
+    // Not merely absent from the result: nothing anywhere in it.
+    expect(JSON.stringify(result.value)).not.toMatch(/kcal|calor|protein/i);
+
+    // And the schema we asked for never offered a place to put one.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const properties =
+      body.generationConfig.responseSchema.properties.foods.items.properties;
+    expect(Object.keys(properties).sort()).toEqual(["amount", "query", "unit"]);
+  });
+
+  it("keeps the same per-parse cap as the sentence parser", async () => {
+    reply(
+      JSON.stringify({
+        foods: Array.from({ length: 30 }, (_, i) => ({
+          query: `ingredient ${i}`,
+          amount: 10,
+          unit: "g",
+        })),
+      }),
+    );
+
+    const result = await geminiProvider.draftRecipe(text("a long dish"));
+
+    // One dish must not turn into thirty provider fan-outs.
+    expect(result.ok && result.value.foods).toHaveLength(MAX_INTENTS);
+  });
+
+  it("returns an empty list for a dish it does not know", async () => {
+    // Better than a plausible invention: the caller offers building the
+    // recipe by hand instead.
+    reply(JSON.stringify({ foods: [] }));
+
+    const result = await geminiProvider.draftRecipe(text("qqqq zzzz"));
+    expect(result.ok && result.value.foods).toEqual([]);
+  });
+
+  it("asks for the drafting instruction, not the parsing one", async () => {
+    const fetchMock = reply(JSON.stringify({ foods: [] }));
+    await geminiProvider.draftRecipe(text("chicken maqlouba"));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const instruction = body.systemInstruction.parts[0].text as string;
+    expect(instruction).toMatch(/ingredients a\ntypical version is made from/);
+    expect(instruction).toMatch(/Do not return calories/);
   });
 });
 

@@ -47,6 +47,22 @@ export type ParsedFoods = {
 };
 
 /**
+ * What a drafted recipe is, in this app's terms.
+ *
+ * Deliberately `ParsedFoods` and nothing else. Asking a model for the
+ * ingredients of a dish it has never seen a database entry for is a
+ * different *question* from parsing a sentence someone typed, but it is the
+ * same *answer*: a list of things to look up and how much of each. Giving it
+ * its own type would create a second shape for a model response to arrive
+ * in, and a second shape is a second place for a calorie field to be added
+ * one day by someone who thought it would be convenient.
+ *
+ * So a drafted recipe carries no nutrition, for the same structural reason
+ * a parsed sentence carries none: there is nowhere to put it.
+ */
+export type DraftedRecipe = ParsedFoods;
+
+/**
  * What the user wants changed about an entry they already logged.
  *
  * `unclear` is a first-class outcome rather than a failure. "Actually that
@@ -114,6 +130,16 @@ export type LLMProvider = {
   isAvailable(): boolean;
   /** "200g chicken and some rice" -> intents. Never nutrition figures. */
   parseFoods(text: FoodText): Promise<LLMResult<ParsedFoods>>;
+  /**
+   * A dish name -> the ingredients it is usually made from, and how much.
+   *
+   * For a home-cooked meal no food database knows — "chicken maqlouba" —
+   * where the alternative is the owner typing out a dozen ingredients by
+   * hand. The model proposes *what goes in it*; every figure that follows
+   * comes from resolving those ingredients against the real providers, so
+   * this returns the same nutrition-free shape as `parseFoods`.
+   */
+  draftRecipe(dish: FoodText): Promise<LLMResult<DraftedRecipe>>;
   /**
    * "actually that was 250g" against an entry the user is looking at.
    *

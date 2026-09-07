@@ -210,6 +210,16 @@ export default async function RecipesPage() {
                         {Math.round(perServing.kcal)} kcal and{" "}
                         {Math.round(perServing.protein_g)} g protein per serving
                       </p>
+                      {/* Provenance, months later: which half of this was
+                          estimated and which half was looked up. */}
+                      {recipe.ai_drafted_at ? (
+                        <p className="text-muted-foreground text-xs">
+                          Ingredient list drafted by the assistant on{" "}
+                          {recipe.ai_drafted_at.slice(0, 10)} and confirmed by
+                          you. The nutrition above is computed from the matched
+                          foods, not from the assistant.
+                        </p>
+                      ) : null}
                     </div>
                     <form action={deleteRecipeAction}>
                       <input type="hidden" name="recipeId" value={recipe.id} />

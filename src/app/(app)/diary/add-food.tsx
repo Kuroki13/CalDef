@@ -13,6 +13,7 @@ import { useActionState, useState } from "react";
 
 import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -53,9 +54,12 @@ const IDLE: SearchState = {
 export function AddFood({
   logDate,
   mealTypes,
+  aiReady = false,
 }: {
   logDate: string;
   mealTypes: MealType[];
+  /** Whether the assistant can be asked to draft a dish it did not find. */
+  aiReady?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>(IDLE);
@@ -226,10 +230,18 @@ export function AddFood({
             ) : null}
 
             {search.status === "done" && search.foods.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                Nothing found. Try a simpler description, or add it yourself
-                from the packet.
-              </p>
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-sm">
+                  Nothing found. Try a simpler description, add it yourself
+                  from the packet, or — for something home-cooked —{" "}
+                  {aiReady
+                    ? "have the assistant draft the ingredients."
+                    : "build it as a recipe on the Recipes screen, one ingredient at a time."}
+                </p>
+                {/* The dish name is what was searched for, so the draft
+                    starts from what the user already typed. */}
+                {aiReady ? <DescribeDish initialDish={query} /> : null}
+              </div>
             ) : null}
 
             {!creatingFood && !scannerOpen ? (

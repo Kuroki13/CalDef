@@ -10,6 +10,7 @@
 
 import type {
   CorrectionIntent,
+  DraftedRecipe,
   LLMFailure,
   LLMProvider,
   LLMResult,
@@ -45,6 +46,7 @@ export function unavailableProvider(
     name: reason === "disabled" ? "AI disabled" : "AI unconfigured",
     isAvailable: () => false,
     parseFoods: () => refuse<ParsedFoods>(),
+    draftRecipe: () => refuse<DraftedRecipe>(),
     parseCorrection: () => refuse<CorrectionIntent>(),
     answer: () => refuse<string>(),
   };

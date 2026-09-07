@@ -20,6 +20,7 @@ import type {
   AnonymousFigures,
   ChatTurn,
   CorrectionIntent,
+  DraftedRecipe,
   FoodText,
   LLMProvider,
   LLMResult,
@@ -90,6 +91,17 @@ const CORRECTION_SCHEMA = {
   required: ["kind"],
 } as const;
 
+/**
+ * The most intents one model response may contribute.
+ *
+ * Shared by parsing a sentence and drafting a recipe, because it bounds the
+ * same thing in both: how many provider fan-outs one call can cause, which
+ * is what the route's rate limit is sized against. A dish with more than
+ * eight ingredients loses its least important ones rather than turning one
+ * request into a hundred searches.
+ */
+export const MAX_INTENTS = 8;
+
 const PARSE_INSTRUCTION = `You convert a description of food into search terms and portions.
 
 Return one entry per distinct food. For each: a short search term
@@ -109,6 +121,32 @@ value. You are not being asked what the food contains — only what it is and
 how much of it there was. Nutrition is computed from a database afterwards.
 
 If the text describes no food at all, return an empty list.`;
+
+const DRAFT_INSTRUCTION = `You are given the name of a dish, usually home-cooked, that a food
+database is unlikely to hold as a single entry. List the ingredients a
+typical version is made from, and how much of each a whole batch uses.
+
+Return one entry per ingredient: a short search term suitable for a food
+database ("chicken thigh", "basmati rice", "olive oil"), the amount as a
+number, and the unit. Prefer plain ingredient names over brands, because
+these are looked up in a general food database afterwards.
+
+Give the amounts for the whole dish as commonly cooked, not per person — the
+number of servings is set separately by the person who cooked it.
+
+Units are only "g", "ml" or "serving". Use grams for solids and millilitres
+for liquids. Avoid "serving" for an ingredient: it means whatever the
+database happens to think, which is not a measurement of a recipe.
+
+Be conservative. Include the ingredients that carry the dish and its
+calories; leave out pinches of spice and garnishes, which add nothing a
+scale would notice and clutter the review. If you do not know the dish,
+return an empty list rather than inventing a plausible one.
+
+Do not return calories, protein, carbohydrate, fat, or any other nutrition
+value. You are being asked what goes into the dish, not what it contains.
+Every nutrition figure is computed from a food database afterwards, from the
+ingredients you name.`;
 
 const CORRECTION_INSTRUCTION = `The user is amending a food entry they already logged.
 
@@ -162,7 +200,32 @@ export const geminiProvider: LLMProvider = {
 
     // Only these three fields are read. Anything else the model returned —
     // a calorie count above all — has nowhere to go and is discarded here.
-    const foods = list.slice(0, 8).flatMap((item) => {
+    const foods = list.slice(0, MAX_INTENTS).flatMap((item) => {
+      const intent = readIntent(item);
+      return intent ? [intent] : [];
+    });
+
+    return { ok: true, value: { foods } };
+  },
+
+  async draftRecipe(dish: FoodText): Promise<LLMResult<DraftedRecipe>> {
+    // The same schema the parser uses, which has three properties and no
+    // room for a fourth. Nothing about "draft a recipe" widens what a model
+    // response is allowed to contain.
+    const raw = await callGemini(DRAFT_INSTRUCTION, dish, FOODS_SCHEMA);
+    if (!raw.ok) return raw;
+
+    const parsed = readJson(raw.value);
+    if (!parsed) return unusable();
+
+    const list = Array.isArray((parsed as { foods?: unknown }).foods)
+      ? ((parsed as { foods: unknown[] }).foods ?? [])
+      : null;
+    if (!list) return unusable();
+
+    // Read through the same three-key reader as everything else, so a
+    // `kcal` the model volunteered is dropped here exactly as it is there.
+    const foods = list.slice(0, MAX_INTENTS).flatMap((item) => {
       const intent = readIntent(item);
       return intent ? [intent] : [];
     });

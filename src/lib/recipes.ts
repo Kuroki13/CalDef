@@ -14,12 +14,15 @@ import "server-only";
  * rule holds here as it does everywhere else.
  */
 
+import { cacheFood } from "@/lib/food/cache";
+import type { Food } from "@/lib/food/types";
 import {
   type MacroTotals,
   multiplyMacros,
   scaleNutrients,
   sumMacros,
 } from "@/lib/nutrition/macros";
+import { toGrams } from "@/lib/nutrition/units";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 import type { Tables } from "@/types/database";
 
@@ -149,6 +152,140 @@ export async function addIngredientsFromEntries(
   if (insertError) return { error: insertError.message };
 
   return { added: usable.length };
+}
+
+export type RecipeIngredientInput = {
+  /** A resolved provider food, exactly as the search box hands one over. */
+  food: Food;
+  amount: number;
+  unit: "g" | "ml" | "serving";
+  /** Only consulted for a serving amount, which needs a weight behind it. */
+  servingLabel?: string | null;
+};
+
+export type CreateRecipeInput = {
+  name: string;
+  servings: number;
+  notes: string | null;
+  ingredients: readonly RecipeIngredientInput[];
+  /** Set when a model proposed the ingredient list. Provenance, not licence. */
+  aiDrafted?: boolean;
+};
+
+/**
+ * Builds a recipe from foods that have already been resolved.
+ *
+ * The counterpart to `addIngredientsFromEntries`, for the case where the
+ * ingredients came from a search rather than from yesterday's diary — which
+ * is what an AI-drafted recipe is: a list of search terms that were looked
+ * up against the real providers and confirmed by the person who cooked it.
+ *
+ * Each food is cached first, so an ingredient references a `foods` row with
+ * a nutrient row behind it. That is the whole reason nothing here has to
+ * trust the caller's numbers: `getRecipe` recomputes every macro from those
+ * rows, so the amounts are the only thing this function is really writing.
+ *
+ * A drafted recipe is a *private* recipe like any other. Nothing here writes
+ * to the shared food cache except through `cacheFood`, which stores what the
+ * providers themselves returned — never a figure a model produced, because
+ * a model never produced one.
+ */
+export async function createRecipeFromFoods(
+  input: CreateRecipeInput,
+): Promise<{ id: number } | { error: string }> {
+  if (input.ingredients.length === 0) {
+    return { error: "A recipe needs at least one ingredient." };
+  }
+
+  const userId = await requireUserId();
+  const supabase = await createClient();
+
+  // Resolved before the recipe row exists, so a failure to weigh an
+  // ingredient does not leave an empty recipe behind.
+  const rows: {
+    food_id: number;
+    serving_id: number | null;
+    amount: number;
+    unit: RecipeIngredientInput["unit"];
+    grams: number;
+  }[] = [];
+
+  for (const ingredient of input.ingredients) {
+    const foodId = await cacheFood(ingredient.food);
+
+    const serving =
+      ingredient.unit === "serving"
+        ? (ingredient.food.servings.find(
+            (s) => s.label === ingredient.servingLabel,
+          ) ??
+          ingredient.food.servings.find((s) => s.isDefault) ??
+          ingredient.food.servings[0] ??
+          null)
+        : null;
+
+    if (ingredient.unit === "serving" && !serving) {
+      return {
+        error: `${ingredient.food.name} has no serving weight. Give it in grams instead.`,
+      };
+    }
+
+    let grams: number;
+    try {
+      grams = toGrams({
+        amount: ingredient.amount,
+        unit: ingredient.unit,
+        serving: serving ? { grams: serving.grams } : null,
+      });
+    } catch {
+      return { error: `${ingredient.food.name} has no usable amount.` };
+    }
+
+    // The serving row's own id, which the ingredient points at so the recipe
+    // reads back as "1 bar" rather than a bare gram figure.
+    const { data: servingRow } = serving
+      ? await supabase
+          .from("food_servings")
+          .select("id")
+          .eq("food_id", foodId)
+          .eq("label", serving.label)
+          .maybeSingle()
+      : { data: null };
+
+    rows.push({
+      food_id: foodId,
+      serving_id: servingRow?.id ?? null,
+      amount: ingredient.amount,
+      unit: ingredient.unit,
+      grams,
+    });
+  }
+
+  const { data: recipe, error: recipeError } = await supabase
+    .from("recipes")
+    .insert({
+      user_id: userId,
+      name: input.name.trim(),
+      servings: input.servings,
+      notes: input.notes,
+      ai_drafted_at: input.aiDrafted ? new Date().toISOString() : null,
+    })
+    .select("id")
+    .single();
+  if (recipeError) return { error: recipeError.message };
+
+  const { error: ingredientError } = await supabase
+    .from("recipe_ingredients")
+    .insert(
+      rows.map((row, index) => ({ ...row, recipe_id: recipe.id, sort_order: index })),
+    );
+  if (ingredientError) {
+    // The recipe exists but is empty, which is worse than nothing: remove it
+    // rather than leaving a name with no ingredients under it.
+    await supabase.from("recipes").delete().eq("id", recipe.id);
+    return { error: ingredientError.message };
+  }
+
+  return { id: recipe.id };
 }
 
 export async function removeIngredient(ingredientId: number): Promise<void> {
