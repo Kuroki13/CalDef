@@ -441,6 +441,7 @@ export type Database = {
       }
       foods: {
         Row: {
+          archived_at: string | null
           barcode: string | null
           brand: string | null
           created_at: string
@@ -456,6 +457,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          archived_at?: string | null
           barcode?: string | null
           brand?: string | null
           created_at?: string
@@ -471,6 +473,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          archived_at?: string | null
           barcode?: string | null
           brand?: string | null
           created_at?: string

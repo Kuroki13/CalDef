@@ -13,6 +13,7 @@ import { useActionState, useState } from "react";
 
 import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { CustomFoodForm } from "@/components/custom-food-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { PendingButton } from "@/components/pending-button";
@@ -60,6 +61,7 @@ export function AddFood({
   const [search, setSearch] = useState<SearchState>(IDLE);
   const [chosen, setChosen] = useState<Food | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [creatingFood, setCreatingFood] = useState(false);
 
   /**
    * Resolves a scanned code through our own route.
@@ -175,6 +177,17 @@ export function AddFood({
                 onDetected={lookupBarcode}
                 onCancel={() => setScannerOpen(false)}
               />
+            ) : creatingFood ? (
+              /* Saving jumps straight to the portion fields: someone adds a
+                 food because they are about to eat it. */
+              <CustomFoodForm
+                onCancel={() => setCreatingFood(false)}
+                onSaved={(food) => {
+                  setCreatingFood(false);
+                  setSearch(IDLE);
+                  setChosen(food);
+                }}
+              />
             ) : (
               <form onSubmit={runSearch} className="flex gap-2">
                 <Input
@@ -214,8 +227,20 @@ export function AddFood({
 
             {search.status === "done" && search.foods.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                Nothing found. Try a simpler description.
+                Nothing found. Try a simpler description, or add it yourself
+                from the packet.
               </p>
+            ) : null}
+
+            {!creatingFood && !scannerOpen ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCreatingFood(true)}
+              >
+                Add your own food
+              </Button>
             ) : null}
 
             <ul className="divide-y">

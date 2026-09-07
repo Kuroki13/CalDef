@@ -14,6 +14,7 @@ import {
   LogRecipeForm,
   LogSavedMealForm,
 } from "@/app/(app)/recipes/library-forms";
+import { CustomFoodLibrary } from "@/app/(app)/recipes/custom-foods";
 import { PendingButton } from "@/components/pending-button";
 import {
   Card,
@@ -25,6 +26,7 @@ import {
 import { todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
 import { getFavorites } from "@/lib/favorites";
+import { listCustomFoods } from "@/lib/food/custom";
 import { describePortion } from "@/lib/nutrition/units";
 import { getAccountSetup } from "@/lib/profile";
 import { listRecipes } from "@/lib/recipes";
@@ -39,11 +41,12 @@ export default async function RecipesPage() {
 
   const today = todayInTimeZone(profile.timezone);
 
-  const [day, recipes, savedMeals, favorites] = await Promise.all([
+  const [day, recipes, savedMeals, favorites, customFoods] = await Promise.all([
     getDiaryDay(today),
     listRecipes(),
     listSavedMeals(),
     getFavorites(),
+    listCustomFoods(),
   ]);
 
   const entryOptions = day.entries.map((entry) => ({
@@ -61,6 +64,19 @@ export default async function RecipesPage() {
           Things you eat often, saved once so logging them takes one action.
         </p>
       </header>
+
+      <Card id="your-foods">
+        <CardHeader>
+          <CardTitle>Your foods</CardTitle>
+          <CardDescription>
+            Foods you entered from their packaging. They appear in search
+            alongside USDA and Open Food Facts, and only you can see them.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CustomFoodLibrary foods={customFoods} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

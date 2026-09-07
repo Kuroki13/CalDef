@@ -70,7 +70,9 @@ export async function searchCache({
     query = query.ilike("search_text", `%${term}%`);
   }
 
-  const { data, error } = await query.limit(limit);
+  // A retired custom food stays readable wherever history points at it, but
+  // it is not offered again — that is what retiring one means.
+  const { data, error } = await query.is("archived_at", null).limit(limit);
 
   if (error) throw new Error(error.message);
   return (data ?? []).flatMap(rowToFood);
@@ -79,7 +81,16 @@ export async function searchCache({
 /** Exported for testing the term splitting in isolation. */
 export const __searchTerms = searchTerms;
 
-/** Finds a cached food by barcode, before any network call. */
+/**
+ * Finds a cached food by barcode, before any network call.
+ *
+ * Takes the first of possibly several rows rather than insisting on exactly
+ * one. A barcode is unique on a packet but not in this table: a user may
+ * enter their own food for a product Open Food Facts already knows, and
+ * demanding a single row would turn that into an error on a lookup that
+ * works perfectly well for everybody else. Owned rows sort first, so
+ * scanning a product you have written your own numbers for gives you yours.
+ */
 export async function findCachedByBarcode(
   barcode: string,
 ): Promise<CachedFood | null> {
@@ -95,10 +106,12 @@ export async function findCachedByBarcode(
        food_servings (label, grams, is_default)`,
     )
     .eq("barcode", barcode)
-    .maybeSingle();
+    .is("archived_at", null)
+    .order("user_id", { ascending: true, nullsFirst: false })
+    .limit(1);
 
   if (error) throw new Error(error.message);
-  return data ? (rowToFood(data)[0] ?? null) : null;
+  return (data ?? []).flatMap(rowToFood)[0] ?? null;
 }
 
 /**
@@ -118,9 +131,22 @@ export async function findCachedByBarcode(
  * access to shared nutrition data, which is exactly the multi-tenant hole
  * the policies exist to close. See KNOWN ISSUES in IMPLEMENTATION_STATUS.md
  * for how a refresh path would have to work.
+ *
+ * Custom foods do not come through here at all. They are owned rows, and
+ * this function writes `user_id` nowhere — an insert from here would either
+ * violate `foods_custom_requires_owner` or, worse, succeed in creating an
+ * ownerless copy of somebody's private food. `lib/food/custom.ts` is their
+ * only writer, and the guard below says so rather than leaving it to a
+ * constraint to notice.
  */
 export async function cacheFood(food: Food): Promise<number> {
   const supabase = await createClient();
+
+  if (food.source === "custom") {
+    const existing = await findOwnCustomFood(food.sourceId);
+    if (existing !== null) return existing;
+    throw new Error("A custom food can only be created by its owner.");
+  }
 
   const { data: existing, error: lookupError } = await supabase
     .from("foods")
@@ -179,6 +205,27 @@ export async function cacheFood(food: Food): Promise<number> {
   }
 
   return foodId;
+}
+
+/**
+ * Resolves one of the user's own custom foods by its `source_id`.
+ *
+ * RLS is what makes this safe: another user's custom food is not selectable,
+ * so a payload naming one comes back empty and is refused above rather than
+ * logged against a stranger's numbers.
+ */
+async function findOwnCustomFood(sourceId: string): Promise<number | null> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("foods")
+    .select("id")
+    .eq("source", "custom")
+    .eq("source_id", sourceId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+
+  return data?.id ?? null;
 }
 
 /** The shape a `foods` row plus its embedded relations comes back as. */

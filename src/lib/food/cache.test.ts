@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+const createClient = vi.fn();
+vi.mock("@/lib/supabase/server", () => ({ createClient: () => createClient() }));
 
-const { __searchTerms, rowToFood } = await import("@/lib/food/cache");
+const { __searchTerms, cacheFood, rowToFood } = await import("@/lib/food/cache");
 
 describe("searchTerms", () => {
   it("splits on whitespace", () => {
@@ -79,5 +80,51 @@ describe("rowToFood", () => {
   it("tolerates a food with no servings", () => {
     const [food] = rowToFood({ ...row, food_servings: [] });
     expect(food.servings).toEqual([]);
+  });
+});
+
+describe("cacheFood and the ownership boundary", () => {
+  /** Just enough client for the one lookup the custom branch makes. */
+  function clientReturning(row: { id: number } | null) {
+    return {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }),
+          }),
+        }),
+      }),
+    };
+  }
+
+  const customFood = {
+    sourceId: "6f1c9d2e-0000-4000-8000-000000000000",
+    source: "custom" as const,
+    name: "Protein flapjack",
+    brand: null,
+    description: null,
+    barcode: null,
+    isVerified: false,
+    nutrients: { kcal: 400, protein_g: 20, carbs_g: 45, fat_g: 12 },
+    servings: [],
+    dataUpdatedAt: null,
+  };
+
+  it("resolves one of the user's own custom foods to its row", async () => {
+    createClient.mockResolvedValue(clientReturning({ id: 42 }));
+    await expect(cacheFood(customFood)).resolves.toBe(42);
+  });
+
+  it("refuses to create a custom food, which would have no owner", async () => {
+    // This function writes `user_id` nowhere. An insert from here would
+    // either break `foods_custom_requires_owner` or — if the constraint
+    // were ever relaxed — quietly make an ownerless copy of somebody's
+    // private food. RLS also hides another user's row, so a payload naming
+    // one arrives here as "not found" and stops.
+    createClient.mockResolvedValue(clientReturning(null));
+
+    await expect(cacheFood(customFood)).rejects.toThrow(
+      /only be created by its owner/,
+    );
   });
 });

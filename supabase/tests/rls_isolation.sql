@@ -72,6 +72,7 @@ do $$
 declare
   a uuid := '11111111-1111-1111-1111-111111111111';
   v_food_id bigint; v_custom_food_id bigint; v_serving_id bigint;
+  v_custom_log_id bigint;
   v_meal_id bigint; v_recipe_id bigint; v_saved_id bigint;
   v_conv_id bigint; v_phase_id bigint;
 begin
@@ -137,6 +138,16 @@ begin
   perform set_config('caldef_test.conversation_id', v_conv_id::text, true);
   perform set_config('caldef_test.food_id', v_food_id::text, true);
   perform set_config('caldef_test.private_food_id', v_custom_food_id::text, true);
+
+  -- A diary entry against A's own custom food, so section 5 can prove that
+  -- editing the food leaves what was already eaten alone.
+  insert into public.food_logs
+    (user_id, log_date, meal_type_id, food_id, amount, unit, grams,
+     kcal, protein_g, carbs_g, fat_g)
+    values (a, current_date, v_meal_id, v_custom_food_id, 50, 'g', 50,
+            50, 5, 5, 1)
+    returning id into v_custom_log_id;
+  perform set_config('caldef_test.custom_log_id', v_custom_log_id::text, true);
 end $$;
 
 -- =====================================================================
@@ -346,7 +357,111 @@ end $$;
 select 'anon denied on all 20 tables' as result;
 
 -- =====================================================================
--- 5. TEARDOWN — rollback, including on a production migration connection.
+-- 5. CUSTOM FOODS — owned by one user, and never rewriting history
+-- =====================================================================
+--
+-- Two separate guarantees, both of which the feature depends on and neither
+-- of which is visible from the application code alone.
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+do $$
+declare
+  v_food bigint := current_setting('caldef_test.private_food_id')::bigint;
+  affected int;
+begin
+  -- B cannot see A's food...
+  if exists (select 1 from public.foods where id = v_food) then
+    raise exception 'FAIL: another user''s custom food is visible';
+  end if;
+
+  -- ...nor edit it, retire it, or delete it. RLS makes each of these match
+  -- zero rows rather than raise, which is the correct shape: the row is not
+  -- refused, it is not there.
+  update public.foods set name = 'Stolen' where id = v_food;
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'FAIL: foreign custom food renamed'; end if;
+
+  update public.foods set archived_at = now() where id = v_food;
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'FAIL: foreign custom food archived'; end if;
+
+  delete from public.foods where id = v_food;
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'FAIL: foreign custom food deleted'; end if;
+
+  -- Nor may B claim a food as their own by writing A's id into it.
+  begin
+    insert into public.foods (source, name, user_id)
+      values ('custom', 'Forged Ownership', '11111111-1111-1111-1111-111111111111');
+    raise exception 'FAIL: custom food forged onto another user';
+  exception when insufficient_privilege then
+    raise notice 'PASS: forged custom food ownership rejected';
+  end;
+
+  raise notice 'PASS: custom foods are invisible and untouchable to other users';
+end $$;
+
+set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+do $$
+declare
+  v_food bigint := current_setting('caldef_test.private_food_id')::bigint;
+  v_log  bigint := current_setting('caldef_test.custom_log_id')::bigint;
+  before_kcal numeric; after_kcal numeric;
+  before_protein numeric; after_protein numeric;
+  visible int;
+begin
+  select kcal, protein_g into before_kcal, before_protein
+    from public.food_logs where id = v_log;
+  if before_kcal is null then
+    raise exception 'FAIL: the fixture diary entry is missing';
+  end if;
+
+  -- The owner corrects the label: the packet said 250 kcal, not 100.
+  update public.food_nutrients set kcal = 250, protein_g = 30 where food_id = v_food;
+  update public.foods set name = 'A Private Food (corrected)' where id = v_food;
+
+  select kcal, protein_g into after_kcal, after_protein
+    from public.food_logs where id = v_log;
+
+  -- The entry was computed at log time and frozen. Nothing about editing the
+  -- food may reach back into a day that has already been counted.
+  if after_kcal <> before_kcal or after_protein <> before_protein then
+    raise exception 'FAIL: editing a food changed a logged entry: % -> % kcal',
+      before_kcal, after_kcal;
+  end if;
+  raise notice 'PASS: editing a custom food leaves logged entries untouched';
+
+  -- Retiring it hides it from search without breaking the entry that used it.
+  update public.foods set archived_at = now() where id = v_food;
+
+  select count(*) into visible
+    from public.foods where id = v_food and archived_at is null;
+  if visible <> 0 then raise exception 'FAIL: archived food still active'; end if;
+
+  select count(*) into visible
+    from public.food_logs l join public.foods f on f.id = l.food_id
+    where l.id = v_log;
+  if visible <> 1 then
+    raise exception 'FAIL: archived food no longer resolves for its diary entry';
+  end if;
+  raise notice 'PASS: a retired food still names the entries it fed';
+
+  -- And a food history depends on cannot be deleted out from under it.
+  begin
+    delete from public.foods where id = v_food;
+    raise exception 'FAIL: deleted a food a diary entry references';
+  exception when foreign_key_violation then
+    raise notice 'PASS: delete refused while a diary entry references the food';
+  end;
+end $$;
+
+select 'custom food ownership and history preserved' as result;
+
+-- =====================================================================
+-- 6. TEARDOWN — rollback, including on a production migration connection.
 -- =====================================================================
 
 rollback;
