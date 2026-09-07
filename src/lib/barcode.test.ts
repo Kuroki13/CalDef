@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkScannerSupport,
+  decoderUnavailable,
   describeCameraError,
   isPlausibleBarcode,
 } from "@/lib/barcode";
@@ -14,11 +15,12 @@ const win = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as unknown as Parameters<typeof checkScannerSupport>[0];
 
-describe("checkScannerSupport — the four failures are four messages", () => {
+describe("checkScannerSupport — each failure gets its own message", () => {
   it("reports readiness when everything is present", () => {
     const result = checkScannerSupport(win());
     expect(result.status).toBe("ready");
     expect(result.manualOnly).toBe(false);
+    expect(result.decoder).toBe("native");
   });
 
   it("names HTTPS as the cause on an insecure origin", () => {
@@ -44,12 +46,26 @@ describe("checkScannerSupport — the four failures are four messages", () => {
     expect(result.status).toBe("insecure-context");
   });
 
-  it("distinguishes an unsupported browser from a missing camera", () => {
+  it("scans in a browser with no BarcodeDetector, using the fallback", () => {
+    // The whole point: this is Safari, and Safari is the only browser the
+    // owner's iPhone can run. Before the fallback existed this returned
+    // "unsupported" and the scan button was disabled, which made the
+    // feature dead on the one device it was built for.
     const result = checkScannerSupport(win({ BarcodeDetector: undefined }));
 
-    expect(result.status).toBe("unsupported");
-    expect(result.message).toMatch(/Safari|Firefox/);
-    expect(result.message).not.toMatch(/permission/i);
+    expect(result.status).toBe("ready");
+    expect(result.decoder).toBe("fallback");
+    expect(result.manualOnly).toBe(false);
+  });
+
+  it("still reports a missing camera when the decoder would be the fallback", () => {
+    // No camera is no camera, whichever decoder would have read the frame.
+    const result = checkScannerSupport(
+      win({ BarcodeDetector: undefined, navigator: {} }),
+    );
+
+    expect(result.status).toBe("no-camera");
+    expect(result.decoder).toBeNull();
   });
 
   it("reports a missing camera when the API exists but the device has none", () => {
@@ -58,14 +74,27 @@ describe("checkScannerSupport — the four failures are four messages", () => {
     expect(result.manualOnly).toBe(true);
   });
 
-  it("always offers the manual path", () => {
-    for (const broken of [
-      win({ isSecureContext: false }),
-      win({ BarcodeDetector: undefined }),
-      win({ navigator: {} }),
-    ]) {
-      expect(checkScannerSupport(broken).message).toMatch(/by name/);
+  it("always offers both manual paths when scanning is impossible", () => {
+    for (const broken of [win({ isSecureContext: false }), win({ navigator: {} })]) {
+      const { message } = checkScannerSupport(broken);
+      expect(message).toMatch(/by name/);
+      expect(message).toMatch(/barcode number|number under the barcode/);
     }
+  });
+});
+
+describe("decoderUnavailable — the fallback failed to download", () => {
+  it("is its own state, and a retryable one", () => {
+    const result = decoderUnavailable();
+
+    expect(result.status).toBe("decoder-unavailable");
+    expect(result.decoder).toBeNull();
+    // A failed download is a network problem, so trying again can work —
+    // which is why this is not `manualOnly`.
+    expect(result.manualOnly).toBe(false);
+    expect(result.message).toMatch(/try again/i);
+    // And it must not be blamed on permissions, which cannot fix it.
+    expect(result.message).not.toMatch(/permission|site settings/i);
   });
 });
 

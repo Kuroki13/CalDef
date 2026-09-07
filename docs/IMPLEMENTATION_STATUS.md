@@ -579,19 +579,25 @@ What is left:
   is no stale row left in the table. Verified by querying `daily_targets`
   directly: the account now holds that row plus one for today, both
   written on the day they cover.
-- **The barcode camera UI is still unverified on a phone.** `getUserMedia`
-  requires a secure context, so the scanner works at
-  `http://localhost:3000` on desktop but cannot work from a phone over
-  plain HTTP on the LAN — a browser constraint, not a defect.
-  **Half of this is now closed**: on the deployed HTTPS site the scanner
-  reports `unsupported` (no `BarcodeDetector` in the audit browser)
-  rather than `insecure-context`, so the secure-context requirement is
-  satisfied in production and the failure mode reported is the honest
-  one. What remains is a phone with a rear camera. Note what that phone
-  will be: iOS runs WebKit for every browser, and the app's own copy says
-  Safari does not implement `BarcodeDetector` — so the likely on-device
-  outcome is the `unsupported` message, not a working scanner. Check it
-  on the device before treating scanning as a feature the owner has.
+- **The barcode camera UI is still unverified on a phone, and this is the
+  one check that matters.** Two of the three things blocking it are now
+  closed. HTTPS: satisfied on the deployed site, where the scanner no
+  longer reports `insecure-context`. The decoder: `BarcodeDetector` is a
+  Chrome and Edge feature, WebKit does not implement it, and on iOS every
+  browser is WebKit — so the scanner as first built was dead on the only
+  device it exists for. **Fixed 2026-09-06** by adding a ZXing fallback
+  that is downloaded on the first scan when the native decoder is absent
+  (`lib/barcode-fallback.ts`), which is what Safari will take.
+  What remains cannot be checked from here and **cannot be checked from
+  desktop Chrome either**: Chrome has the native decoder and would
+  therefore exercise the path Safari never reaches. Someone has to open
+  the deployed app on the iPhone, tap Scan, and point it at a packet.
+  Until that happens, treat scanning as built and unverified.
+  - Worth knowing before the attempt: the fallback decodes in JavaScript
+    on the main thread, so it looks at five frames a second rather than
+    sixty, and it needs the barcode reasonably square-on and lit. If it
+    struggles, the number can be typed in — that path resolves through
+    exactly the same lookup.
   - What *is* verified: the capability logic (15 unit tests), and the
     whole server path the scanner calls — a real barcode resolves through
     Open Food Facts, caches, and returns; an unknown one returns 404 with
@@ -782,6 +788,42 @@ What is left:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Barcode decoding on iOS, 2026-09-06 (Claude Code)
+
+- **The scanner could never have worked on the owner's phone.**
+  `checkScannerSupport` returned `unsupported` and disabled the scan
+  button whenever `BarcodeDetector` was absent, which is every browser on
+  iOS. The app reported it accurately and the reporting was verified;
+  what nobody had checked was that the honest report was the only thing
+  an iPhone would ever see.
+- **Fixed with a decoder fallback.** `BarcodeDetector` is used where the
+  browser has it; where it does not, `@zxing/browser` (MIT, with
+  `@zxing/library`, Apache-2.0 — both free, no service and no account) is
+  loaded through `await import()` and wrapped in the same interface, so
+  the scanning loop has one code path. Formats are restricted to EAN-13,
+  EAN-8, UPC-A, UPC-E and CODE-128 — what food packaging carries — and
+  the fallback looks at a frame every 200 ms rather than every animation
+  frame, because it decodes on the main thread.
+- **Bundle:** the decoder is 478 KB uncompressed and lands in its own
+  chunk, absent from every page's initial JavaScript. Verified against
+  the build output: exactly one chunk contains ZXing, it is not in
+  `rootMainFiles`, and nothing on the server side references it.
+- **Failure states are now five, not four**, with `decoder-unavailable`
+  added for a fallback that fails to download — a network problem, so it
+  offers "Try again" rather than sending the user to permissions.
+- **Manual barcode entry added.** The number under the barcode can be
+  typed at any time, not only after a failure, and resolves through the
+  same `/api/foods/barcode` lookup the camera feeds. It is validated
+  against the same rule as a scan, so a typo cannot reach a provider.
+- **Tests:** 501 total, up from 493. Six new component tests cover the
+  Safari-shaped browser (scan offered, not refused), the no-camera and
+  insecure-context messages, and manual entry accepting, rejecting and
+  clearing. `npm run typecheck`, `npm run lint` and `npm run build` pass.
+- **Not verified, and not verifiable here or in desktop Chrome:** the
+  fallback decoding an actual barcode through an actual camera. Chrome
+  has the native decoder and takes the other branch. This needs the
+  iPhone.
 
 ### Deployed production verification, 2026-09-06 (Claude Code)
 

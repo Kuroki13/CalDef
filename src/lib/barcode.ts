@@ -1,21 +1,33 @@
 /**
  * What the barcode scanner can and cannot do in this browser, right now.
  *
- * Four different things go wrong here and they need four different answers,
- * because three of them are fixable by the user and one is not:
+ * Reading a barcode needs two things: a camera, and something that can
+ * decode a picture of one. The camera is the browser's to give. The decoder
+ * is not — `BarcodeDetector` exists in Chrome and Edge and does not exist in
+ * WebKit, which is every browser on iOS. Since the phone in question is an
+ * iPhone, a scanner that depends on `BarcodeDetector` is a scanner that
+ * never runs, so a JavaScript decoder is loaded instead when the native one
+ * is missing (see `lib/barcode-fallback.ts`).
  *
- *   insecure-context   — the page is not on HTTPS or localhost. `getUserMedia`
- *                        is unavailable full stop. Opening the same app over
- *                        HTTPS fixes it; nothing in the page can.
- *   unsupported        — no `BarcodeDetector`. Chrome and Edge have it;
- *                        Safari and Firefox do not. Not a permission problem
- *                        and not fixable by granting anything.
- *   no-camera          — secure and supported, but the device has no camera.
- *   permission-denied  — everything is present and the user said no.
+ * That leaves these distinct outcomes, and they need distinct answers
+ * because the remedies differ:
+ *
+ *   insecure-context     — the page is not on HTTPS or localhost.
+ *                          `getUserMedia` is unavailable full stop. Opening
+ *                          the same app over HTTPS fixes it; nothing in the
+ *                          page can.
+ *   no-camera            — no camera API, or no camera on the device.
+ *   permission-denied    — everything is present and the user said no.
+ *   decoder-unavailable  — no `BarcodeDetector` and the fallback decoder
+ *                          failed to load, which means the network dropped
+ *                          the chunk. Retrying can work; permissions cannot.
  *
  * Collapsing these into one "camera failed" message would send someone to
  * check their browser permissions when the real problem is that they are on
  * plain HTTP, which no amount of permission-granting will fix.
+ *
+ * Every one of them still leaves two ways to log the product: search it by
+ * name, or type the number under the barcode. The scanner offers both.
  *
  * Deliberately client-safe: no `server-only` import, because this runs in the
  * browser and reads browser capabilities.
@@ -24,18 +36,43 @@
 export type ScannerStatus =
   | "ready"
   | "insecure-context"
-  | "unsupported"
   | "no-camera"
   | "permission-denied"
-  | "camera-error";
+  | "camera-error"
+  | "decoder-unavailable";
+
+/**
+ * Which decoder a scan would use.
+ *
+ * `native` is `BarcodeDetector`, which the browser implements. `fallback` is
+ * the JavaScript decoder, which has to be downloaded before the first scan —
+ * so the two are not interchangeable from the UI's point of view, and the
+ * fallback path has a loading state the native one does not need.
+ */
+export type DecoderKind = "native" | "fallback";
 
 export type ScannerCapability = {
   status: ScannerStatus;
   /** Shown to the user. States the cause and, where one exists, the remedy. */
   message: string;
-  /** True when the manual-search fallback is the only way forward. */
+  /** True when typing the number or searching by name is the only way forward. */
   manualOnly: boolean;
+  /** Set when a scan is possible; null when it is not. */
+  decoder: DecoderKind | null;
 };
+
+/** How a failed decoder download is reported. */
+export function decoderUnavailable(): ScannerCapability {
+  return {
+    status: "decoder-unavailable",
+    message:
+      "The barcode reader could not be downloaded — check your connection " +
+      "and try again. You can also type the number under the barcode, or " +
+      "search for the product by name.",
+    manualOnly: false,
+    decoder: null,
+  };
+}
 
 /**
  * Checks everything that can be known without prompting for permission.
@@ -57,19 +94,10 @@ export function checkScannerSupport(
       message:
         "Your browser only allows camera access over HTTPS. This page is not " +
         "on a secure connection, so scanning is unavailable — open the app " +
-        "over HTTPS to use it. You can still search for the product by name.",
+        "over HTTPS to use it. You can still type the barcode number, or " +
+        "search for the product by name.",
       manualOnly: true,
-    };
-  }
-
-  if (typeof win.BarcodeDetector === "undefined") {
-    return {
-      status: "unsupported",
-      message:
-        "This browser cannot read barcodes — the feature exists in Chrome and " +
-        "Edge but not yet in Safari or Firefox. Search for the product by " +
-        "name instead, or open the app in a browser that supports it.",
-      manualOnly: true,
+      decoder: null,
     };
   }
 
@@ -77,17 +105,27 @@ export function checkScannerSupport(
     return {
       status: "no-camera",
       message:
-        "No camera is available to this browser. Search for the product by " +
-        "name instead.",
+        "No camera is available to this browser. Type the number under the " +
+        "barcode, or search for the product by name.",
       manualOnly: true,
+      decoder: null,
     };
   }
 
-  return { status: "ready", message: "", manualOnly: false };
+  // A missing `BarcodeDetector` is no longer a dead end; it selects the
+  // decoder that gets downloaded on the first scan instead. Safari is the
+  // whole reason this branch exists.
+  return {
+    status: "ready",
+    message: "",
+    manualOnly: false,
+    decoder:
+      typeof win.BarcodeDetector === "undefined" ? "fallback" : "native",
+  };
 }
 
 /**
- * Turns a `getUserMedia` rejection into the right one of the four cases.
+ * Turns a `getUserMedia` rejection into the right one of the cases above.
  *
  * The DOMException names are the browser's own vocabulary for this and are
  * far more reliable than matching on message text, which varies by vendor
@@ -108,6 +146,7 @@ export function describeCameraError(error: unknown): ScannerCapability {
           "Camera access was declined. You can allow it in your browser's " +
           "site settings and try again, or search for the product by name.",
         manualOnly: false,
+        decoder: null,
       };
 
     case "NotFoundError":
@@ -115,9 +154,10 @@ export function describeCameraError(error: unknown): ScannerCapability {
       return {
         status: "no-camera",
         message:
-          "No camera matching the request was found on this device. Search " +
-          "for the product by name instead.",
+          "No camera matching the request was found on this device. Type the " +
+          "number under the barcode, or search for the product by name.",
         manualOnly: true,
+        decoder: null,
       };
 
     case "NotReadableError":
@@ -127,18 +167,32 @@ export function describeCameraError(error: unknown): ScannerCapability {
           "The camera is in use by another application. Close it and try " +
           "again, or search for the product by name.",
         manualOnly: false,
+        decoder: null,
       };
 
     default:
       return {
         status: "camera-error",
         message:
-          "The camera could not be started. Search for the product by name " +
-          "instead.",
+          "The camera could not be started. Type the number under the " +
+          "barcode, or search for the product by name.",
         manualOnly: false,
+        decoder: null,
       };
   }
 }
+
+/**
+ * What the scanner needs from a decoder, native or not.
+ *
+ * Declared here rather than beside the fallback implementation so that
+ * nothing has to import that module to name its type — a value import of it
+ * would pull the whole decoder into the bundle it is meant to stay out of.
+ */
+export type BarcodeDetection = { rawValue: string };
+export type Detector = {
+  detect(video: HTMLVideoElement): Promise<BarcodeDetection[]>;
+};
 
 /** The symbologies worth looking for on food packaging. */
 export const BARCODE_FORMATS = [

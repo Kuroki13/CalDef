@@ -21,6 +21,7 @@ Keep this synchronized with the implementation.
 | Auth       | Supabase Auth, email/password |
 | Hosting    | Vercel Hobby |
 | Food data  | USDA FoodData Central, Open Food Facts (v3 product, cgi search) |
+| Barcodes   | `BarcodeDetector` where the browser has it, ZXing (`@zxing/browser`, MIT) loaded on demand where it does not — which is every browser on iOS |
 | LLM        | Gemini Developer API, free tier (`gemini-3.5-flash-lite`), behind `LLMProvider` |
 | Tests      | Vitest (unit/integration), SQL-level RLS tests |
 
@@ -223,6 +224,19 @@ These are load-bearing. Breaking one is a defect even if tests pass.
 7. **A dead provider degrades, it never crashes.** Provider failures
    return an empty or partial result set with a source note; search
    still returns whatever the other sources found.
+   - The same applies to a capability the *browser* withholds. The
+     barcode scanner reports which of its failure modes it hit and keeps
+     both manual paths — typing the number, or searching by name — in
+     front of the user in every one of them, including when the fallback
+     decoder fails to download.
+
+10. **The barcode decoder is loaded on demand, never bundled.**
+    `lib/barcode-fallback.ts` pulls in ZXing, which is around 480 KB
+    before compression — an order of magnitude more than the rest of the
+    client. It is reachable only through `await import()` from the
+    scanner, and only in browsers with no `BarcodeDetector`. A static
+    import of it anywhere would put that weight on the first load of
+    every page, silently.
 
 ## 6. Adaptive TDEE model
 
