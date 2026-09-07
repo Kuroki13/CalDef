@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppSidebar, AppTabBar } from "@/components/app-nav";
+import { ensureAccountExists } from "@/lib/account-status";
 import { getAccountSetup } from "@/lib/profile";
 import { getUserId } from "@/lib/supabase/server";
 
@@ -15,6 +16,10 @@ export default async function AppLayout({
   if (!userId) redirect("/login");
 
   const setup = await getAccountSetup();
+  // A verified token with no profile behind it is a deleted account, not an
+  // unfinished one. Checked before the onboarding redirect, or someone whose
+  // account is gone would be sent to go and finish setting it up.
+  ensureAccountExists({ userId, profile: setup.profile });
   if (!setup.isComplete) redirect("/onboarding");
 
   return (

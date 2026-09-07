@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ensureAccountExists } from "@/lib/account-status";
 import { getAccountSetup } from "@/lib/profile";
 import { getUserId } from "@/lib/supabase/server";
 
@@ -19,6 +20,8 @@ export default async function OnboardingPage() {
   if (!userId) redirect("/login");
 
   const setup = await getAccountSetup();
+  // The other signed-in surface, and the one a dead session used to land on.
+  ensureAccountExists({ userId, profile: setup.profile });
   if (setup.isComplete) redirect("/dashboard");
 
   return (
