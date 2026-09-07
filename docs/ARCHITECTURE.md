@@ -107,6 +107,8 @@ src/
                        custom.ts · custom-input.ts (the user's own foods)
                        staleness.ts · history.ts (when to refetch, and
                        whose diary breaks a ranking tie)
+                       text-match.ts (shared by the server's ranking and
+                       the search box's "is this any use?")
     llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
@@ -180,6 +182,11 @@ These are load-bearing. Breaking one is a defect even if tests pass.
      to Gemini has none either, and the parser reads exactly three keys.
      A `kcal` the model volunteers is dropped because there is nowhere
      for it to go.
+   - Drafting a recipe asks a different question and returns the same
+     shape: `DraftedRecipe` is an alias of `ParsedFoods`, read by the
+     same three-key reader. A second type would be a second place for a
+     nutrition field to be added later by someone who thought it would
+     be convenient.
 2. **Gemini receives food text and anonymous aggregates only.** One
    server-side call site, whose parameter type is food text — never a
    user object, row, session or id. No names, emails, addresses, weight
@@ -192,8 +199,10 @@ These are load-bearing. Breaking one is a defect even if tests pass.
    - `lib/llm/gemini.ts` holds the only `fetch` to Google and assembles
      the request body itself, so there is no parameter through which
      extra context could be passed in.
-   - Assistant threads are stored but never replayed to the model, so a
-     long conversation does not become an accumulating dossier.
+   - Assistant threads may be replayed, but only through the gate: the
+     last few turns go back re-checked by `toFoodText`, capped, so a
+     conversation cannot become an accumulating dossier. See invariant
+     14, which this bullet used to contradict.
 3. **The app works with the AI switched off.** Manual search, manual
    logging, weight entry, the TDEE engine and the whole phase mode are
    AI-independent. `LLMProvider` has an `unavailable` implementation

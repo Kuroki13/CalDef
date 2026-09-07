@@ -129,7 +129,44 @@ object. See `CLAUDE.md`.
 - Natural-language food logging (above).
 - AI correction: "actually that was 250g, not 200g".
 - Assistant chat scoped to nutrition questions, with the user's
-  aggregate numbers passed as anonymous figures, never identity.
+  aggregate numbers passed as anonymous figures, never identity. A
+  follow-up may refer back to the last few turns of its own thread; every
+  one of them is re-checked as food text on the way out.
+- **AI-drafted recipes**, for a home-cooked dish no food database holds —
+  "chicken maqlouba". Offered when a search returns nothing that accounts
+  for what was typed.
+
+### AI-drafted recipes are not AI-generated nutrition
+
+The same rule as everywhere else, stated here because this is the feature
+where it would be most tempting to break: given a dish name, the model
+returns **ingredients and amounts only**, in the same
+`{query, amount, unit}` shape the parser returns. It is asked what goes
+into the dish, never what the dish contains.
+
+    chicken maqlouba
+      -> [ { "query": "chicken thigh",  "amount": 800, "unit": "g"  },
+           { "query": "basmati rice",   "amount": 500, "unit": "g"  },
+           { "query": "aubergine",      "amount": 400, "unit": "g"  } ]
+
+Each ingredient is then resolved against USDA, Open Food Facts and the
+cache exactly as manual logging resolves a search, and the recipe's
+nutrition is computed from the matched foods' own nutrient rows.
+
+Requirements:
+
+- The draft is shown for review before anything is saved. Every amount is
+  editable, ingredients can be removed or added, and the serving count is
+  set by the user.
+- An ingredient the providers cannot resolve is **shown as unresolved**
+  and must be replaced or removed. It is never guessed at, and never
+  silently dropped — dropping it would make the total quietly too low.
+- The result is an ordinary private recipe (`recipes` /
+  `recipe_ingredients`), marked with the date it was drafted. Nothing is
+  written to the shared food cache except the provider foods themselves.
+- The UI states which half was estimated and which was computed.
+- Only the dish name reaches the model. With the AI unavailable, the same
+  recipe is built by hand.
 
 ## 6. Adaptive TDEE engine
 

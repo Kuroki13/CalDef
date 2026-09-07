@@ -795,6 +795,60 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### AI-drafted recipes, 2026-09-07 (Claude Code)
+
+Built for the case that started it: "chicken maqlouba", a home-cooked dish
+no food database holds.
+
+- **What the model contributes, and the shape that bounds it.**
+  `draftRecipe` returns `{query, amount, unit}` — `DraftedRecipe` is an
+  alias of `ParsedFoods`, not a new type, and the response schema sent to
+  Gemini has the same three properties as the parser's. A unit test feeds
+  the reader a response carrying `kcal`, `protein_g`, `calories_total`,
+  `totalCalories` and a nested `nutrition` object, and asserts the result
+  contains none of it — not because it was rejected, but because there is
+  nowhere for it to go. The per-parse cap is now one shared constant
+  (`MAX_INTENTS`), asserted from both sides.
+- **Where it is offered, and a defect found by running it.** The trigger
+  was built for an empty search, and "chicken maqlouba" does not return an
+  empty search: it returns chicken spread, chicken fat, chicken
+  frankfurters and five more. `hasStrongMatch` now asks whether any result
+  accounts for every word typed, which is what "nothing useful" meant. The
+  registry imports the same `fold` rather than keeping a second copy.
+- **Verified end to end against a production build, with the real model.**
+  Searched the dish, saw the offer appear, drafted it, and got seven
+  ingredients — chicken, basmati rice, eggplant, cauliflower and three
+  more — each resolved against real providers with real nutrition beside
+  it. Saved it, and checked the result in the database:
+  - 7 ingredients, 4 servings, `ai_drafted_at` set to today.
+  - **The stored nutrition agrees from three independent directions**: the
+    UI showed 4250 kcal for the batch; summing the payload's foods by hand
+    (per-100 g × amount) gives 4250; recomputing in SQL from the stored
+    `food_nutrients` rows gives 4249.6.
+  - Nothing named "maqlouba" exists in `foods`: the recipe is a private
+    recipe, and the only shared rows written are the provider foods
+    themselves.
+  - The recipe card carries "Ingredient list drafted by the assistant on
+    2026-09-07 and confirmed by you. The nutrition above is computed from
+    the matched foods, not from the assistant."
+- **An unresolved ingredient**, in tests rather than live because the
+  providers resolved everything the model proposed: the route returns it
+  with `match: null` instead of dropping it, the review shows it as
+  unmatched, the save button stays disabled while one is present, and the
+  payload cannot carry it — every item requires a resolved food, so an
+  unmatched one cannot reach the server at all.
+- **Degradation checked, not assumed.** A production build with
+  `GEMINI_API_KEY` blanked answers 503 `unconfigured` on the draft route,
+  and the diary's message points at building the recipe by hand instead.
+- **Live model check kept:** `draft-recipe.integration.test.ts` asks
+  Gemini for the dish and asserts every intent has exactly three keys, a
+  usable unit, and that chicken and rice are among them — a claim about a
+  model, checked against one.
+- **Suites:** 663 unit tests (up from 629), 15 live, typecheck, lint and
+  build all pass. Migration 0011 applied to development and production.
+  The development fixture was deleted afterwards; development is back to
+  2 accounts and 0 recipes.
+
 ### Hardening pass, 2026-09-07 (Claude Code)
 
 Six items, each committed, pushed and deployed on its own, and each tested
