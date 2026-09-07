@@ -14,6 +14,7 @@ import { cacheFood, searchCache } from "@/lib/food/cache";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
 import { safeProviderCall } from "@/lib/food/provider";
+import { searchRestaurantCatalogue } from "@/lib/food/restaurant-catalogue";
 import type {
   Food,
   FoodSearchQuery,
@@ -40,7 +41,11 @@ export async function searchFoods(
   );
 
   const results = [cacheResult, ...providerResults];
-  const foods = rank(dedupe(results.flatMap((r) => r.foods)), query.text);
+  const references = searchRestaurantCatalogue(query.text);
+  const foods = dedupe([
+    ...references,
+    ...rank(dedupe(results.flatMap((r) => r.foods)), query.text),
+  ]);
 
   return {
     foods,

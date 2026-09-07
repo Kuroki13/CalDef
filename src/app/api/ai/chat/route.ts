@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { appendMessage, openThread } from "@/lib/ai/conversations";
 import { currentFigures } from "@/lib/ai/figures";
+import { assistantIntent } from "@/lib/ai/message-intent";
+import { resolveIntents } from "@/lib/ai/resolve";
 import { toFoodText } from "@/lib/llm/food-text";
 import { llmForCurrentUser } from "@/lib/llm";
 import { RATE_LIMITS, rateLimitAll, rateLimitHeaders } from "@/lib/rate-limit";
@@ -21,6 +23,7 @@ import { getUserId } from "@/lib/supabase/server";
 const bodySchema = z.object({
   conversationId: z.coerce.number().int().positive().nullable().optional(),
   message: z.string().max(2000),
+  mode: z.enum(["auto", "question", "log", "save", "create"]).default("auto"),
 });
 
 export async function POST(request: NextRequest) {
@@ -78,6 +81,23 @@ export async function POST(request: NextRequest) {
       },
       { status: 503, headers },
     );
+  }
+
+  const intent = assistantIntent(question.value, body.data.mode);
+  if (intent === "create") {
+    return NextResponse.json({ kind: "create", answer: "Enter the values from the food label below. Saving creates one of your own foods; it does not log a meal." }, { headers });
+  }
+  if (intent === "log" || intent === "save") {
+    const parsed = await llm.parseFoods(question.value);
+    if (!parsed.ok) return NextResponse.json(
+      { error: parsed.message, reason: parsed.reason },
+      { status: parsed.reason === "rate-limited" ? 429 : 503, headers },
+    );
+    const resolved = await resolveIntents(parsed.value.foods.slice(0, 8));
+    const answer = resolved.proposals.length
+      ? intent === "save" ? "Review these foods, then save them to your library. Nothing has been logged." : "Review the food, portion, date and meal below. Nothing has been logged yet."
+      : "I could not identify a food. Try a name and portion, or choose Create a food to enter its label.";
+    return NextResponse.json({ kind: intent, answer, ...resolved, stored: false }, { headers });
   }
 
   const answer = await llm.answer(question.value, await currentFigures());

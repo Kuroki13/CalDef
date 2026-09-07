@@ -16,6 +16,8 @@ import {
 import { latestThread } from "@/lib/ai/conversations";
 import { hasGeminiKey } from "@/lib/env.server";
 import { getAccountSetup } from "@/lib/profile";
+import { getMealTypes } from "@/lib/diary";
+import { todayInTimeZone } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Assistant · CalDef" };
 
@@ -62,7 +64,7 @@ export default async function AssistantPage() {
     );
   }
 
-  const thread = await latestThread();
+  const [thread, mealTypes] = await Promise.all([latestThread(), getMealTypes()]);
   const turns: Turn[] = (thread?.messages ?? [])
     .filter((m) => m.role === "user" || m.role === "assistant")
     .map((m) => ({ role: m.role as Turn["role"], content: m.content }));
@@ -75,6 +77,8 @@ export default async function AssistantPage() {
           <Chat
             initialTurns={turns}
             initialConversationId={thread?.conversation.id ?? null}
+            mealTypes={mealTypes}
+            logDate={todayInTimeZone(profile.timezone)}
           />
         </CardContent>
       </Card>
@@ -104,7 +108,7 @@ function Header() {
     <header>
       <h1 className="text-2xl font-semibold tracking-tight">Assistant</h1>
       <p className="text-muted-foreground text-sm">
-        Questions about nutrition, answered against your own numbers.
+        Ask about nutrition, log a meal, or add to your food library.
       </p>
     </header>
   );

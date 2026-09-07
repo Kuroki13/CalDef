@@ -110,6 +110,7 @@ export async function getCustomFood(id: number): Promise<CachedFood | null> {
  */
 export async function createCustomFood(
   input: CustomFoodInput,
+  reference?: { sourceId: string; description: string | null },
 ): Promise<{ food: CachedFood } | { error: string }> {
   const normalised = normaliseCustomFood(input);
   if ("error" in normalised) return normalised;
@@ -121,10 +122,10 @@ export async function createCustomFood(
     .from("foods")
     .insert({
       source: "custom",
-      source_id: randomUUID(),
+      source_id: reference?.sourceId ?? randomUUID(),
       name: normalised.name,
       brand: normalised.brand,
-      description: null,
+      description: reference?.description ?? null,
       barcode: normalised.barcode,
       is_verified: false,
       user_id: userId,
@@ -181,6 +182,8 @@ export async function updateCustomFood(
       name: normalised.name,
       brand: normalised.brand,
       barcode: normalised.barcode,
+      // After a user edit these are their values, not a published reference.
+      description: null,
     })
     .eq("id", id)
     .eq("user_id", userId);

@@ -20,6 +20,7 @@ import { cacheFood } from "@/lib/food/cache";
 import { foodPayloadSchema } from "@/lib/food/payload";
 import type { Food } from "@/lib/food/types";
 import { logCachedFood, updateEntryPortion } from "@/lib/food-log";
+import { getUserId } from "@/lib/supabase/server";
 
 export type AiLogState = { error?: string; ok?: boolean; notice?: string };
 
@@ -42,6 +43,7 @@ export async function logParsedFoods(
   _prev: AiLogState,
   formData: FormData,
 ): Promise<AiLogState> {
+  if (!await getUserId()) return { error: "Please sign in before logging food." };
   let payload: z.infer<typeof payloadSchema>;
   try {
     payload = payloadSchema.parse(
@@ -57,24 +59,27 @@ export async function logParsedFoods(
   // Sequential rather than concurrent: each item caches a food, and two
   // items naming the same food would otherwise race to insert it.
   for (const item of payload.items) {
-    const foodId = await cacheFood(item.food as Food);
-
-    const result = await logCachedFood({
-      foodId,
-      logDate: payload.logDate,
-      mealTypeId: payload.mealTypeId,
-      amount: item.amount,
-      unit: item.unit,
-      servingLabel: item.servingLabel ?? null,
-      source: "ai",
-    });
-
-    if ("error" in result) failures.push(item.food.name);
-    else logged += 1;
+    try {
+      const foodId = await cacheFood(item.food as Food);
+      const result = await logCachedFood({
+        foodId,
+        logDate: payload.logDate,
+        mealTypeId: payload.mealTypeId,
+        amount: item.amount,
+        unit: item.unit,
+        servingLabel: item.servingLabel ?? null,
+        source: "ai",
+      });
+      if ("error" in result) failures.push(item.food.name);
+      else logged += 1;
+    } catch {
+      failures.push(item.food.name);
+    }
   }
 
   revalidatePath("/diary");
   revalidatePath("/dashboard");
+  revalidatePath("/assistant");
 
   if (logged === 0) {
     return { error: "Nothing could be logged. Add it from the search box." };
@@ -88,6 +93,39 @@ export async function logParsedFoods(
         ok: true,
         notice: `Added ${logged}. Could not add: ${failures.join(", ")}.`,
       };
+}
+
+/** Save the selected foods without creating any diary entries. */
+export async function saveParsedFoods(
+  _prev: AiLogState,
+  formData: FormData,
+): Promise<AiLogState> {
+  if (!await getUserId()) return { error: "Please sign in before saving food." };
+  let items: z.infer<typeof itemSchema>[];
+  try {
+    items = z.object({ items: z.array(itemSchema).min(1).max(20) }).parse(
+      JSON.parse(String(formData.get("payload") ?? "")),
+    ).items;
+  } catch {
+    return { error: "Those foods could not be read. Try again." };
+  }
+  let saved = 0;
+  const failures: string[] = [];
+  for (const item of items) {
+    try {
+      await cacheFood(item.food as Food);
+      saved += 1;
+    } catch {
+      failures.push(item.food.name);
+    }
+  }
+  revalidatePath("/recipes");
+  revalidatePath("/assistant");
+  if (!saved) return { error: "No foods could be saved. Please try again." };
+  return {
+    ok: true,
+    notice: `Saved ${saved} food${saved === 1 ? "" : "s"} for reuse. Nothing was added to your diary.${failures.length ? ` Could not save: ${failures.join(", ")}.` : ""}`,
+  };
 }
 
 const correctionSchema = z.object({

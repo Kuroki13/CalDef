@@ -13,7 +13,7 @@
  * against the packet is the number they typed.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import {
   saveCustomFoodAction,
@@ -100,15 +100,14 @@ export function CustomFoodForm({
     null;
 
   const [basis, setBasis] = useState<"per_100g" | "per_serving">("per_100g");
-  const [handledFood, setHandledFood] = useState<number | null>(null);
-
-  // Adjusted during render rather than in an effect, matching `AddFood`:
-  // React re-runs the component before painting, so the caller sees the new
-  // food without a stale frame in between. Keyed on the id so it fires once.
-  if (state.food && state.food.id !== handledFood) {
-    setHandledFood(state.food.id);
-    onSaved?.(state.food);
-  }
+  const handledFood = useRef<number | null>(null);
+  // Notify the parent after commit, never update another component in render.
+  useEffect(() => {
+    if (state.food && state.food.id !== handledFood.current) {
+      handledFood.current = state.food.id;
+      onSaved?.(state.food);
+    }
+  }, [state.food, onSaved]);
 
   const unit = basis === "per_100g" ? "per 100 g" : "per serving";
 

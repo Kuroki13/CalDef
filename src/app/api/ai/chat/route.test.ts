@@ -5,6 +5,8 @@ import { __resetRateLimits } from "@/lib/rate-limit";
 
 const getUserId = vi.fn();
 const answer = vi.fn();
+const parseFoods = vi.fn();
+const resolveIntents = vi.fn();
 const isAvailable = vi.fn();
 const currentFigures = vi.fn();
 const openThread = vi.fn();
@@ -20,11 +22,13 @@ vi.mock("@/lib/llm", () => ({
   llmForCurrentUser: async () => ({
     name: "stub",
     isAvailable: () => isAvailable(),
-    parseFoods: vi.fn(),
+    parseFoods: (...a: unknown[]) => parseFoods(...a),
     parseCorrection: vi.fn(),
     answer: (...a: unknown[]) => answer(...a),
   }),
 }));
+
+vi.mock("@/lib/ai/resolve", () => ({ resolveIntents: (...a: unknown[]) => resolveIntents(...a) }));
 
 vi.mock("@/lib/ai/figures", () => ({
   currentFigures: () => currentFigures(),
@@ -56,9 +60,47 @@ beforeEach(() => {
     targetProteinG: 180,
   });
   openThread.mockResolvedValue({ id: 5 });
+  parseFoods.mockResolvedValue({ ok: true, value: { foods: [{ query: "Harvey's Big Angus Burger", amount: 1, unit: "serving" }] } });
+  resolveIntents.mockResolvedValue({ proposals: [{ intent: { query: "Harvey's Big Angus Burger", amount: 1, unit: "serving" }, match: null, alternatives: [], grams: null, macros: null }], degraded: false });
 });
 
 describe("POST /api/ai/chat", () => {
+  it("turns an eaten meal into reviewable proposals without figures or database writes", async () => {
+    const response = await call({ message: "yeah I ate a harvey's big angus burger" });
+    const body = await response.json();
+    expect(body.kind).toBe("log");
+    expect(body.proposals).toHaveLength(1);
+    expect(body.answer).toContain("Nothing has been logged");
+    expect(parseFoods).toHaveBeenCalledOnce();
+    expect(resolveIntents).toHaveBeenCalledOnce();
+    expect(answer).not.toHaveBeenCalled();
+    expect(currentFigures).not.toHaveBeenCalled();
+    expect(openThread).not.toHaveBeenCalled();
+    expect(appendMessage).not.toHaveBeenCalled();
+  });
+  it("supports saving a named food separately from logging", async () => {
+    const body = await (await call({ message: "Harvey's Angus Burger", mode: "save" })).json();
+    expect(body.kind).toBe("save");
+    expect(body.answer).toContain("Nothing has been logged");
+    expect(openThread).not.toHaveBeenCalled();
+  });
+  it("offers a label form for a new custom food, with no model call", async () => {
+    const body = await (await call({ message: "create a new food" })).json();
+    expect(body.kind).toBe("create");
+    expect(parseFoods).not.toHaveBeenCalled();
+    expect(answer).not.toHaveBeenCalled();
+  });
+  it("honours question mode even if the sentence mentions eating", async () => {
+    await call({ message: "I ate a burger", mode: "question" });
+    expect(answer).toHaveBeenCalledOnce();
+    expect(parseFoods).not.toHaveBeenCalled();
+  });
+  it("does not resolve foods when Gemini is over quota", async () => {
+    parseFoods.mockResolvedValue({ ok: false, reason: "rate-limited", message: "Free quota reached." });
+    const response = await call({ message: "I ate a burger" });
+    expect(response.status).toBe(429);
+    expect(resolveIntents).not.toHaveBeenCalled();
+  });
   it("refuses an unauthenticated caller", async () => {
     getUserId.mockResolvedValue(null);
     const response = await call({ message: "hi" });

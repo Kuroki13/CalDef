@@ -140,6 +140,13 @@ export async function findCachedByBarcode(
  * constraint to notice.
  */
 export async function cacheFood(food: Food): Promise<number> {
+  if (food.source === "custom" && food.sourceId.startsWith("restaurant:")) {
+    const { restaurantById } = await import("@/lib/food/restaurant-catalogue");
+    if (restaurantById(food.sourceId)) {
+      const { importRestaurantFood } = await import("@/lib/food/restaurant-import");
+      return importRestaurantFood(food.sourceId);
+    }
+  }
   const supabase = await createClient();
 
   if (food.source === "custom") {

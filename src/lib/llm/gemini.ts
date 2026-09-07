@@ -91,8 +91,13 @@ const CORRECTION_SCHEMA = {
 
 const PARSE_INSTRUCTION = `You convert a description of food into search terms and portions.
 
-Return one entry per distinct food. For each: a short generic search term
+Return one entry per distinct food. For each: a short search term
 suitable for a food database, the amount as a number, and the unit.
+Preserve named restaurants, brands, exact menu names and customisations.
+For example "Harvey's big angus burger" stays "Harvey's Big Angus Burger";
+never turn it into a generic beef burger. Do not add sides or drinks unless
+the user explicitly names them. A combo with unspecified contents needs
+clarification, not invented components.
 
 Units are only "g", "ml" or "serving". Convert household measures to grams or
 millilitres where the conversion is standard (1 tablespoon of oil is 15 ml, a
@@ -151,7 +156,7 @@ export const geminiProvider: LLMProvider = {
 
     // Only these three fields are read. Anything else the model returned —
     // a calorie count above all — has nowhere to go and is discarded here.
-    const foods = list.flatMap((item) => {
+    const foods = list.slice(0, 8).flatMap((item) => {
       const intent = readIntent(item);
       return intent ? [intent] : [];
     });
