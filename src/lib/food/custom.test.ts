@@ -67,6 +67,12 @@ function fakeSupabase(reply: (call: Call) => Reply) {
       upsert: (payload: unknown) => build(table, "upsert", payload),
       delete: () => build(table, "delete"),
     }),
+    rpc: async (name: string, args: unknown) => {
+      const call: Call = { table: `rpc:${name}`, op: "insert", payload: args, filters: [] };
+      calls.push(call);
+      const result = reply(call);
+      return { data: result.data ?? null, error: result.error ?? null };
+    },
   };
 
   return { client, calls };
@@ -132,12 +138,18 @@ const input = (over: Record<string, unknown> = {}) =>
 
 beforeEach(() => vi.clearAllMocks());
 
+/** The one call the client is supposed to make. */
+const rpcCall = (calls: Call[]) =>
+  calls.find((call) => call.table === "rpc:save_custom_food");
+
 describe("createCustomFood", () => {
-  it("writes an owned row and hands the food back ready to log", async () => {
+  it("saves through the transactional function, not table by table", async () => {
+    // Atomicity is the database's job now (migration 0009). What this side
+    // has to get right is calling it once and writing nothing itself — a
+    // stray table write here would put a statement back outside the
+    // transaction, which is the bug the function exists to close.
     const { client, calls } = fakeSupabase((call) => {
-      if (call.table === "foods" && call.op === "insert") {
-        return { data: { id: 42 } };
-      }
+      if (call.table === "rpc:save_custom_food") return { data: 42 };
       if (call.table === "foods" && call.op === "select") {
         return { data: storedRow() };
       }
@@ -148,21 +160,37 @@ describe("createCustomFood", () => {
     const result = await createCustomFood(input());
     if ("error" in result) throw new Error(result.error);
 
-    const insert = calls.find(
-      (call) => call.table === "foods" && call.op === "insert",
+    const args = rpcCall(calls)?.payload as Record<string, unknown>;
+    expect(args.p_food_id).toBeNull();
+    expect(args.p_name).toBe("Protein flapjack");
+    expect(args.p_nutrients).toMatchObject({ kcal: 400, protein_g: 20 });
+
+    // Nothing but the function and the read-back.
+    const writes = calls.filter(
+      (call) => call.op !== "select" && !call.table.startsWith("rpc:"),
     );
-    const payload = insert?.payload as Record<string, unknown>;
-
-    expect(payload.source).toBe("custom");
-    // The ownership column is what every policy keys on, and it comes from
-    // the session rather than from anything the caller sent.
-    expect(payload.user_id).toBe(OWNER);
-    // A stable identifier, so a custom food is a food like any other to the
-    // rest of the app rather than a special case.
-    expect(String(payload.source_id)).toMatch(/^[0-9a-f-]{36}$/);
-
+    expect(writes).toEqual([]);
     expect(result.food.id).toBe(42);
-    expect(result.food.source).toBe("custom");
+  });
+
+  it("passes a caller's own identity through for a catalogue import", async () => {
+    const { client, calls } = fakeSupabase((call) =>
+      call.table === "rpc:save_custom_food"
+        ? { data: 42 }
+        : call.table === "foods" && call.op === "select"
+          ? { data: storedRow() }
+          : { data: [] },
+    );
+    createClient.mockResolvedValue(client);
+
+    await createCustomFood(input(), {
+      sourceId: "restaurant:kfc:original-recipe",
+      description: "Imported from the restaurant catalogue",
+    });
+
+    const args = rpcCall(calls)?.payload as Record<string, unknown>;
+    expect(args.p_source_id).toBe("restaurant:kfc:original-recipe");
+    expect(args.p_description).toBe("Imported from the restaurant catalogue");
   });
 
   it("refuses an impossible label before writing anything", async () => {
@@ -179,128 +207,79 @@ describe("createCustomFood", () => {
 });
 
 describe("updateCustomFood", () => {
-  it("never touches the diary", async () => {
-    // The whole reason `food_logs` stores its macros instead of joining:
-    // correcting a label today cannot rewrite what last week's totals said.
-    const { client, calls } = fakeSupabase((call) => {
-      if (call.table === "foods" && call.op === "select") {
-        return { data: storedRow({ name: "Protein flapjack v2" }) };
-      }
-      return { data: [] };
-    });
+  it("edits through the same function, naming the food", async () => {
+    const { client, calls } = fakeSupabase((call) =>
+      call.table === "rpc:save_custom_food"
+        ? { data: 42 }
+        : call.table === "foods" && call.op === "select"
+          ? { data: storedRow() }
+          : { data: [] },
+    );
     createClient.mockResolvedValue(client);
 
-    // Given a serving as well, so the nutrition and the serving rows are
-    // both rewritten and the assertion below covers every table touched.
     const result = await updateCustomFood(
       42,
       input({ kcal: 380, servingGrams: 45, servingLabel: "1 bar" }),
     );
     if ("error" in result) throw new Error(result.error);
 
-    const wroteToLogs = calls.filter(
-      (call) => call.table === "food_logs" && call.op !== "select",
-    );
-    expect(wroteToLogs).toEqual([]);
-
-    // What it does write: the food, its nutrition, its servings. Nothing else.
-    expect(
-      new Set(
-        calls.filter((call) => call.op !== "select").map((call) => call.table),
-      ),
-    ).toEqual(new Set(["foods", "food_nutrients", "food_servings"]));
+    const args = rpcCall(calls)?.payload as Record<string, unknown>;
+    expect(args.p_food_id).toBe(42);
+    expect(args.p_servings).toEqual([
+      { label: "1 bar", grams: 45, isDefault: true },
+    ]);
   });
 
-  it("re-labels an existing serving instead of inserting a duplicate", async () => {
-    // Found on the deployed app: the second edit of any food with a serving
-    // failed with `food_servings_food_label_key`, because the serving being
-    // re-inserted was the one a diary entry had pinned in place.
-    const { client, calls } = fakeSupabase((call) => {
-      if (call.table === "foods" && call.op === "select") {
-        return { data: storedRow() };
-      }
-      if (call.table === "food_servings" && call.op === "select") {
-        return { data: [{ id: 29, label: "1 bar" }] };
-      }
-      return { data: [] };
-    });
-    createClient.mockResolvedValue(client);
-
-    const result = await updateCustomFood(
-      42,
-      input({ servingGrams: 50, servingLabel: "1 bar" }),
-    );
-    if ("error" in result) throw new Error(result.error);
-
-    const servingWrites = calls.filter(
-      (call) => call.table === "food_servings" && call.op !== "select",
-    );
-    expect(servingWrites.some((call) => call.op === "insert")).toBe(false);
-    // The default flag is cleared across the food first, so claiming it
-    // again cannot collide with the single-default index either.
-    expect(servingWrites[0]).toMatchObject({
-      op: "update",
-      payload: { is_default: false },
-    });
-    expect(servingWrites[1]).toMatchObject({
-      op: "update",
-      payload: { grams: 50, is_default: true },
-    });
-    // And the pinned row is never deleted.
-    expect(servingWrites.some((call) => call.op === "delete")).toBe(false);
-  });
-
-  it("writes the servings before the nutrition, so a rejected edit changes nothing", async () => {
-    // There is no transaction across these statements. Servings are the only
-    // part that can hit a constraint, so they go first: the failure that was
-    // actually observed left the nutrition already rewritten and the page
-    // still showing the old figures.
-    const { client, calls } = fakeSupabase((call) => {
-      if (call.table === "foods" && call.op === "select") {
-        return { data: storedRow() };
-      }
-      if (call.table === "food_servings" && call.op === "insert") {
-        return { error: { message: "duplicate key value" } };
-      }
-      return { data: [] };
-    });
-    createClient.mockResolvedValue(client);
-
-    const result = await updateCustomFood(
-      42,
-      input({ servingGrams: 45, servingLabel: "1 bar" }),
-    );
-
-    expect(result).toEqual({ error: "duplicate key value" });
-    expect(calls.some((call) => call.table === "food_nutrients")).toBe(false);
-  });
-
-  it("scopes every statement to the owner", async () => {
+  it("never touches the diary", async () => {
+    // The guarantee that matters most: correcting a label today cannot
+    // rewrite what last week's totals said. Neither this module nor the
+    // function it calls writes a logging table.
     const { client, calls } = fakeSupabase((call) =>
-      call.table === "foods" && call.op === "select"
-        ? { data: storedRow() }
-        : { data: [] },
+      call.table === "rpc:save_custom_food"
+        ? { data: 42 }
+        : call.table === "foods" && call.op === "select"
+          ? { data: storedRow() }
+          : { data: [] },
     );
     createClient.mockResolvedValue(client);
 
     await updateCustomFood(42, input());
 
-    const update = calls.find(
-      (call) => call.table === "foods" && call.op === "update",
-    );
-    // RLS would refuse a foreign row anyway; the filter is what turns that
-    // into "no such food" instead of a database error.
-    expect(update?.filters).toContainEqual(["user_id", OWNER]);
+    expect(calls.filter((call) => call.table === "food_logs")).toEqual([]);
   });
 
-  it("refuses a food that is not the user's, without reading it", async () => {
-    const { client, calls } = fakeSupabase(() => ({ data: null }));
+  it("reports a foreign food as not the user's, whichever way it was refused", async () => {
+    // `security invoker` means RLS decides. The function raises when the
+    // update matches nothing; a policy denial arrives as a different
+    // message. Both mean the same thing to the person reading it.
+    for (const message of [
+      "That food is not one of yours",
+      'new row violates row-level security policy for table "foods"',
+      "permission denied for table foods",
+    ]) {
+      const { client } = fakeSupabase(() => ({ error: { message } }));
+      createClient.mockResolvedValue(client);
+
+      expect(await updateCustomFood(99, input())).toEqual({
+        error: "That food is not one of yours.",
+      });
+    }
+  });
+
+  it("translates a constraint violation into something worth reading", async () => {
+    const { client } = fakeSupabase(() => ({
+      error: {
+        message:
+          'new row for relation "food_nutrients" violates check constraint "food_nutrients_kcal_check"',
+      },
+    }));
     createClient.mockResolvedValue(client);
 
-    const result = await updateCustomFood(99, input());
-
-    expect(result).toEqual({ error: "That food is not one of yours." });
-    expect(calls.some((call) => call.op === "update")).toBe(false);
+    const result = await updateCustomFood(42, input());
+    expect(result).toEqual({
+      error:
+        "Those figures are outside what a food can be. Check the panel you copied.",
+    });
   });
 });
 

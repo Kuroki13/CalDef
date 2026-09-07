@@ -919,7 +919,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      save_custom_food: {
+        Args: {
+          p_barcode: string
+          p_brand: string
+          p_description?: string
+          p_food_id: number
+          p_name: string
+          p_nutrients: Json
+          p_servings: Json
+          p_source_id?: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       activity_level: "sedentary" | "light" | "moderate" | "very" | "extra"
