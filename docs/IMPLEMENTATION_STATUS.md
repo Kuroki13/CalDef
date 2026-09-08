@@ -861,6 +861,64 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### Five items from real use, 2026-09-07 (Claude Code)
+
+**1. The barcode camera never received the stream.** Root cause as
+reported: the `<video>` is only rendered while `scanning` is true, and
+`start` assigned `srcObject` before setting that flag, so the ref was null
+and the `if` guard swallowed it. The element then mounted with no stream —
+permission granted, light on, grey box, decode loop reading an empty
+element. My own earlier verification never reached this path: headless
+Chrome has no camera, so every run ended in `no-camera` and the ordering
+was never once executed. Now a callback ref attaches the stream when React
+mounts the node, `autoPlay` is set, a rejected `play()` is a stated failure,
+and a stream that sends no frame within six seconds says so. Four tests,
+all of which fail against the old ordering. **Needs the phone**: this is
+the fix for why it could not have worked, not evidence that it now does.
+
+**2. The dashboard leads with what is left of today.** Calories and protein
+are deliberately not rendered alike: calories are a ceiling counted down
+("800 left"), protein a floor counted up ("60 g to go" / "Target met"),
+because as two identical bars a protein shortfall reads as spare room.
+Overshoot is stated in ordinary text, never the destructive colour. Below
+it: today's entries, the phase countdown when one is running, the weight
+trend. Height, age and activity are gone — settings that change twice a
+year, taking the third of a screen a phone shows first. The governing label
+is carried through verbatim, so "2-Month Cut target" and "Daily target"
+mean the same here as in the diary. 8 tests.
+
+**3. Macros before committing, not after.** `PortionMacros` is one line
+shown by every screen that asks for an amount, computed by the same
+`toGrams`/`scaleNutrients` the server uses to write the row. Manual logging
+had none of this — it was the genuine gap. The AI review and the recipe
+draft already computed live figures; what they lacked was shared code and
+shared wording, which they now have. Search results keep per-100 g, the
+only figure that compares two foods fairly, and gain the food's own serving
+beside it. 10 tests.
+
+**4. "Describe a meal" is one component, and a peer of search.** It existed
+twice with different wording and placement; the diary's separate card is
+gone and Add Food now has Search and Describe as two tabs, both always
+available. Gating it behind a failed search made the faster path the
+invisible one. "Describe this dish" — recipe drafting — deliberately keeps
+its failed-search trigger: that is a different feature, and a failed search
+is exactly when drafting a recipe is the right suggestion. 5 tests.
+
+**5. Assistant routing, measured before and after.** Against 27 realistic
+messages — statements, questions, quantities, follow-ups, French, English,
+mixed — the old classifier scored **18/27**, and every miss was the same
+shape: a food with an amount falling through to "question". It now scores
+**27/27**. The missing signal was the quantity; a question still wins over
+one. Deterministic rather than a model call, argued in the module: a
+classification request would spend a request to decide how to spend a
+request against a tens-per-day free tier, and the rules have to be good
+anyway for when the model is over quota. The invariant is now a test:
+routing chooses a screen, never a write.
+
+**Throughout:** 730 unit tests, up from 683 at the start of the session.
+Typecheck, lint and build clean. No migrations. Nothing was run against
+production.
+
 ### Five requested items, 2026-09-07 (Claude Code)
 
 Two of the five turned out to be already done or not true; the other three
