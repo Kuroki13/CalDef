@@ -3,10 +3,10 @@
 import { useActionState, useId, useState } from "react";
 import { logParsedFoods, saveParsedFoods, type AiLogState } from "@/app/(app)/diary/ai-actions";
 import { PendingButton } from "@/components/pending-button";
+import { PortionMacros } from "@/components/portion-macros";
 import type { FoodProposal } from "@/lib/ai/resolve";
 import type { MealType } from "@/lib/diary";
 import { restaurantReference } from "@/lib/food/restaurant-catalogue";
-import { scaleNutrients } from "@/lib/nutrition/macros";
 import { toGrams, type PortionUnit } from "@/lib/nutrition/units";
 
 type Choice = { index: number; amount: string; unit: PortionUnit; included: boolean };
@@ -62,7 +62,6 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
       <fieldset disabled={locked} className="min-w-0 space-y-4">
         {rows.map((row, i) => {
           const reference = row.food ? restaurantReference(row.food) : null;
-          const macros = row.food && row.grams !== null ? scaleNutrients(row.food.nutrients, row.grams) : null;
           return (
             <div key={i} className="space-y-2 border-b pb-3">
               <p className="text-muted-foreground text-xs">Understood: {row.proposal.intent.query}</p>
@@ -90,7 +89,7 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
                     </select>
                   </label>
                 </div> : null}
-                {mode === "save" ? <p className="text-sm">Per 100 g: {row.food.nutrients.kcal} kcal · Protein {row.food.nutrients.protein_g} g · Carbs {row.food.nutrients.carbs_g} g · Fat {row.food.nutrients.fat_g} g</p> : macros ? <p className="text-sm">{Math.round(macros.kcal)} kcal · Protein {macros.protein_g.toFixed(1)} g · Carbs {macros.carbs_g.toFixed(1)} g · Fat {macros.fat_g.toFixed(1)} g</p> : <p className="text-sm text-destructive">Enter a valid amount. If serving weight is unknown, choose grams and enter the measured weight.</p>}
+                {mode === "save" ? <p className="text-sm">Per 100 g: {row.food.nutrients.kcal} kcal · Protein {row.food.nutrients.protein_g} g · Carbs {row.food.nutrients.carbs_g} g · Fat {row.food.nutrients.fat_g} g</p> : <PortionMacros food={row.food} amount={Number(row.choice.amount)} unit={row.choice.unit} serving={row.choice.unit === "serving" ? row.serving : null} />}
               </>}
             </div>
           );

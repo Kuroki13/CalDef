@@ -18,7 +18,12 @@ beforeEach(() => {
 describe("shared food review", () => {
   it("shows source, portion and macros before any write", () => {
     render(<FoodProposalReview {...props} />);
-    expect(screen.getByText(/750 kcal/)).toHaveTextContent("Protein 36.0 g");
+    // Asserted on the line rather than the element, because the figures are
+    // now rendered by the shared `PortionMacros` and its internal markup is
+    // not what this test is about.
+    const line = screen.getByText(/750 kcal/).closest("p");
+    expect(line).toHaveTextContent("750 kcal");
+    expect(line).toHaveTextContent("Protein 36.0 g");
     expect(screen.getByRole("link", { name: "Nutrition source" })).toHaveAttribute("href", "https://www.harveys.ca/en/nutrition.html");
     expect(screen.getByText(/Saved reference, not a live web search/)).toBeInTheDocument();
     expect(log).not.toHaveBeenCalled();

@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PortionMacros, ServingHint } from "@/components/portion-macros";
 import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
 import type { MealType } from "@/lib/diary";
@@ -282,6 +283,9 @@ export function AddFood({
                       <span className="text-muted-foreground block truncate text-xs">
                         {food.brand ? `${food.brand} · ` : ""}
                         {Math.round(food.nutrients.kcal)} kcal / 100 g
+                        {/* Per 100 g compares two foods fairly; the serving
+                            says what you would actually eat. */}
+                        <ServingHint food={food} />
                       </span>
                     </span>
                     <SourceBadge food={food} />
@@ -363,6 +367,12 @@ function PortionFields({
   const [servingLabel, setServingLabel] = useState(
     defaultServing?.label ?? "",
   );
+  // Controlled so the figures below can follow it. It was uncontrolled, and
+  // the cost of the portion only appeared in the diary after logging.
+  const [amount, setAmount] = useState("100");
+
+  const chosenServing =
+    food.servings.find((s) => s.label === servingLabel) ?? defaultServing;
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -375,7 +385,8 @@ function PortionFields({
           inputMode="decimal"
           step="any"
           min="0.01"
-          defaultValue={100}
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
           required
         />
       </div>
@@ -421,6 +432,21 @@ function PortionFields({
           </Select>
         </div>
       ) : null}
+
+      {/*
+        What this portion costs, before it is logged rather than after.
+        Same component, same wording, same arithmetic as the AI review and
+        the recipe draft — and the same `toGrams`/`scaleNutrients` the
+        server uses to write the row.
+      */}
+      <div className="col-span-2 rounded-md border p-3">
+        <PortionMacros
+          food={food}
+          amount={Number(amount)}
+          unit={unit}
+          serving={unit === "serving" ? chosenServing : null}
+        />
+      </div>
 
       <div className="col-span-2 space-y-2">
         <Label htmlFor="mealTypeId">Meal</Label>
