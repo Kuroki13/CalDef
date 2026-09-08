@@ -15,6 +15,7 @@ import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
+import { DescribeMeal } from "@/components/describe-meal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { PendingButton } from "@/components/pending-button";
@@ -35,6 +36,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PortionMacros, ServingHint } from "@/components/portion-macros";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
 import type { MealType } from "@/lib/diary";
@@ -177,7 +184,25 @@ export function AddFood({
       </CardHeader>
       <CardContent className="space-y-4">
         {!chosen ? (
-          <>
+          <Tabs defaultValue="search">
+            {/*
+              Peers, deliberately. Writing a sentence is not what you do
+              when search fails — it is what you do when you ate four things
+              and would rather not run four searches. Behind a failure, the
+              faster path was the invisible one.
+            */}
+            {aiReady ? (
+              <TabsList className="mb-3">
+                <TabsTrigger value="search">Search</TabsTrigger>
+                <TabsTrigger value="describe">Describe a meal</TabsTrigger>
+              </TabsList>
+            ) : null}
+
+            <TabsContent value="describe">
+              <DescribeMeal logDate={logDate} mealTypes={mealTypes} />
+            </TabsContent>
+
+            <TabsContent value="search" className="space-y-4">
             {scannerOpen ? (
               <BarcodeScanner
                 onDetected={lookupBarcode}
@@ -293,7 +318,8 @@ export function AddFood({
                 </li>
               ))}
             </ul>
-          </>
+            </TabsContent>
+          </Tabs>
         ) : (
           <form action={formAction} className="space-y-4">
             <input type="hidden" name="logDate" value={logDate} />
