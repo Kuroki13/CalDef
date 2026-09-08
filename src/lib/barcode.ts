@@ -39,7 +39,8 @@ export type ScannerStatus =
   | "no-camera"
   | "permission-denied"
   | "camera-error"
-  | "decoder-unavailable";
+  | "decoder-unavailable"
+  | "no-frames";
 
 /**
  * Which decoder a scan would use.
@@ -60,6 +61,47 @@ export type ScannerCapability = {
   /** Set when a scan is possible; null when it is not. */
   decoder: DecoderKind | null;
 };
+
+/**
+ * The camera said yes and then sent nothing.
+ *
+ * A live stream with no frames coming out of it is a real state, not a
+ * theoretical one: the permission is granted, the light may even be on, and
+ * the preview is a grey rectangle. It happened here for a much dafter
+ * reason — the stream was attached to an element that did not exist yet —
+ * but the symptom is the same whatever causes it, and a blank box that
+ * explains nothing is the worst possible answer to "why is this not
+ * working". So it is watched for and named.
+ */
+export function noFramesArrived(): ScannerCapability {
+  return {
+    status: "no-frames",
+    message:
+      "The camera started but sent no picture. Close anything else using " +
+      "it and try again — or type the number under the barcode, or search " +
+      "for the product by name.",
+    manualOnly: false,
+    decoder: null,
+  };
+}
+
+/**
+ * The browser refused to play the stream.
+ *
+ * Autoplay policies block playback that a user gesture did not cause, and
+ * a muted inline video is normally exempt — but "normally" is not "always",
+ * and a rejected `play()` used to be swallowed.
+ */
+export function cameraWillNotPlay(): ScannerCapability {
+  return {
+    status: "camera-error",
+    message:
+      "The camera would not start playing. Try again, or type the number " +
+      "under the barcode instead.",
+    manualOnly: false,
+    decoder: null,
+  };
+}
 
 /** How a failed decoder download is reported. */
 export function decoderUnavailable(): ScannerCapability {

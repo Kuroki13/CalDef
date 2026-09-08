@@ -23,11 +23,23 @@ async function renderScanner(props: {
   );
 }
 
+/** A stream object standing in for the one `getUserMedia` resolves with. */
+function fakeStream() {
+  const track = { stop: vi.fn() };
+  return { getTracks: () => [track], __track: track } as unknown as MediaStream;
+}
+
 function setUpWindow({
   secure = true,
   camera = true,
   nativeDetector = false,
-}: { secure?: boolean; camera?: boolean; nativeDetector?: boolean } = {}) {
+  stream,
+}: {
+  secure?: boolean;
+  camera?: boolean;
+  nativeDetector?: boolean;
+  stream?: MediaStream;
+} = {}) {
   Object.defineProperty(window, "isSecureContext", {
     value: secure,
     configurable: true,
@@ -35,7 +47,9 @@ function setUpWindow({
 
   if (camera) {
     Object.defineProperty(window.navigator, "mediaDevices", {
-      value: { getUserMedia: vi.fn() },
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue(stream ?? fakeStream()),
+      },
       configurable: true,
     });
   } else {
@@ -130,5 +144,106 @@ describe("manual barcode entry", () => {
 
     expect(screen.getByLabelText(/type the number/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Scan a barcode" })).toBeEnabled();
+  });
+});
+
+describe("BarcodeScanner — the stream reaches the element", () => {
+  /**
+   * The bug this suite exists for.
+   *
+   * The `<video>` is only rendered while scanning, and `start` used to
+   * assign `srcObject` before flipping that flag — so the ref was null, the
+   * `if` guard swallowed it, and the element mounted with no stream.
+   * Permission granted, camera light on, grey box, and a decode loop
+   * reading an empty element forever. Nothing failed, which is why nothing
+   * caught it: the old tests only ever exercised the paths where the camera
+   * was refused.
+   */
+  beforeEach(() => {
+    // jsdom implements neither, and both are on the path being tested.
+    Object.defineProperty(window.HTMLMediaElement.prototype, "srcObject", {
+      configurable: true,
+      writable: true,
+      value: null,
+    });
+    window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+  });
+
+  async function startScanning(stream = fakeStream()) {
+    setUpWindow({ nativeDetector: true, stream });
+    await renderScanner();
+
+    fireEvent.click(screen.getByRole("button", { name: "Scan a barcode" }));
+    // The camera resolves, the element mounts, the ref callback fires.
+    const video = await screen.findByLabelText(/camera preview/i);
+    return { video: video as HTMLVideoElement, stream };
+  }
+
+  it("sets srcObject on the element once it is mounted", async () => {
+    const { video, stream } = await startScanning();
+
+    expect(video.srcObject).toBe(stream);
+  });
+
+  it("plays it, and marks the element to autoplay", async () => {
+    const { video } = await startScanning();
+
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(video).toHaveAttribute("autoplay");
+    expect(video).toHaveAttribute("playsinline");
+  });
+
+  it("says so when the browser refuses to play the stream", async () => {
+    window.HTMLMediaElement.prototype.play = vi
+      .fn()
+      .mockRejectedValue(new Error("NotAllowedError"));
+
+    await startScanning();
+
+    expect(
+      await screen.findByText(/would not start playing/i),
+    ).toBeInTheDocument();
+  });
+
+  it("releases the stream when scanning stops", async () => {
+    const stream = fakeStream();
+    const { video } = await startScanning(stream);
+
+    fireEvent.click(screen.getByRole("button", { name: /stop scanning/i }));
+
+    expect(
+      (stream as unknown as { __track: { stop: () => void } }).__track.stop,
+    ).toHaveBeenCalled();
+    // An element left holding a dead stream shows a frozen last frame,
+    // which reads as a camera that works and has hung.
+    expect(video.srcObject).toBeNull();
+  });
+});
+
+describe("BarcodeScanner — a camera that sends no picture", () => {
+  beforeEach(() => {
+    Object.defineProperty(window.HTMLMediaElement.prototype, "srcObject", {
+      configurable: true,
+      writable: true,
+      value: null,
+    });
+    window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("says so rather than leaving a grey box on screen", async () => {
+    // `videoWidth` stays 0 in jsdom, which is exactly the symptom: a live
+    // stream that never delivers a frame.
+    setUpWindow({ nativeDetector: true });
+    await renderScanner();
+
+    fireEvent.click(screen.getByRole("button", { name: "Scan a barcode" }));
+    await screen.findByLabelText(/camera preview/i);
+
+    await vi.advanceTimersByTimeAsync(7000);
+
+    expect(await screen.findByText(/sent no picture/i)).toBeInTheDocument();
   });
 });

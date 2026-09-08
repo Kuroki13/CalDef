@@ -33,10 +33,12 @@ import {
   type DecoderKind,
   type Detector,
   type ScannerCapability,
+  cameraWillNotPlay,
   checkScannerSupport,
   decoderUnavailable,
   describeCameraError,
   isPlausibleBarcode,
+  noFramesArrived,
 } from "@/lib/barcode";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PendingButton } from "@/components/pending-button";
@@ -53,6 +55,15 @@ import { Label } from "@/components/ui/label";
  * is far more than a hand holding a packet steady requires.
  */
 const FALLBACK_INTERVAL_MS = 200;
+
+/**
+ * How long a live stream may send nothing before the user is told.
+ *
+ * Long enough for a phone camera to wake, focus and deliver a first frame,
+ * which on an older handset is not instant. Short enough that nobody stares
+ * at a grey rectangle wondering whether it is their fault.
+ */
+const FIRST_FRAME_TIMEOUT_MS = 6000;
 
 type NativeDetector = {
   detect(source: CanvasImageSource): Promise<{ rawValue: string }[]>;
@@ -125,6 +136,9 @@ export function BarcodeScanner({
 
   const [scanning, setScanning] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  /** Set the first time a frame has real dimensions; watched by the timer. */
+  const framesRef = useRef(false);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // What the browser can do, known before the camera is ever touched:
   // probing permission as a side effect of rendering would prompt someone
@@ -141,10 +155,49 @@ export function BarcodeScanner({
   const stop = useCallback(() => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
+    if (watchdogRef.current !== null) clearTimeout(watchdogRef.current);
+    watchdogRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    // Released explicitly: an element left holding a dead stream keeps the
+    // last frame on screen, which reads as a working camera that has frozen.
+    if (videoRef.current) videoRef.current.srcObject = null;
     setScanning(false);
   }, []);
+
+  /**
+   * Attaches the stream at the moment the element exists.
+   *
+   * This is a callback ref rather than an assignment inside `start`, and
+   * that is the whole fix for the bug this scanner shipped with: the
+   * `<video>` is only rendered while `scanning` is true, so `start` was
+   * setting `srcObject` on a ref that was still null, the `if` guard
+   * swallowed it, and the element then mounted with no stream. Permission
+   * granted, light on, grey box, and a decode loop reading an empty
+   * element forever.
+   *
+   * A callback ref fires exactly when React attaches the node, which is
+   * the earliest moment the stream *can* be attached — no ordering to get
+   * wrong, and nothing to guess at with a timer.
+   */
+  const attachStream = useCallback((element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+
+    const stream = streamRef.current;
+    if (!element || !stream) return;
+
+    // Idempotent: React may attach the same node twice in development, and
+    // reassigning a live stream restarts it for no reason.
+    if (element.srcObject !== stream) element.srcObject = stream;
+
+    // `autoPlay` covers this in every browser that honours it; the explicit
+    // call covers the ones that want a gesture, and the rejection is now a
+    // state instead of a silence.
+    void element.play?.().catch(() => {
+      stop();
+      setFailure(cameraWillNotPlay());
+    });
+  }, [stop]);
 
   // Releasing the camera on unmount matters: a stream left running keeps the
   // device's camera light on after the user has navigated away.
@@ -175,24 +228,38 @@ export function BarcodeScanner({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
+
+      // The stream is in place *before* the element is asked for, so that
+      // the callback ref has something to attach the moment it fires.
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      framesRef.current = false;
       setScanning(true);
+
+      // A stream that sends nothing is a state, not a mystery. If no frame
+      // with real dimensions has arrived by the time this fires, say so.
+      watchdogRef.current = setTimeout(() => {
+        if (framesRef.current) return;
+        stop();
+        setFailure(noFramesArrived());
+      }, FIRST_FRAME_TIMEOUT_MS);
 
       let lastLookAt = 0;
 
       const tick = async (now: number) => {
+        // Keyed on the stream, not the element: the first frames can be
+        // requested before React has mounted the video, and returning here
+        // would end the loop before it began.
+        if (!streamRef.current) return;
+
         const video = videoRef.current;
-        if (!video || !streamRef.current) return;
+        const ready = video !== null && video.videoWidth > 0;
+        if (ready) framesRef.current = true;
 
         const due =
           support.decoder === "native" ||
           now - lastLookAt >= FALLBACK_INTERVAL_MS;
 
-        if (due) {
+        if (ready && due) {
           lastLookAt = now;
           try {
             const found = await detector.detect(video);
@@ -235,8 +302,9 @@ export function BarcodeScanner({
       {scanning ? (
         <div className="space-y-3">
           <video
-            ref={videoRef}
+            ref={attachStream}
             className="bg-muted aspect-video w-full rounded-md object-cover"
+            autoPlay
             playsInline
             muted
             aria-label="Camera preview for barcode scanning"

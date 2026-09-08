@@ -605,6 +605,22 @@ What is left, and **Phase 11 stays open until it is done**:
   is no stale row left in the table. Verified by querying `daily_targets`
   directly: the account now holds that row plus one for today, both
   written on the day they cover.
+- **The barcode camera never received the stream — fixed 2026-09-07, and
+  awaiting a phone to confirm.** The `<video>` is only rendered while
+  scanning, and `start` assigned `srcObject` *before* setting that flag, so
+  the ref was null, the `if (videoRef.current)` guard swallowed it, and the
+  element then mounted with no stream: permission granted, camera light on,
+  grey box, and a decode loop reading an empty element forever. Nothing
+  threw, which is why nothing caught it — and the earlier "verification"
+  only ever reached the paths where the camera was *refused*, so the
+  success path had never once been exercised. The stream is now attached by
+  a callback ref at the moment React mounts the element, `autoPlay` is set,
+  a rejected `play()` is a state rather than a silence, and a live stream
+  that sends no frame for six seconds says so instead of showing a grey
+  rectangle. Four tests cover it and all four fail against the old
+  ordering. **Still needs the phone**: this is the fix for why it could
+  never have worked, not evidence that it now does.
+
 - **The barcode camera UI is still unverified on a phone, and this is the
   one check that matters.** Two of the three things blocking it are now
   closed. HTTPS: satisfied on the deployed site, where the scanner no
