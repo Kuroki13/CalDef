@@ -12,6 +12,7 @@ import {
   logRecipe,
   removeIngredient,
 } from "@/lib/recipes";
+import { overridesFromForm } from "@/lib/meal-template";
 import {
   createSavedMealFromEntries,
   deleteSavedMeal,
@@ -230,13 +231,18 @@ export async function logSavedMealAction(
   _prev: LibraryState,
   formData: FormData,
 ): Promise<LibraryState> {
-  const parsed = logSavedMealSchema.safeParse(Object.fromEntries(formData));
+  const parsed = logSavedMealSchema.safeParse({
+    savedMealId: formData.get("savedMealId"),
+    logDate: formData.get("logDate"),
+    mealTypeId: formData.get("mealTypeId"),
+  });
   if (!parsed.success) return { error: "Check the meal and date." };
 
   const result = await logSavedMeal(
     parsed.data.savedMealId,
     parsed.data.logDate,
     parsed.data.mealTypeId,
+    overridesFromForm(formData),
   );
   if ("error" in result) return { error: result.error };
 

@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12E done and live; 12F flexible meal templates next |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12F done and live; 12G Quick Add next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -541,7 +541,8 @@ Phase 12, in the order spec §15 sets:
   Reusing a saved meal was already possible (Recipes, and My Foods since
   12B). Saved meals whose amounts can change at log time are 12F.
 - **12D — Typical portions: DONE, live on production since 2026-10-07.**
-- 12F flexible meal templates → 12D typical
+- **12F — Flexible meal templates: DONE, live on production since 2026-10-07.**
+- 12G Quick Add → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
 Phase 11:
@@ -910,6 +911,35 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12F — Flexible meal templates, 2026-10-07 (Claude Code)
+
+Logging a saved meal, on the Recipes screen or in My foods → Meals, now
+lists its items, each ticked and each amount editable in its own unit.
+Leaving one out or changing an amount affects **this log only**. The saved
+meal is not touched.
+
+- `lib/meal-template.ts` (pure): `applyOverrides` scales grams and macros
+  by the ratio of the new amount to the stored one. The macros being scaled
+  are the ones `getSavedMeal` has just computed from the nutrient rows, so a
+  typed amount reaches a calorie figure only through that ratio.
+  `overridesFromForm` treats a form without item rows as "as saved".
+- `logSavedMeal` gained an optional `overrides` argument and is **still one
+  insert**, so a changed template is as all-or-nothing as an unchanged one.
+- After logging, the form gives way to what was added plus a deliberate
+  "Log it again", so a second tap cannot add the meal twice. This
+  previously relied on the pending state alone.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards (its saved meal went with it).
+Chicken 200 g and banana 120 g were logged, then saved as the meal "Studio
+lunch". From My foods → Meals, the banana was unticked and the chicken set
+to 150 g. The diary got one `saved_meal` row: chicken 150 g at **161.06
+kcal**, which is ¾ of 214.74. The saved meal still held 200 g + 120 g, and
+the form showed "Added 1 item" and "Log it again".
+
+**Throughout:** 809 unit tests (11 new), with typecheck, lint and build
+clean. No migration.
 
 ### Phase 12D — Typical portions, 2026-10-07 (Claude Code)
 

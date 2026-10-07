@@ -175,6 +175,13 @@ export default async function RecipesPage() {
                     logDate={today}
                     mealTypes={day.mealTypes}
                     defaultMealTypeId={meal.default_meal_type_id}
+                    items={items.map((item) => ({
+                      id: item.id,
+                      foodName: item.foodName,
+                      amount: item.amount,
+                      unit: item.unit,
+                      servingLabel: item.servingLabel,
+                    }))}
                   />
                 </li>
               ))}

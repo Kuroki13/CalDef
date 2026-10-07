@@ -195,6 +195,7 @@ export function MyFoods({
                 logDate={logDate}
                 mealTypes={mealTypes}
                 defaultMealTypeId={meal.defaultMealTypeId}
+                items={meal.items}
               />
             </LibraryRow>
           ))}

@@ -10,6 +10,7 @@ import "server-only";
  * structural rather than a convention.
  */
 
+import { type MealOverrides, applyOverrides } from "@/lib/meal-template";
 import { type MacroTotals, scaleNutrients, sumMacros } from "@/lib/nutrition/macros";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 import type { Tables } from "@/types/database";
@@ -144,6 +145,11 @@ export async function logSavedMeal(
   savedMealId: number,
   logDate: string,
   mealTypeId: number,
+  /**
+   * This log's changes — an item left out, a different amount (§12F). The
+   * saved meal itself is not touched. Null logs it exactly as saved.
+   */
+  overrides: MealOverrides | null = null,
 ): Promise<{ logged: number } | { error: string }> {
   const userId = await requireUserId();
   const supabase = await createClient();
@@ -152,8 +158,13 @@ export async function logSavedMeal(
   if (!detail) return { error: "That saved meal no longer exists." };
   if (detail.items.length === 0) return { error: "That saved meal is empty." };
 
+  const adjusted = applyOverrides(detail.items, overrides);
+  if ("error" in adjusted) return adjusted;
+
+  // Still one insert, so a template with changes is as all-or-nothing as
+  // one without.
   const { error } = await supabase.from("food_logs").insert(
-    detail.items.map((item) => ({
+    adjusted.items.map((item) => ({
       user_id: userId,
       log_date: logDate,
       meal_type_id: mealTypeId,
@@ -171,7 +182,7 @@ export async function logSavedMeal(
   );
   if (error) return { error: error.message };
 
-  return { logged: detail.items.length };
+  return { logged: adjusted.items.length };
 }
 
 export async function deleteSavedMeal(id: number): Promise<void> {

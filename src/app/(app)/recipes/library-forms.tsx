@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   addIngredientsAction,
@@ -13,6 +13,7 @@ import {
 } from "@/app/(app)/recipes/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PendingButton } from "@/components/pending-button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -233,27 +234,122 @@ export function LogRecipeForm({
   );
 }
 
-export function LogSavedMealForm({
+/** One item of a saved meal, as the template form shows it. */
+export type TemplateRow = {
+  id: number;
+  foodName: string;
+  amount: number;
+  unit: "g" | "ml" | "serving";
+  servingLabel: string | null;
+};
+
+const rowUnit = (row: TemplateRow) =>
+  row.unit === "serving" ? row.servingLabel?.trim() || "servings" : row.unit;
+
+/**
+ * Logs a saved meal — as saved, or with this time's changes (§12F).
+ *
+ * Given its items, the form lists them, each ticked and each amount
+ * editable; leaving one out or changing an amount affects this log only,
+ * never the saved meal. Once it has logged, the form gives way to what was
+ * added, so a second tap cannot add the meal twice; logging it again is a
+ * deliberate "Log it again".
+ */
+export function LogSavedMealForm(props: {
+  savedMealId: number;
+  logDate: string;
+  mealTypes: MealType[];
+  defaultMealTypeId: number | null;
+  items?: TemplateRow[];
+}) {
+  const [round, setRound] = useState(0);
+  return (
+    <TemplateForm key={round} {...props} onAgain={() => setRound((r) => r + 1)} />
+  );
+}
+
+function TemplateForm({
   savedMealId,
   logDate,
   mealTypes,
   defaultMealTypeId,
+  items = [],
+  onAgain,
 }: {
   savedMealId: number;
   logDate: string;
   mealTypes: MealType[];
   defaultMealTypeId: number | null;
+  items?: TemplateRow[];
+  onAgain: () => void;
 }) {
   const [state, formAction] = useActionState<LibraryState, FormData>(
     logSavedMealAction,
     {},
   );
+  const [ticked, setTicked] = useState(() => new Set(items.map((i) => i.id)));
+
+  if (state.ok) {
+    return (
+      <div className="space-y-2">
+        <Feedback state={state} />
+        <Button type="button" size="sm" variant="ghost" onClick={onAgain}>
+          Log it again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-3">
       <Feedback state={state} />
       <input type="hidden" name="savedMealId" value={savedMealId} />
       <input type="hidden" name="logDate" value={logDate} />
+
+      {items.length > 0 ? (
+        <ul className="divide-y">
+          {items.map((item) => {
+            const id = `template-${savedMealId}-${item.id}`;
+            return (
+              <li key={item.id} className="flex items-center gap-3 py-2">
+                <input type="hidden" name="itemId" value={item.id} />
+                <input
+                  id={id}
+                  type="checkbox"
+                  name="include"
+                  value={item.id}
+                  checked={ticked.has(item.id)}
+                  onChange={(event) =>
+                    setTicked((current) => {
+                      const next = new Set(current);
+                      if (event.target.checked) next.add(item.id);
+                      else next.delete(item.id);
+                      return next;
+                    })
+                  }
+                  className="size-4"
+                />
+                <Label htmlFor={id} className="min-w-0 flex-1 truncate text-sm font-normal">
+                  {item.foodName}
+                </Label>
+                <Input
+                  name="amount"
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  min="0.01"
+                  defaultValue={item.amount}
+                  aria-label={`Amount of ${item.foodName} (${rowUnit(item)})`}
+                  className="w-24"
+                />
+                <span className="text-muted-foreground w-16 truncate text-xs">
+                  {rowUnit(item)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
 
       <div className="flex items-end gap-2">
         <div className="flex-1 space-y-1">
@@ -276,8 +372,12 @@ export function LogSavedMealForm({
             </SelectContent>
           </Select>
         </div>
-        <PendingButton type="submit" pendingLabel="Logging…">
-          Log
+        <PendingButton
+          type="submit"
+          pendingLabel="Logging…"
+          disabled={items.length > 0 && ticked.size === 0}
+        >
+          {items.length > 0 ? `Log ${ticked.size}` : "Log"}
         </PendingButton>
       </div>
     </form>

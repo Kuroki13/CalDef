@@ -136,6 +136,13 @@ export async function getPersonalLibrary(): Promise<PersonalLibrary> {
       itemCount: detail.items.length,
       kcal: detail.totals.kcal,
       defaultMealTypeId: detail.meal.default_meal_type_id,
+      items: detail.items.map((item) => ({
+        id: item.id,
+        foodName: item.foodName,
+        amount: item.amount,
+        unit: item.unit,
+        servingLabel: item.servingLabel,
+      })),
     })),
   };
 }

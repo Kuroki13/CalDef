@@ -96,6 +96,7 @@ src/
     <feature>/         feature components
   lib/
     food-log.ts        the single-food logging convergence point
+    meal-template.ts   a saved meal's per-log changes (left out, rescaled)
     repeat.ts          log again / copy a meal: re-logs through food-log.ts
                        and logRecipe, never copying an old row's figures
     ai/                resolve.ts · figures.ts · conversations.ts

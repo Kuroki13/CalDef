@@ -22,6 +22,14 @@ export type LibraryMeal = {
   itemCount: number;
   kcal: number;
   defaultMealTypeId: number | null;
+  /** What the meal holds, so its amounts can be changed at log time (§12F). */
+  items: {
+    id: number;
+    foodName: string;
+    amount: number;
+    unit: "g" | "ml" | "serving";
+    servingLabel: string | null;
+  }[];
 };
 
 export type PersonalLibrary = {
