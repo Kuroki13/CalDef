@@ -122,6 +122,8 @@ src/
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
                        typical-portion.ts (your usual amount, suggested only)
+                       confidence.ts (exact / strong / estimated / rough —
+                       where a figure came from, never a change to it)
     tdee/              constants.ts · bmr.ts · trend.ts · adaptive.ts
                        feasibility.ts · milestones.ts
     rate-limit.ts

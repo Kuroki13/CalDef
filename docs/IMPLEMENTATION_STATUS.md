@@ -27,8 +27,8 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12G done and live; 12H confidence next |
-| 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
+| 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
+| 13 | Universal / multilingual food intelligence (spec §13) | TODO — next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -543,7 +543,20 @@ Phase 12, in the order spec §15 sets:
 - **12D — Typical portions: DONE, live on production since 2026-10-07.**
 - **12F — Flexible meal templates: DONE, live on production since 2026-10-07.**
 - **12G — Quick Add: DONE, live on production since 2026-10-07.**
-- 12H — Confidence foundation (spec §11.3): next.
+- **12H — Confidence foundation: DONE, live on production since 2026-10-07.**
+  The levels are shown, not yet used: feeding them into the expenditure
+  estimate is §14.1, which the spec places after 12 and 13.
+
+**Phase 12 is complete.** Every step was verified on development against
+the production build. Production was checked by its SQL suites, its
+deployments and its runtime errors, but never signed in, because that
+would mean writing a fixture account into production's `auth.users`.
+The owner's next use of the diary is that check.
+
+Phase 13 next, in the order spec §15 sets: multilingual normalisation →
+alias resolution → cultural dictionary → personal/family recipe
+resolution → evaluate French and Canadian datasets → restaurant
+resolution → connect confidence to data quality.
 
 Phase 11: everything that can be checked without a phone is done — the
 migrations are applied to CalDef-prod, production permissions and RLS are
@@ -909,6 +922,36 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12H — Confidence foundation, 2026-10-07 (Claude Code)
+
+`lib/nutrition/confidence.ts` (pure) puts each diary entry into one of the
+spec's four levels (§11.3). It changes no number.
+
+| Level | Entries |
+|-------|---------|
+| Exact | the user's own custom food, an official restaurant item (the reviewed catalogue), a recipe they built |
+| Strong | USDA Foundation/SR Legacy, an Open Food Facts product label |
+| Estimated | an AI-drafted recipe (`recipes.ai_drafted_at`), a weighed food logged in ml at 1 g/ml, an unverified USDA row |
+| Rough | a Quick Add |
+
+A drink logged in ml is not marked down, because its label is per 100 ml
+(12A). `getDiaryDay` now reads each entry's food source, verification,
+restaurant marker and basis, plus its recipe's drafted flag, and
+`DiaryEntry` carries `confidence`. Every entry shows a small badge (quiet
+for exact and strong, plainer for estimated and rough), with the
+explanation in its title and accessible name. The diary card says "About
+N% of this day's calories are estimates", the spec's own line, whenever
+any are.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards. 300 g of USDA chicken (322
+kcal) showed **Strong**. A Quick Add, "Cake at work", 400 kcal, showed
+**Rough**. The card read "About 55% of this day's calories are
+estimates", which is 400 of 722.
+
+**Throughout:** 826 unit tests (7 new), with typecheck, lint and build
+clean. No migration.
 
 ### Phase 12G — Quick Add, 2026-10-07 (Claude Code)
 

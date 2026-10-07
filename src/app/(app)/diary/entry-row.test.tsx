@@ -12,7 +12,7 @@ import type { DiaryEntry } from "@/lib/diary";
 const estimate: DiaryEntry = {
   id: 1, meal_type_id: 3, amount: 1, unit: "serving", grams: 0, source: "manual",
   notes: "Dinner out", foodName: "Dinner out", foodBrand: null, servingLabel: null,
-  foodId: null, isFavorite: false, isEstimate: true,
+  foodId: null, isFavorite: false, isEstimate: true, confidence: "rough",
   kcal: 750, protein_g: 45, carbs_g: 0, fat_g: 0,
 };
 
@@ -20,6 +20,7 @@ describe("EntryRow — a Quick Add", () => {
   it("reads as the user's estimate, with no weight and no Edit", () => {
     render(<EntryRow entry={estimate} aiEnabled mealTypes={[]} />);
     expect(screen.getByText("Your estimate")).toBeInTheDocument();
+    expect(screen.getByText("Rough")).toHaveAccessibleName(/Rough confidence: Your own estimate/);
     expect(screen.queryByText(/0 g ·/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit Dinner out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Star/ })).not.toBeInTheDocument();

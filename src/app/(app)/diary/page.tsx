@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { addDays, isIsoDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
 import { getPersonalLibrary } from "@/lib/food/library";
+import { estimatedShare } from "@/lib/nutrition/confidence";
 import { hasGeminiKey } from "@/lib/env.server";
 import { remainingAgainstTarget } from "@/lib/nutrition/totals";
 import { getAccountSetup } from "@/lib/profile";
@@ -74,6 +75,10 @@ export default async function DiaryPage({
   // unimplemented button, which the acceptance criteria forbid — and the
   // manual search above it is the whole feature regardless.
   const aiReady = profile.ai_enabled && hasGeminiKey();
+
+  // §11.3: say how much of the day is estimated rather than letting a
+  // rough figure pass for a weighed one.
+  const uncertainShare = estimatedShare(day.entries);
 
   const remaining = target
     ? remainingAgainstTarget(day.totals.totals, target.macros)
@@ -140,6 +145,12 @@ export default async function DiaryPage({
               "Add your profile and a weigh-in to get a target."
             )}
           </CardDescription>
+          {uncertainShare !== null && uncertainShare > 0 ? (
+            <p className="text-muted-foreground text-sm">
+              About {Math.max(1, Math.round(uncertainShare * 100))}% of this
+              day&rsquo;s calories are estimates.
+            </p>
+          ) : null}
           {target?.fellBackFromPhase ? (
             <p className="text-muted-foreground text-sm">
               Your cut phase has ended, so this is your everyday target again.

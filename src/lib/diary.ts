@@ -9,6 +9,8 @@ import "server-only";
  * do appear are for correctness of the *result*, not for authorization.
  */
 
+import { isRestaurantReference } from "@/lib/food/restaurant-catalogue";
+import { type Confidence, entryConfidence } from "@/lib/nutrition/confidence";
 import { type IsoDate } from "@/lib/dates";
 import { getFavoriteFoodIds } from "@/lib/favorites";
 import {
@@ -43,6 +45,8 @@ export type DiaryEntry = MacroTotals & {
    * as an estimate, never as verified nutrition; it has no weight.
    */
   isEstimate: boolean;
+  /** How far the figures can be trusted (§11.3); never changes them. */
+  confidence: Confidence;
 };
 
 export type DiaryDay = {
@@ -76,7 +80,8 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
       .select(
         `id, meal_type_id, food_id, amount, unit, grams, kcal, protein_g,
          carbs_g, fat_g, source, notes, created_at, is_estimate,
-         foods ( name, brand ),
+         foods ( name, brand, source, is_verified, description, basis_unit ),
+         recipes ( ai_drafted_at ),
          food_servings ( label )`,
       )
       .eq("log_date", date)
@@ -107,6 +112,19 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
     foodId: row.food_id,
     isFavorite: row.food_id !== null && favoriteIds.has(row.food_id),
     isEstimate: row.is_estimate,
+    confidence: entryConfidence({
+      isEstimate: row.is_estimate,
+      food: row.foods
+        ? {
+            source: row.foods.source,
+            isVerified: row.foods.is_verified,
+            isRestaurantReference: isRestaurantReference(row.foods),
+            basisUnit: row.foods.basis_unit === "ml" ? "ml" : "g",
+          }
+        : null,
+      recipe: row.recipes ? { aiDrafted: row.recipes.ai_drafted_at !== null } : null,
+      unit: row.unit as DiaryEntry["unit"],
+    }),
   }));
 
   return {

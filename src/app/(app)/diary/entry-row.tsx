@@ -12,6 +12,7 @@ import { toggleFavoriteAction } from "@/app/(app)/recipes/actions";
 import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfidenceBadge } from "@/components/confidence-badge";
 import { LogAgainForm } from "@/components/repeat-forms";
 import type { DiaryEntry, MealType } from "@/lib/diary";
 import { describePortion } from "@/lib/nutrition/units";
@@ -41,7 +42,10 @@ export function EntryRow({
     <li className="py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{entry.foodName}</p>
+          <p className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium">{entry.foodName}</span>
+            <ConfidenceBadge level={entry.confidence} />
+          </p>
           <p className="text-muted-foreground truncate text-xs">
             {entry.isEstimate ? (
               // Never dressed as a portion of a food: it is not one.
