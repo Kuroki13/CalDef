@@ -10,7 +10,8 @@ import "server-only";
  * for a fresh log: `logCachedFood` re-reads the food's nutrients, and
  * `logRecipe` re-reads the recipe. So an entry logged before a label was
  * corrected is repeated with the corrected label, and nothing in an old row
- * — least of all a calorie figure — is carried forward.
+ * — least of all a calorie figure — is carried forward. The one exception
+ * is a Quick Add, which has no food to recompute from; see `repeatEstimate`.
  *
  * Source entries are read under RLS, so only the caller's own can be
  * repeated; someone else's id simply is not found.
@@ -18,7 +19,7 @@ import "server-only";
 
 import { logCachedFood } from "@/lib/food-log";
 import { logRecipe } from "@/lib/recipes";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, requireUserId } from "@/lib/supabase/server";
 
 export type RepeatItem = {
   entryId: number;
@@ -51,7 +52,8 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
   const { data, error } = await supabase
     .from("food_logs")
     .select(
-      `id, food_id, recipe_id, unit, notes,
+      `id, food_id, recipe_id, unit, notes, is_estimate,
+       kcal, protein_g, carbs_g, fat_g,
        foods ( name ), food_servings ( label )`,
     )
     .in("id", ids);
@@ -78,8 +80,9 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
       continue;
     }
 
-    const result =
-      source.food_id !== null
+    const result = source.is_estimate
+      ? await repeatEstimate(source, item.amount, input)
+      : source.food_id !== null
         ? await logCachedFood({
             foodId: source.food_id,
             logDate: input.logDate,
@@ -103,4 +106,43 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
   }
 
   return { logged, failed };
+}
+
+/**
+ * A Quick Add, again. There is no food to recompute from, so the user's own
+ * figures are what is repeated — scaled by the amount, where 1 is "the same
+ * again" — and the copy is still marked as their estimate. These are the
+ * only figures ever carried from an old row, because they were never
+ * computed in the first place.
+ */
+async function repeatEstimate(
+  source: {
+    notes: string | null;
+    kcal: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+  },
+  times: number,
+  target: { logDate: string; mealTypeId: number },
+): Promise<{ ok: true } | { error: string }> {
+  const scale = (value: number) => Math.round(Number(value) * times * 100) / 100;
+  const userId = await requireUserId();
+  const supabase = await createClient();
+  const { error } = await supabase.from("food_logs").insert({
+    user_id: userId,
+    log_date: target.logDate,
+    meal_type_id: target.mealTypeId,
+    amount: 1,
+    unit: "serving",
+    grams: null,
+    kcal: scale(source.kcal),
+    protein_g: scale(source.protein_g),
+    carbs_g: scale(source.carbs_g),
+    fat_g: scale(source.fat_g),
+    source: "manual",
+    notes: source.notes,
+    is_estimate: true,
+  });
+  return error ? { error: error.message } : { ok: true };
 }

@@ -32,7 +32,11 @@ import {
 import type { DiaryEntry, MealType } from "@/lib/diary";
 
 /** What the amount is counted in, for the label beside it. */
-function unitWord(entry: Pick<DiaryEntry, "unit" | "servingLabel">): string {
+function unitWord(
+  entry: Pick<DiaryEntry, "unit" | "servingLabel"> & { isEstimate?: boolean },
+): string {
+  // An estimate is repeated as a multiple of itself: 1 is the same again.
+  if (entry.isEstimate) return "times";
   if (entry.unit === "serving") return entry.servingLabel?.trim() || "servings";
   return entry.unit;
 }

@@ -55,7 +55,9 @@ export default async function RecipesPage() {
     listArchivedCustomFoods(),
   ]);
 
-  const entryOptions = day.entries.map((entry) => ({
+  // A Quick Add has no food behind it, so it cannot be an ingredient or a
+  // meal item; offering it would only produce an error.
+  const entryOptions = day.entries.filter((entry) => !entry.isEstimate).map((entry) => ({
     id: entry.id,
     label: `${entry.foodName} · ${describePortion(entry.amount, entry.unit, entry.servingLabel)} · ${Math.round(entry.kcal)} kcal`,
   }));

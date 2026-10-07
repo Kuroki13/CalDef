@@ -38,6 +38,11 @@ export type DiaryEntry = MacroTotals & {
   /** Null for a recipe-backed entry, which has no single food to star. */
   foodId: number | null;
   isFavorite: boolean;
+  /**
+   * A Quick Add (§12G): the user's own figures, attached to no food. Shown
+   * as an estimate, never as verified nutrition; it has no weight.
+   */
+  isEstimate: boolean;
 };
 
 export type DiaryDay = {
@@ -70,7 +75,7 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
       .from("food_logs")
       .select(
         `id, meal_type_id, food_id, amount, unit, grams, kcal, protein_g,
-         carbs_g, fat_g, source, notes, created_at,
+         carbs_g, fat_g, source, notes, created_at, is_estimate,
          foods ( name, brand ),
          food_servings ( label )`,
       )
@@ -101,6 +106,7 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
     servingLabel: row.food_servings?.label ?? null,
     foodId: row.food_id,
     isFavorite: row.food_id !== null && favoriteIds.has(row.food_id),
+    isEstimate: row.is_estimate,
   }));
 
   return {

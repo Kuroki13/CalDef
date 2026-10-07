@@ -17,6 +17,7 @@ import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
 import { DescribeMeal } from "@/components/describe-meal";
 import { MyFoods } from "@/components/my-foods";
+import { QuickAddForm } from "@/components/quick-add-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PendingButton } from "@/components/pending-button";
 import { SourceBadge } from "@/components/source-badge";
@@ -87,6 +88,7 @@ export function AddFood({
   const [chosen, setChosen] = useState<Food | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [creatingFood, setCreatingFood] = useState(false);
+  const [quickAdding, setQuickAdding] = useState(false);
 
   /**
    * Resolves a scanned code through our own route.
@@ -236,6 +238,12 @@ export function AddFood({
                 onDetected={lookupBarcode}
                 onCancel={() => setScannerOpen(false)}
               />
+            ) : quickAdding ? (
+              <QuickAddForm
+                logDate={logDate}
+                mealTypes={mealTypes}
+                onCancel={() => setQuickAdding(false)}
+              />
             ) : creatingFood ? (
               /* Saving jumps straight to the portion fields: someone adds a
                  food because they are about to eat it. */
@@ -310,15 +318,25 @@ export function AddFood({
               </div>
             ) : null}
 
-            {!creatingFood && !scannerOpen ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setCreatingFood(true)}
-              >
-                Add your own food
-              </Button>
+            {!creatingFood && !scannerOpen && !quickAdding ? (
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCreatingFood(true)}
+                >
+                  Add your own food
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setQuickAdding(true)}
+                >
+                  Quick add an estimate
+                </Button>
+              </div>
             ) : null}
 
             <ul className="divide-y">

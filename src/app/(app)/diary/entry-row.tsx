@@ -43,9 +43,16 @@ export function EntryRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{entry.foodName}</p>
           <p className="text-muted-foreground truncate text-xs">
-            {entry.foodBrand ? `${entry.foodBrand} · ` : ""}
-            {describePortion(entry.amount, entry.unit, entry.servingLabel)}
-            {entry.unit !== "g" ? ` · ${Math.round(entry.grams)} g` : ""}
+            {entry.isEstimate ? (
+              // Never dressed as a portion of a food: it is not one.
+              <span className="text-foreground font-medium">Your estimate</span>
+            ) : (
+              <>
+                {entry.foodBrand ? `${entry.foodBrand} · ` : ""}
+                {describePortion(entry.amount, entry.unit, entry.servingLabel)}
+                {entry.unit !== "g" ? ` · ${Math.round(entry.grams)} g` : ""}
+              </>
+            )}
             {" · "}
             {Math.round(entry.protein_g)}P {Math.round(entry.carbs_g)}C{" "}
             {Math.round(entry.fat_g)}F
@@ -133,15 +140,19 @@ export function EntryRow({
                 Again
               </Button>
             ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setEditing(true)}
-              aria-label={`Edit ${entry.foodName}`}
-            >
-              Edit
-            </Button>
+            {/* An estimate has no food to recompute a new amount from;
+                remove it and add it again instead. */}
+            {entry.isEstimate ? null : (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setEditing(true)}
+                aria-label={`Edit ${entry.foodName}`}
+              >
+                Edit
+              </Button>
+            )}
             <form action={deleteEntry}>
               <input type="hidden" name="entryId" value={entry.id} />
               <PendingButton

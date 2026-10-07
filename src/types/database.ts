@@ -266,8 +266,9 @@ export type Database = {
           created_at: string
           fat_g: number
           food_id: number | null
-          grams: number
+          grams: number | null
           id: number
+          is_estimate: boolean
           kcal: number
           log_date: string
           meal_type_id: number
@@ -286,8 +287,9 @@ export type Database = {
           created_at?: string
           fat_g?: number
           food_id?: number | null
-          grams: number
+          grams?: number | null
           id?: never
+          is_estimate?: boolean
           kcal: number
           log_date: string
           meal_type_id: number
@@ -306,8 +308,9 @@ export type Database = {
           created_at?: string
           fat_g?: number
           food_id?: number | null
-          grams?: number
+          grams?: number | null
           id?: never
+          is_estimate?: boolean
           kcal?: number
           log_date?: string
           meal_type_id?: number

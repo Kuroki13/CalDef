@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12F done and live; 12G Quick Add next |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12F live; 12G built and verified on development, **waiting on migration 0014 in production** |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -542,6 +542,12 @@ Phase 12, in the order spec §15 sets:
   12B). Saved meals whose amounts can change at log time are 12F.
 - **12D — Typical portions: DONE, live on production since 2026-10-07.**
 - **12F — Flexible meal templates: DONE, live on production since 2026-10-07.**
+- **12G — Quick Add: built and verified on development, on branch
+  `phase-12g-quick-add`.** Waiting on the owner to apply migration
+  `20261007000003_quick_add_estimates` to production. The code reads
+  `food_logs.is_estimate`, so `main` must not get it first. Once the
+  migration is in: run `quick_add.sql` and `rls_isolation.sql` against
+  production, merge, push, check the deploy.
 - 12G Quick Add → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
@@ -911,6 +917,50 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12G — Quick Add, 2026-10-07 (Claude Code)
+
+"Dinner out — 750 kcal, 45 g protein" without creating a food. This is the
+one place where a typed calorie figure reaches the diary. It is allowed
+because the entry is labelled as the user's estimate everywhere and never
+becomes a food.
+
+- **Migration 0014** (`20261007000003_quick_add_estimates`) adds
+  `food_logs.is_estimate` (default false). It replaces the
+  exactly-one-of-food-or-recipe check with `food_logs_what_was_eaten`,
+  which keeps the same rule for every row that is not an estimate and lets
+  an estimate point at nothing, provided it carries a label. `grams` may be
+  null only on an estimate (`food_logs_grams_unless_estimate`), so no
+  weight is invented, and one estimate is capped at 5000 kcal. No row
+  changed, and the deployed code never sets the flag, so the migration is
+  safe ahead of the deploy.
+- `quick-add-input.ts` (pure) needs a label and calories; macros are
+  optional, and blank means 0. It refuses macros that need clearly more
+  energy than was entered (4/4/9, with 15% + 20 kcal of slack for label
+  rounding). Macros adding up to *less* are fine: the user may know only
+  the protein.
+- In the diary the row reads **"Your estimate"**, with no portion and no
+  weight. It has no Edit (no food to recompute from) and no star, and it
+  can be removed or repeated. Repeating carries the user's own figures,
+  scaled, still marked as an estimate; it is the one exception to "nothing
+  is carried from an old row", because those figures were never computed.
+  Estimates are left out of the Recipes screen's "save today's food"
+  pickers, of My Foods and of typical portions, since none of those can use
+  a row with no food.
+
+**Verified on development** (migration applied there, `quick_add.sql`
+new and passing, `rls_isolation` and `custom_food_atomicity` still passing)
+with the production build in Chrome and a fixture account that was removed
+afterwards:
+- 300 kcal with 100 g protein was refused: "Those macros come to about
+  400 kcal, more than the 300 kcal entered."
+- 750 kcal with 45 g protein was stored with `is_estimate`, no food and
+  null grams. The day went from 1749 to 999 kcal left, and the row read
+  "Your estimate · 45P" with only Repeat and Remove.
+- The account had 0 foods afterwards, and My Foods stayed empty.
+
+**Throughout:** 819 unit tests (14 new), with typecheck, lint and build
+clean.
 
 ### Phase 12F — Flexible meal templates, 2026-10-07 (Claude Code)
 

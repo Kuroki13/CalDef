@@ -125,7 +125,8 @@ export async function createSavedMealFromEntries(
       serving_id: e.serving_id,
       amount: e.amount,
       unit: e.unit,
-      grams: e.grams,
+      // A food row always has a weight (food_logs_grams_unless_estimate).
+      grams: Number(e.grams),
       sort_order: index,
     })),
   );

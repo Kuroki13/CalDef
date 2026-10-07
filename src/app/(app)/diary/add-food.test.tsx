@@ -11,6 +11,7 @@ vi.mock("@/components/barcode-scanner", () => ({ BarcodeScanner: () => null }));
 vi.mock("@/components/describe-dish", () => ({ DescribeDish: () => null }));
 vi.mock("@/components/describe-meal", () => ({ DescribeMeal: () => null }));
 vi.mock("@/components/custom-food-form", () => ({ CustomFoodForm: () => null }));
+vi.mock("@/components/quick-add-form", () => ({ QuickAddForm: () => null }));
 
 const { AddFood } = await import("@/app/(app)/diary/add-food");
 import { EMPTY_LIBRARY, type PersonalLibrary } from "@/lib/food/library-types";

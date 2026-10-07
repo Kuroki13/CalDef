@@ -283,6 +283,13 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     is unchanged. The corollary is that removing a food that history
     points at archives it rather than deleting it.
 
+16. **A Quick Add is the one typed calorie figure, and it says so.**
+    `food_logs.is_estimate` rows carry the user's own numbers, attached to
+    no food, labelled, with no weight. Everywhere they appear they read as
+    "Your estimate", and nothing turns one into a food implicitly. Invariant
+    1 is unaffected: the model still never produces a number, and every
+    other row is still computed from stored nutrition.
+
 15. **Nutrients are per 100 g, even for a drink.** `foods.basis_unit` says
     whether a label was per 100 g or per 100 ml. It changes only the words
     and the default unit, never the arithmetic. Millilitres convert at
