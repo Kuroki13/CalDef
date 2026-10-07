@@ -923,6 +923,37 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### One question when search finds nothing, 2026-10-07 (Claude Code)
+
+The owner's verdict on the previous version, with a screenshot: "not easy
+to understand". It was four ways forward at once: a paragraph naming every
+option, a bare "Describe it instead" button, a "Describe this dish" recipe
+card that could sit open, and the two links underneath. Two of them both
+started with "Describe".
+
+It is now a single question, **No match for "Maqlouba" — How do you want
+to add it?**, with four answers. Each has a one-line hint
+(`components/no-match-choices.tsx`):
+- Describe what you ate: the assistant matches it to real foods. Opens the
+  Describe a meal tab with the text filled in.
+- Build it from ingredients: for home cooking. Opens the recipe drafter,
+  now titled the same way; Cancel returns to the choices.
+- Add it from the packet: the custom food form.
+- Just the calories: Quick Add.
+
+The first two appear only with the assistant on. Nothing opens by itself.
+The "Add your own food / Quick add" links are hidden while the choices are
+shown, since they would repeat two of them. When results came back but
+none fit, the heading says so and the results stay listed below.
+
+**Verified on development** with the production build in Chrome, at
+desktop and at 390 px width, with a fixture account that was removed
+afterwards. "Maqlouba" showed the question and its four answers. "Build it
+from ingredients" opened the drafter with "Maqlouba" filled in, and Cancel
+returned to the choices.
+
+**Throughout:** 830 unit tests, with typecheck, lint and build clean.
+
 ### "Describe it instead" after a fruitless search, 2026-10-07 (Claude Code)
 
 The owner asked why describing a meal to the AI no longer appeared when a

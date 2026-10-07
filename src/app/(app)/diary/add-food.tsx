@@ -17,6 +17,7 @@ import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
 import { DescribeMeal } from "@/components/describe-meal";
 import { MyFoods } from "@/components/my-foods";
+import { NoMatchChoices } from "@/components/no-match-choices";
 import { QuickAddForm } from "@/components/quick-add-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PendingButton } from "@/components/pending-button";
@@ -93,6 +94,11 @@ export function AddFood({
   // What a fruitless search hands to "Describe a meal". It doubles as the
   // tab's key, so a second hand-over starts from the new text.
   const [describeSeed, setDescribeSeed] = useState("");
+  const [draftingDish, setDraftingDish] = useState(false);
+
+  const noMatch =
+    search.status === "done" &&
+    (search.foods.length === 0 || !hasStrongMatch(query, search.foods));
 
   /**
    * Resolves a scanned code through our own route.
@@ -162,6 +168,7 @@ export function AddFood({
     const text = query.trim();
     if (text.length < 2) return;
 
+    setDraftingDish(false);
     setSearch({ ...IDLE, status: "loading" });
     try {
       const response = await fetch(
@@ -311,43 +318,38 @@ export function AddFood({
             {/* Nothing at all counts as useless whatever the length of the
                 query: `hasStrongMatch` deems one word always matched, which
                 is right for "chicken" with forty results and wrong for
-                "maqlouba" with none. */}
-            {search.status === "done" &&
-            (search.foods.length === 0 || !hasStrongMatch(query, search.foods)) ? (
-              <div className="space-y-2">
-                <p className="text-muted-foreground text-sm">
-                  {search.foods.length === 0
-                    ? "Nothing found."
-                    : "Nothing here looks like what you asked for."}{" "}
-                  {aiReady
-                    ? "Describe it in your own words and the assistant will read it as a meal, add it yourself from the packet, or — for something home-cooked — have the assistant draft the ingredients."
-                    : "Try a simpler description, add it yourself from the packet, or build it as a recipe on the Recipes screen, one ingredient at a time."}
-                </p>
-                {/* The dish name is what was searched for, so the draft
-                    starts from what the user already typed. */}
-                {aiReady ? (
-                  <div className="flex flex-wrap items-start gap-2">
-                    {/* The same sentence, read as a meal rather than looked
-                        up as one food: the faster path, offered where the
-                        eye already is instead of behind a tab. */}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setDescribeSeed(query.trim());
-                        setTab("describe");
-                      }}
-                    >
-                      Describe it instead
-                    </Button>
-                  </div>
-                ) : null}
-                {aiReady ? <DescribeDish initialDish={query} /> : null}
-              </div>
+                "maqlouba" with none. Useless also covers results that are
+                there but are not what was asked for — "chicken maqlouba"
+                returning chicken spread and chicken fat. */}
+            {noMatch && !creatingFood && !quickAdding && !scannerOpen ? (
+              draftingDish ? (
+                <DescribeDish
+                  initialDish={query.trim()}
+                  startOpen
+                  onCancel={() => setDraftingDish(false)}
+                />
+              ) : (
+                <NoMatchChoices
+                  query={query}
+                  hadResults={search.foods.length > 0}
+                  aiReady={aiReady}
+                  onChoose={(choice) => {
+                    if (choice === "describe") {
+                      setDescribeSeed(query.trim());
+                      setTab("describe");
+                    } else if (choice === "draft") {
+                      setDraftingDish(true);
+                    } else if (choice === "packet") {
+                      setCreatingFood(true);
+                    } else {
+                      setQuickAdding(true);
+                    }
+                  }}
+                />
+              )
             ) : null}
 
-            {!creatingFood && !scannerOpen && !quickAdding ? (
+            {!creatingFood && !scannerOpen && !quickAdding && !noMatch ? (
               <div className="flex flex-wrap gap-1">
                 <Button
                   type="button"

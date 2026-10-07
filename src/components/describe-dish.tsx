@@ -28,8 +28,18 @@ type Draft = {
   degraded: boolean;
 };
 
-export function DescribeDish({ initialDish = "" }: { initialDish?: string }) {
-  const [open, setOpen] = useState(false);
+export function DescribeDish({
+  initialDish = "",
+  startOpen = false,
+  onCancel,
+}: {
+  initialDish?: string;
+  /** Opened by a deliberate choice, so skip the button that opens it. */
+  startOpen?: boolean;
+  /** Where Cancel goes when someone else opened this. */
+  onCancel?: () => void;
+}) {
+  const [open, setOpen] = useState(startOpen);
   const [dish, setDish] = useState(initialDish);
   const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +88,8 @@ export function DescribeDish({ initialDish = "" }: { initialDish?: string }) {
         degraded={draft.degraded}
         onDismiss={() => {
           setDraft(null);
-          setOpen(false);
+          if (onCancel) onCancel();
+          else setOpen(false);
         }}
       />
     );
@@ -99,12 +110,10 @@ export function DescribeDish({ initialDish = "" }: { initialDish?: string }) {
 
   return (
     <div className="space-y-2 rounded-lg border p-3">
-      <p className="text-sm font-medium">Describe this dish</p>
+      <p className="text-sm font-medium">Build it from ingredients</p>
       <p className="text-muted-foreground text-xs">
-        For something home-cooked that no food database holds — the assistant
-        proposes what goes in it and how much. You review and correct every
-        amount; the calories are then computed from the real foods behind each
-        ingredient, not from the assistant.
+        The assistant suggests the ingredients and amounts. You check each
+        one, and the calories come from those real foods.
       </p>
 
       <div className="flex gap-2">
@@ -136,7 +145,7 @@ export function DescribeDish({ initialDish = "" }: { initialDish?: string }) {
       <button
         type="button"
         className="text-muted-foreground text-xs underline"
-        onClick={() => setOpen(false)}
+        onClick={() => (onCancel ? onCancel() : setOpen(false))}
       >
         Cancel
       </button>

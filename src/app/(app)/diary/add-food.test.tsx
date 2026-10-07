@@ -91,35 +91,52 @@ describe("AddFood — your usual portion (§12D)", () => {
 describe("AddFood — when search finds nothing", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const searchFor = async (text: string, foods: unknown[] = []) => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ foods }), { status: 200 })),
-    );
-    render(<AddFood logDate="2026-10-07" mealTypes={meals} aiReady />);
-    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: text } });
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
-    return screen.findByText(/Nothing found/, {}, { timeout: 5000 });
-  };
-
-  it("offers to describe it, even for a single word, and hands over what was typed", async () => {
-    await searchFor("maqlouba");
-    expect(screen.getByText("describe-dish: maqlouba")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Describe it instead" }));
-    expect(await screen.findByText("describe-meal: maqlouba")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Describe a meal" })).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("offers nothing from the assistant when it is off", async () => {
+  const searchFor = async (text: string, aiReady = true) => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ foods: [] }), { status: 200 })),
     );
-    render(<AddFood logDate="2026-10-07" mealTypes={meals} />);
-    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: "maqlouba" } });
+    render(<AddFood logDate="2026-10-07" mealTypes={meals} aiReady={aiReady} />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: text } });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
-    await screen.findByText(/Nothing found/, {}, { timeout: 5000 });
-    expect(screen.queryByRole("button", { name: "Describe it instead" })).not.toBeInTheDocument();
+    await screen.findByText(/No match for/, {}, { timeout: 5000 });
+  };
+
+  it("asks one question with plainly named answers, even for a single word", async () => {
+    await searchFor("Maqlouba");
+    expect(screen.getByText(/How do you want to add it/)).toBeInTheDocument();
+    for (const name of [
+      /Describe what you ate/,
+      /Build it from ingredients/,
+      /Add it from the packet/,
+      /Just the calories/,
+    ]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    // Nothing opens by itself, and the links below would only repeat two
+    // of the answers.
+    expect(screen.queryByText(/describe-dish/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add your own food" })).not.toBeInTheDocument();
+  });
+
+  it("hands what was typed to Describe a meal", async () => {
+    await searchFor("Maqlouba");
+    fireEvent.click(screen.getByRole("button", { name: /Describe what you ate/ }));
+    expect(await screen.findByText("describe-meal: Maqlouba")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Describe a meal" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens the recipe draft only when asked, starting from what was typed", async () => {
+    await searchFor("Maqlouba");
+    fireEvent.click(screen.getByRole("button", { name: /Build it from ingredients/ }));
+    expect(screen.getByText("describe-dish: Maqlouba")).toBeInTheDocument();
+  });
+
+  it("offers only the two paths that need no assistant when it is off", async () => {
+    await searchFor("Maqlouba", false);
+    expect(screen.queryByRole("button", { name: /Describe what you ate/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Build it from ingredients/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add it from the packet/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Just the calories/ })).toBeInTheDocument();
   });
 });
