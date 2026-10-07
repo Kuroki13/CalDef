@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12F live; 12G built and verified on development, **waiting on migration 0014 in production** |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12G done and live; 12H confidence next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -542,16 +542,8 @@ Phase 12, in the order spec §15 sets:
   12B). Saved meals whose amounts can change at log time are 12F.
 - **12D — Typical portions: DONE, live on production since 2026-10-07.**
 - **12F — Flexible meal templates: DONE, live on production since 2026-10-07.**
-- **12G — Quick Add: built and verified on development, on branch
-  `phase-12g-quick-add`.** Waiting on the owner to apply migration
-  `20261007000003_quick_add_estimates` to production. The code reads
-  `food_logs.is_estimate`, so `main` must not get it first. Once the
-  migration is in: run `quick_add.sql` and `rls_isolation.sql` against
-  production, merge, push, check the deploy.
-- 12G Quick Add → 12D typical
-  portions → 12G Quick Add and 12H confidence.
-
-Phase 11:
+- **12G — Quick Add: DONE, live on production since 2026-10-07.**
+- 12H — Confidence foundation (spec §11.3): next.
 
 Phase 11: everything that can be checked without a phone is done — the
 migrations are applied to CalDef-prod, production permissions and RLS are
@@ -961,6 +953,11 @@ afterwards:
 
 **Throughout:** 819 unit tests (14 new), with typecheck, lint and build
 clean.
+
+**Production:** the owner applied migration 0014, so production now has 14
+migrations. `quick_add`, `rls_isolation`, `custom_food_atomicity` and
+`custom_food_studio` then passed against production and rolled back. Only
+after that was the branch merged into `main` and deployed.
 
 ### Phase 12F — Flexible meal templates, 2026-10-07 (Claude Code)
 
