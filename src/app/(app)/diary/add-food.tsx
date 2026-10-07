@@ -18,6 +18,7 @@ import { CustomFoodForm } from "@/components/custom-food-form";
 import { DescribeMeal } from "@/components/describe-meal";
 import { MyFoods } from "@/components/my-foods";
 import { NoMatchChoices } from "@/components/no-match-choices";
+import { RecognisedDishNote } from "@/components/recognised-dish";
 import { QuickAddForm } from "@/components/quick-add-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PendingButton } from "@/components/pending-button";
@@ -46,7 +47,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { hasStrongMatch } from "@/lib/food/text-match";
-import type { Food } from "@/lib/food/types";
+import type { Food, RecognisedDish } from "@/lib/food/types";
 import { describePortion } from "@/lib/nutrition/units";
 import type { UsualPortion } from "@/lib/nutrition/typical-portion";
 import type { MealType } from "@/lib/diary";
@@ -62,6 +63,10 @@ type SearchState = {
   foods: Food[];
   notice: string | null;
   error: string | null;
+  /** A dish the query named, in whatever spelling (§13A). */
+  recognised: RecognisedDish | null;
+  /** The server's verdict on whether anything answers the query. */
+  strongMatch: boolean | null;
 };
 
 const IDLE: SearchState = {
@@ -69,6 +74,8 @@ const IDLE: SearchState = {
   foods: [],
   notice: null,
   error: null,
+  recognised: null,
+  strongMatch: null,
 };
 
 export function AddFood({
@@ -96,9 +103,12 @@ export function AddFood({
   const [describeSeed, setDescribeSeed] = useState("");
   const [draftingDish, setDraftingDish] = useState(false);
 
+  // The server knows when "Mom's Maqlouba" answers "ma2loubeh", which a
+  // spelling comparison here cannot; its verdict wins when it gives one.
   const noMatch =
     search.status === "done" &&
-    (search.foods.length === 0 || !hasStrongMatch(query, search.foods));
+    (search.foods.length === 0 ||
+      (search.strongMatch ?? hasStrongMatch(query, search.foods)) === false);
 
   /**
    * Resolves a scanned code through our own route.
@@ -124,6 +134,7 @@ export function AddFood({
       }
 
       setSearch({
+        ...IDLE,
         status: "done",
         foods: [],
         notice: null,
@@ -133,6 +144,7 @@ export function AddFood({
       });
     } catch {
       setSearch({
+        ...IDLE,
         status: "error",
         foods: [],
         notice: null,
@@ -165,7 +177,12 @@ export function AddFood({
 
   async function runSearch(event: React.FormEvent) {
     event.preventDefault();
-    const text = query.trim();
+    await searchFor(query);
+  }
+
+  /** Also called by the variant question, with the variant's phrase. */
+  async function searchFor(raw: string) {
+    const text = raw.trim();
     if (text.length < 2) return;
 
     setDraftingDish(false);
@@ -178,6 +195,7 @@ export function AddFood({
 
       if (!response.ok) {
         setSearch({
+          ...IDLE,
           status: "error",
           foods: [],
           notice: null,
@@ -191,9 +209,12 @@ export function AddFood({
         foods: body.foods ?? [],
         notice: body.notice ?? null,
         error: null,
+        recognised: body.recognised ?? null,
+        strongMatch: typeof body.strongMatch === "boolean" ? body.strongMatch : null,
       });
     } catch {
       setSearch({
+        ...IDLE,
         status: "error",
         foods: [],
         notice: null,
@@ -315,16 +336,32 @@ export function AddFood({
               frankfurters: eight results, none of them the dish. The test is
               whether anything accounts for every word that was typed.
             */}
+            {search.status === "done" && search.recognised ? (
+              <RecognisedDishNote
+                dish={search.recognised}
+                onChooseVariant={(phrase) => {
+                  setQuery(phrase);
+                  void searchFor(phrase);
+                }}
+              />
+            ) : null}
+
             {/* Nothing at all counts as useless whatever the length of the
                 query: `hasStrongMatch` deems one word always matched, which
                 is right for "chicken" with forty results and wrong for
                 "maqlouba" with none. Useless also covers results that are
                 there but are not what was asked for — "chicken maqlouba"
                 returning chicken spread and chicken fat. */}
-            {noMatch && !creatingFood && !quickAdding && !scannerOpen ? (
+            {/* One question at a time (§15.2): while "which kind?" is open,
+                its answer comes first, and these follow it. */}
+            {noMatch &&
+            !search.recognised?.variantOpen &&
+            !creatingFood &&
+            !quickAdding &&
+            !scannerOpen ? (
               draftingDish ? (
                 <DescribeDish
-                  initialDish={query.trim()}
+                  initialDish={search.recognised?.searchAs ?? query.trim()}
                   startOpen
                   onCancel={() => setDraftingDish(false)}
                 />

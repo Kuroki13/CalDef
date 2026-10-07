@@ -10,12 +10,14 @@ const loggedFoodCounts = vi.fn();
 const usdaSearch = vi.fn();
 const offSearch = vi.fn();
 const offLookupBarcode = vi.fn();
+const ownFoodsNamingDish = vi.fn();
 
 vi.mock("@/lib/food/cache", () => ({
   searchCache: (...a: unknown[]) => searchCache(...a),
   findCachedByBarcode: (...a: unknown[]) => findCachedByBarcode(...a),
   cacheFood: (...a: unknown[]) => cacheFood(...a),
   refreshCachedFood: (...a: unknown[]) => refreshCachedFood(...a),
+  ownFoodsNamingDish: (...a: unknown[]) => ownFoodsNamingDish(...a),
 }));
 
 // The tests below speak in counts; the registry now takes the full
@@ -87,6 +89,7 @@ const failed = (source: ProviderResult["source"]): ProviderResult => ({
 beforeEach(() => {
   vi.clearAllMocks();
   searchCache.mockResolvedValue([]);
+  ownFoodsNamingDish.mockResolvedValue([]);
   loggedFoodCounts.mockResolvedValue(new Map());
   usdaSearch.mockResolvedValue(ok("usda", []));
   offSearch.mockResolvedValue(ok("off", []));
@@ -424,5 +427,55 @@ describe("ranking a one-word query", () => {
 
     expect(outcome.foods).toHaveLength(1);
     expect(outcome.degraded).toBe(false);
+  });
+});
+
+describe("searchFoods — a dish in any spelling (§13A)", () => {
+  const fresh = new Date().toISOString();
+
+  it("asks the providers for the dish by its database name, not the spelling typed", async () => {
+    await searchFoods({ text: "7ummus" });
+    expect(usdaSearch).toHaveBeenCalledWith(expect.objectContaining({ text: "hummus" }));
+    expect(offSearch).toHaveBeenCalledWith(expect.objectContaining({ text: "hummus" }));
+  });
+
+  it("carries the variant into the search: ma2loubeh djej is chicken maqluba", async () => {
+    const outcome = await searchFoods({ text: "ma2loubeh djej" });
+    expect(usdaSearch).toHaveBeenCalledWith(expect.objectContaining({ text: "chicken maqluba" }));
+    expect(outcome.recognised).toMatchObject({
+      id: "maqluba",
+      arabic: "مقلوبة",
+      variant: { id: "chicken" },
+      variantOpen: false,
+    });
+  });
+
+  it("puts the user's own food first when it names the dish in their spelling", async () => {
+    ownFoodsNamingDish.mockResolvedValue([
+      { ...food("custom", "mom", "Mom's Maqlouba"), id: 9, refreshedAt: fresh },
+    ]);
+    usdaSearch.mockResolvedValue(ok("usda", [food("usda", "r", "Rice, white, cooked")]));
+
+    const outcome = await searchFoods({ text: "ma2loubeh" });
+
+    expect(ownFoodsNamingDish).toHaveBeenCalledWith("maqluba");
+    expect(outcome.foods[0].name).toBe("Mom's Maqlouba");
+    expect(outcome.strongMatch).toBe(true);
+    // Her maqlouba is which kind; asking would be interrogation (§13E).
+    expect(outcome.recognised?.variantOpen).toBe(false);
+  });
+
+  it("says the question is open when the variant matters and was not given", async () => {
+    const outcome = await searchFoods({ text: "warak enab" });
+    expect(outcome.recognised?.variantOpen).toBe(true);
+    expect(outcome.recognised?.variants.map((v) => v.id)).toEqual(["meat", "vegetarian"]);
+    expect(outcome.strongMatch).toBe(false);
+  });
+
+  it("leaves an ordinary search exactly as it was", async () => {
+    const outcome = await searchFoods({ text: "chicken breast" });
+    expect(usdaSearch).toHaveBeenCalledWith(expect.objectContaining({ text: "chicken breast" }));
+    expect(ownFoodsNamingDish).not.toHaveBeenCalled();
+    expect(outcome.recognised).toBeNull();
   });
 });

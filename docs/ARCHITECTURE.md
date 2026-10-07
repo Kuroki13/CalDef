@@ -109,6 +109,9 @@ src/
                        cache.ts · registry.ts
                        custom.ts · custom-input.ts (the user's own foods)
                        basis.ts (g or ml: how a food's amounts read)
+                       cultural/ normalize.ts · dictionary.ts · recognise.ts
+                       (dishes in any spelling or script — identity only,
+                       never nutrition; local, no model call)
                        personal-rank.ts (search order: word coverage,
                        then phrase + the user's own history)
                        library.ts · library-rank.ts · library-types.ts
@@ -284,6 +287,13 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     and the RLS suite logs an entry, edits the food and checks the entry
     is unchanged. The corollary is that removing a food that history
     points at archives it rather than deleting it.
+
+17. **The cultural dictionary knows what a dish is, never what is in it.**
+    `lib/food/cultural/dictionary.ts` carries names, aliases, variants and
+    the phrase databases use, and a test fails if a nutrition word appears
+    in it. Recognising "maqluba" decides what to search for and what to ask;
+    the calories still come from a food, a recipe or a database row, exactly
+    as invariant 1 requires.
 
 16. **A Quick Add is the one typed calorie figure, and it says so.**
     `food_logs.is_estimate` rows carry the user's own numbers, attached to

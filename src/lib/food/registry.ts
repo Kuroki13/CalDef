@@ -10,7 +10,14 @@ import "server-only";
  * with a note that it is incomplete.
  */
 
-import { cacheFood, refreshCachedFood, searchCache } from "@/lib/food/cache";
+import {
+  cacheFood,
+  ownFoodsNamingDish,
+  refreshCachedFood,
+  searchCache,
+} from "@/lib/food/cache";
+import { type Recognised, namesDish, recognise } from "@/lib/food/cultural/recognise";
+import { hasStrongMatch } from "@/lib/food/text-match";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
 import { personalSignals } from "@/lib/food/history";
@@ -23,6 +30,7 @@ import type {
   Food,
   FoodSearchQuery,
   ProviderResult,
+  RecognisedDish,
   SearchOutcome,
 } from "@/lib/food/types";
 
@@ -38,13 +46,25 @@ export const PROVIDERS = [usdaProvider, offProvider];
 export async function searchFoods(
   query: FoodSearchQuery,
 ): Promise<SearchOutcome> {
-  const [cacheResult, history] = await Promise.all([
+  // §13A: a dish named in any spelling or script is searched by the phrase
+  // the databases file it under — "7ummus" is looked up as "hummus",
+  // "ma2loubeh djej" as "chicken maqluba". The cache is searched with what
+  // was typed as well, since the user's own food may carry their spelling.
+  const dish = recognise(query.text)[0] ?? null;
+  const providerQuery = dish ? { ...query, text: dish.searchAs } : query;
+  const rankText = providerQuery.text;
+
+  const [cacheResult, cacheByDish, ownDishFoods, history] = await Promise.all([
     safeProviderCall("cache", () => searchCache(query)),
+    dish && dish.searchAs !== query.text
+      ? safeProviderCall("cache", () => searchCache(providerQuery))
+      : Promise.resolve(null),
+    dish ? ownFoodsNamingDish(dish.dish.id).catch(() => []) : Promise.resolve([]),
     personalSignals(),
   ]);
 
   const providerResults = await Promise.all(
-    PROVIDERS.map((provider) => provider.search(query)),
+    PROVIDERS.map((provider) => provider.search(providerQuery)),
   );
 
   const results = [cacheResult, ...providerResults];
@@ -57,20 +77,38 @@ export async function searchFoods(
     providerResults.flatMap((result) => result.foods),
   );
 
+  const namesSameDish = (food: Food) =>
+    dish !== null && namesDish(food.name, dish.dish.id);
+
   const references = searchRestaurantCatalogue(query.text);
-  const foods = dedupe([
-    ...references,
-    ...rank(
-      dedupe([...refreshed, ...results.flatMap((r) => r.foods)]),
-      query.text,
-      history,
-    ),
-  ]);
+  const ranked = rank(
+    dedupe([
+      ...refreshed,
+      ...ownDishFoods,
+      ...results.flatMap((r) => r.foods),
+      ...(cacheByDish?.foods ?? []),
+    ]),
+    rankText,
+    history,
+    namesSameDish,
+  );
+  const foods = dedupe([...references, ...ranked]);
 
   return {
     foods,
     results,
     degraded: results.some((r) => !r.ok),
+    // §13E: no question when the user's own food already answers it —
+    // "Mom's Maqlouba" is which kind.
+    recognised: dish
+      ? { ...describeRecognised(dish), variantOpen: dish.variantOpen && ownDishFoods.length === 0 }
+      : null,
+    strongMatch:
+      references.length > 0 ||
+      ranked.some(namesSameDish) ||
+      (rankText.trim().split(/\s+/).length > 1
+        ? hasStrongMatch(rankText, ranked)
+        : ranked.length > 0),
   };
 }
 
@@ -121,8 +159,27 @@ function rank(
   foods: readonly Food[],
   text: string,
   signals?: PersonalSignals,
+  namesSameDish?: (food: Food) => boolean,
 ): Food[] {
-  return rankFoods(foods, text, signals);
+  return rankFoods(foods, text, signals, namesSameDish);
+}
+
+/** What the screen is told about a recognised dish — names, never numbers. */
+function describeRecognised(found: Recognised): RecognisedDish {
+  return {
+    id: found.dish.id,
+    name: found.dish.name,
+    arabic: found.dish.arabic,
+    about: found.dish.about,
+    variant: found.variant ? { id: found.variant.id, label: found.variant.label } : null,
+    variants: (found.dish.variants ?? []).map((v) => ({
+      id: v.id,
+      label: v.label,
+      searchAs: v.searchAs,
+    })),
+    variantOpen: found.variantOpen,
+    searchAs: found.searchAs,
+  };
 }
 
 /**

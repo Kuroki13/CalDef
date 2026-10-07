@@ -68,6 +68,8 @@ export async function GET(request: NextRequest) {
     {
       foods: outcome.foods,
       degraded: outcome.degraded,
+      recognised: outcome.recognised ?? null,
+      strongMatch: outcome.strongMatch ?? null,
       notice: describeDegradation(outcome.results),
     },
     { headers },

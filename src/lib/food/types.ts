@@ -84,9 +84,36 @@ export type ProviderResult = {
   error?: string;
 };
 
+/**
+ * A dish recognised in the query (§13A–§13D): what the words named, never
+ * what it contains. Sent to the screen so it can say what was understood
+ * and ask the one variant question that matters.
+ */
+export type RecognisedDish = {
+  id: string;
+  name: string;
+  arabic: string;
+  about: string;
+  /** The variant the query named, if any. */
+  variant: { id: string; label: string } | null;
+  /** Every variant the dish has, for the question; empty when none differ. */
+  variants: { id: string; label: string; searchAs: string }[];
+  variantOpen: boolean;
+  /** What the databases were searched with. */
+  searchAs: string;
+};
+
 export type SearchOutcome = {
   foods: Food[];
   results: ProviderResult[];
   /** True when at least one source failed, so the UI can say so. */
   degraded: boolean;
+  /** The dish the query named, if it named one from the dictionary. */
+  recognised?: RecognisedDish | null;
+  /**
+   * Whether anything returned answers the query — by its words, or by
+   * naming the same dish under another spelling. The screen offers other
+   * ways in when this is false.
+   */
+  strongMatch?: boolean;
 };

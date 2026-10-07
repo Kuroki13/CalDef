@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | TODO — next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C (normalisation, aliases, Arabic dictionary) live; personal/family recipe resolution next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -553,10 +553,16 @@ deployments and its runtime errors, but never signed in, because that
 would mean writing a fixture account into production's `auth.users`.
 The owner's next use of the diary is that check.
 
-Phase 13 next, in the order spec §15 sets: multilingual normalisation →
-alias resolution → cultural dictionary → personal/family recipe
-resolution → evaluate French and Canadian datasets → restaurant
-resolution → connect confidence to data quality.
+Phase 13, in the order spec §15 sets:
+- **Multilingual normalisation, alias resolution, cultural dictionary
+  (13A–13C, with the variant question of 13D/13E): DONE, live 2026-10-07.**
+- Next: personal/family recipe resolution (13G/13H — recipes in search,
+  "Mom's Maqlouba" preferred), then personal vocabulary (13I), then
+  evaluate French and Canadian datasets (13J/13K), restaurant resolution
+  (13L/13M), and connecting confidence to resolution (13N).
+- Not yet: the AI parser preserving `original_text` (§13.1). The manual
+  search path is where recognition runs today. The parser already resolves
+  its queries through `searchFoods`, so recognition applies to them too.
 
 Phase 11: everything that can be checked without a phone is done — the
 migrations are applied to CalDef-prod, production permissions and RLS are
@@ -922,6 +928,73 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13A–13C — Recognising dishes in any spelling, 2026-10-07 (Claude Code)
+
+All local and deterministic: no model call, nothing leaves the server.
+Three pure modules under `lib/food/cultural/`:
+
+- **`normalize.ts`** — keys for comparing words.
+  - Arabic: diacritics and tatweel removed, أ/إ/آ→ا, ة→ه, ى→ي, the article
+    "ال" dropped, and a leading conjunction or preposition tried both ways.
+  - Latin, collapsed by sound: Arabizi digits (2→k, 3 dropped, 7→h, 5→kh),
+    French/English spellings (ou→u, dj→j, ch→sh), three vowel classes,
+    doubled letters collapsed, a final -eh/-ah losing its h. So `maqlouba`,
+    `maqluba`, `makloubeh`, `maqlooba` and `ma2loubeh` give one key, while
+    `laban` and `labneh` stay apart.
+  - `fold` (shared by ranking and match detection) used to strip Arabic
+    letters as punctuation. It now keeps them, normalised.
+- **`dictionary.ts`** — 26 dishes covering the §13C list. Each has a
+  canonical name, Arabic name, aliases, family, region, a one-line "about",
+  the phrase the databases file it under, and **variants only where they
+  change nutrition** (maqluba: chicken / meat / eggplant / cauliflower /
+  vegetables; warak enab: meat / rice only, with yalanji and yabrak naming
+  a variant outright). **It holds no nutrition**, and a test fails if a
+  calorie or macro word appears in it.
+- **`recognise.ts`** — finds dishes in text, longest alias first. Exact
+  matches anywhere beat fuzzy ones. Fuzzy matching allows one slip, and
+  only between two words of six or more letters. Aliases of three letters
+  or fewer must be typed as written ("full fat" is not ful). A variant is
+  read from words within three of the dish, in any language ("djej",
+  "viande", "دجاج"). When variants differ and none was named, it reports
+  the question as open rather than choosing.
+
+**In search** (`registry.ts`), a recognised dish is searched under its
+database phrase ("7ummus" → "hummus"; "ma2loubeh djej" → "chicken
+maqluba"). The cache is also searched with what was typed. The user's own
+foods whose names name the dish are found by recognition, server-side
+(`ownFoodsNamingDish`), so "Mom's Maqlouba" answers "ma2loubeh". Ranking
+treats a food naming the same dish as covering the whole query. The API
+returns `recognised` (names only) and a `strongMatch` verdict, which the
+screen now trusts over its own spelling comparison. The screen shows the
+dish, its Arabic name and one line about it. When the variant is open and
+the user has no food of their own for the dish, it asks **"Which kind?"**
+as buttons, and the "How do you want to add it?" choices wait for that
+answer (one question at a time, §15.2). The recipe drafter starts from the
+variant phrase.
+
+**Found during the live run and fixed:** the alias "grape leaves" made
+*raw* grape leaves count as the dish, ranking "Grape leaves, canned" above
+real stuffed grape leaves with meat. It was removed, and a test pins it.
+
+**Verified on development** with the production build in Chrome, against
+the live providers, with a fixture account and its custom food removed
+afterwards:
+- "7ummus" returned USDA's hummus and showed حمص.
+- "warak 3enab" showed the dish, ورق عنب and "Which kind?". Choosing "With
+  meat and rice" searched "stuffed grape leaves with meat" and put the
+  meat-stuffed product first.
+- "ma2loubeh" put the fixture's "Mom's Maqlouba" first, with no question
+  asked.
+
+**§15.1 regression coverage now in place:** Language (all spellings,
+including مقلوبة, reach maqluba), Mixed language ("À midi 8 warak enab
+viande" → meat-stuffed grape leaves), Ambiguity (plain "warak enab" leaves
+the variant open). Restaurant, Personal recipe, Confidence and AI privacy
+come with their own steps.
+
+**Throughout:** 863 unit tests (35 new), with typecheck, lint and build
+clean. No migration.
 
 ### One question when search finds nothing, 2026-10-07 (Claude Code)
 

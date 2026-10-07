@@ -140,3 +140,77 @@ describe("AddFood — when search finds nothing", () => {
     expect(screen.getByRole("button", { name: /Just the calories/ })).toBeInTheDocument();
   });
 });
+
+describe("AddFood — a recognised dish (§13A–§13E)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const warakEnab = {
+    id: "warak-enab",
+    name: "Stuffed grape leaves (warak enab)",
+    arabic: "ورق عنب",
+    about: "Grape leaves rolled around rice — with meat, or meatless in oil.",
+    variant: null,
+    variants: [
+      { id: "meat", label: "With meat and rice", searchAs: "stuffed grape leaves with meat" },
+      { id: "vegetarian", label: "Rice only, in oil (yalanji)", searchAs: "stuffed grape leaves rice" },
+    ],
+    variantOpen: true,
+    searchAs: "stuffed grape leaves",
+  };
+
+  it("says what it understood, asks which kind first, and searches again with the answer", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ foods: [], recognised: warakEnab, strongMatch: false }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            foods: [],
+            recognised: { ...warakEnab, variant: { id: "meat", label: "With meat and rice" }, variantOpen: false },
+            strongMatch: false,
+          }),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AddFood logDate="2026-10-07" mealTypes={meals} aiReady />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: "warak 3enab" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText("ورق عنب", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText("Which kind?")).toBeInTheDocument();
+    // One question at a time: the four ways in wait for this answer.
+    expect(screen.queryByText(/How do you want to add it/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "With meat and rice" }));
+    await screen.findByText(/How do you want to add it/, {}, { timeout: 5000 });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      encodeURIComponent("stuffed grape leaves with meat"),
+    );
+    expect(screen.queryByText("Which kind?")).not.toBeInTheDocument();
+  });
+
+  it("trusts the server when a differently spelled food answers the query", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            foods: [{ ...chicken, id: 9, source: "custom", name: "Mom's Maqlouba" }],
+            recognised: { ...warakEnab, id: "maqluba", variantOpen: false, variants: [] },
+            strongMatch: true,
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    render(<AddFood logDate="2026-10-07" mealTypes={meals} aiReady />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: "ma2loubeh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(await screen.findByRole("button", { name: /Mom's Maqlouba/ }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByText(/How do you want to add it/)).not.toBeInTheDocument();
+  });
+});

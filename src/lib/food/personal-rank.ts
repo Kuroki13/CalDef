@@ -127,9 +127,16 @@ export function rankFoods<T extends Food>(
   foods: readonly T[],
   query: string,
   signals: PersonalSignals = NO_SIGNALS,
+  /**
+   * Foods whose names name the dish the query named (§13A), however
+   * differently spelled — "Mom's maqlouba" for "ma2loubeh". They count as
+   * covering the whole query, because they do: same dish, other spelling.
+   */
+  namesSameDish: (food: T) => boolean = () => false,
 ): T[] {
   const scored = foods.map((food, index) => {
-    const match = textMatch(food, query);
+    const literal = textMatch(food, query);
+    const match = namesSameDish(food) ? { coverage: 1, phrase: true } : literal;
     return {
       food,
       index,

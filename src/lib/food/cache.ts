@@ -14,6 +14,7 @@ import "server-only";
  * empty out a diary.
  */
 
+import { namesDish } from "@/lib/food/cultural/recognise";
 import { createClient } from "@/lib/supabase/server";
 import type { CachedFood, Food, FoodSearchQuery } from "@/lib/food/types";
 
@@ -112,6 +113,29 @@ export async function findCachedByBarcode(
 
   if (error) throw new Error(error.message);
   return (data ?? []).flatMap(rowToFood)[0] ?? null;
+}
+
+/**
+ * The owner's own foods whose names name a dish (§13A, §13G).
+ *
+ * "Mom's Maqlouba" shares no letters with "ma2loubeh" past the first two,
+ * so `ilike` will never find it; recognition will. Names only are read —
+ * owned rows are visible to their owner alone, so this is the caller's own
+ * list — and recognition runs here, server-side: the personal food list is
+ * never sent anywhere (§13.2).
+ */
+export async function ownFoodsNamingDish(dishId: string): Promise<CachedFood[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("foods")
+    .select("id, name")
+    .not("user_id", "is", null)
+    .is("archived_at", null)
+    .limit(500);
+  if (error || !data) return [];
+
+  const ids = data.filter((row) => namesDish(row.name, dishId)).map((row) => row.id);
+  return getCachedFoodsByIds(ids);
 }
 
 /**

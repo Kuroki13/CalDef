@@ -11,6 +11,8 @@
  * own.
  */
 
+import { normalizeArabic } from "@/lib/food/cultural/normalize";
+
 /**
  * Lowercased, accent-folded, punctuation reduced to spaces.
  *
@@ -19,11 +21,15 @@
  * Dubai chocolate spell it "Dubaï".
  */
 export function fold(value: string): string {
-  return value
+  // Arabic letters survive (§13A): they used to be stripped as
+  // "punctuation", which made an Arabic query match nothing at all. They
+  // are normalised the way Arabic search usually is, so أ/إ/آ, ة/ه and
+  // ى/ي compare equal.
+  return normalizeArabic(value)
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^a-z0-9\u0621-\u064A]+/g, " ")
     .trim();
 }
 
