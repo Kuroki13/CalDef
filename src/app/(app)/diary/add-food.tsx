@@ -89,6 +89,10 @@ export function AddFood({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [creatingFood, setCreatingFood] = useState(false);
   const [quickAdding, setQuickAdding] = useState(false);
+  const [tab, setTab] = useState(libraryIsEmpty(library) ? "search" : "mine");
+  // What a fruitless search hands to "Describe a meal". It doubles as the
+  // tab's key, so a second hand-over starts from the new text.
+  const [describeSeed, setDescribeSeed] = useState("");
 
   /**
    * Resolves a scanned code through our own route.
@@ -198,7 +202,7 @@ export function AddFood({
       </CardHeader>
       <CardContent className="space-y-4">
         {!chosen ? (
-          <Tabs defaultValue={libraryIsEmpty(library) ? "search" : "mine"}>
+          <Tabs value={tab} onValueChange={setTab}>
             {/*
               Peers, deliberately. Writing a sentence is not what you do
               when search fails — it is what you do when you ate four things
@@ -229,7 +233,12 @@ export function AddFood({
             </TabsContent>
 
             <TabsContent value="describe">
-              <DescribeMeal logDate={logDate} mealTypes={mealTypes} />
+              <DescribeMeal
+                key={describeSeed}
+                logDate={logDate}
+                mealTypes={mealTypes}
+                initialText={describeSeed}
+              />
             </TabsContent>
 
             <TabsContent value="search" className="space-y-4">
@@ -299,21 +308,41 @@ export function AddFood({
               frankfurters: eight results, none of them the dish. The test is
               whether anything accounts for every word that was typed.
             */}
+            {/* Nothing at all counts as useless whatever the length of the
+                query: `hasStrongMatch` deems one word always matched, which
+                is right for "chicken" with forty results and wrong for
+                "maqlouba" with none. */}
             {search.status === "done" &&
-            !hasStrongMatch(query, search.foods) ? (
+            (search.foods.length === 0 || !hasStrongMatch(query, search.foods)) ? (
               <div className="space-y-2">
                 <p className="text-muted-foreground text-sm">
                   {search.foods.length === 0
                     ? "Nothing found."
                     : "Nothing here looks like what you asked for."}{" "}
-                  Try a simpler description, add it yourself from the packet,
-                  or — for something home-cooked —{" "}
                   {aiReady
-                    ? "have the assistant draft the ingredients."
-                    : "build it as a recipe on the Recipes screen, one ingredient at a time."}
+                    ? "Describe it in your own words and the assistant will read it as a meal, add it yourself from the packet, or — for something home-cooked — have the assistant draft the ingredients."
+                    : "Try a simpler description, add it yourself from the packet, or build it as a recipe on the Recipes screen, one ingredient at a time."}
                 </p>
                 {/* The dish name is what was searched for, so the draft
                     starts from what the user already typed. */}
+                {aiReady ? (
+                  <div className="flex flex-wrap items-start gap-2">
+                    {/* The same sentence, read as a meal rather than looked
+                        up as one food: the faster path, offered where the
+                        eye already is instead of behind a tab. */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setDescribeSeed(query.trim());
+                        setTab("describe");
+                      }}
+                    >
+                      Describe it instead
+                    </Button>
+                  </div>
+                ) : null}
                 {aiReady ? <DescribeDish initialDish={query} /> : null}
               </div>
             ) : null}

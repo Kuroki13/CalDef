@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 
 // Everything that would reach a server, or a camera, is out of scope here.
@@ -8,8 +9,14 @@ vi.mock("@/app/(app)/recipes/library-forms", () => ({
   LogSavedMealForm: () => null,
 }));
 vi.mock("@/components/barcode-scanner", () => ({ BarcodeScanner: () => null }));
-vi.mock("@/components/describe-dish", () => ({ DescribeDish: () => null }));
-vi.mock("@/components/describe-meal", () => ({ DescribeMeal: () => null }));
+vi.mock("@/components/describe-dish", () => ({
+  DescribeDish: ({ initialDish }: { initialDish: string }) => <p>describe-dish: {initialDish}</p>,
+}));
+vi.mock("@/components/describe-meal", () => ({
+  DescribeMeal: ({ initialText }: { initialText?: string }) => (
+    <p>describe-meal: {initialText}</p>
+  ),
+}));
 vi.mock("@/components/custom-food-form", () => ({ CustomFoodForm: () => null }));
 vi.mock("@/components/quick-add-form", () => ({ QuickAddForm: () => null }));
 
@@ -78,5 +85,41 @@ describe("AddFood — your usual portion (§12D)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Chicken breast, grilled/ }));
     expect(screen.queryByText(/Your usual/)).not.toBeInTheDocument();
+  });
+});
+
+describe("AddFood — when search finds nothing", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const searchFor = async (text: string, foods: unknown[] = []) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ foods }), { status: 200 })),
+    );
+    render(<AddFood logDate="2026-10-07" mealTypes={meals} aiReady />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: text } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    return screen.findByText(/Nothing found/, {}, { timeout: 5000 });
+  };
+
+  it("offers to describe it, even for a single word, and hands over what was typed", async () => {
+    await searchFor("maqlouba");
+    expect(screen.getByText("describe-dish: maqlouba")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Describe it instead" }));
+    expect(await screen.findByText("describe-meal: maqlouba")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Describe a meal" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("offers nothing from the assistant when it is off", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ foods: [] }), { status: 200 })),
+    );
+    render(<AddFood logDate="2026-10-07" mealTypes={meals} />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: "maqlouba" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText(/Nothing found/, {}, { timeout: 5000 });
+    expect(screen.queryByRole("button", { name: "Describe it instead" })).not.toBeInTheDocument();
   });
 });

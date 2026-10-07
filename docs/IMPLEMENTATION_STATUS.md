@@ -923,6 +923,32 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### "Describe it instead" after a fruitless search, 2026-10-07 (Claude Code)
+
+The owner asked why describing a meal to the AI no longer appeared when a
+search found nothing. On 2026-09-07 (`e0b0ebe`) it had been moved from
+that spot into its own tab. What stayed was only "Describe this dish"
+(recipe drafting), and that was hidden for any one-word search, because
+`hasStrongMatch` treats a single word as always matched. So "maqlouba"
+with zero results offered nothing from the assistant at all.
+
+Now:
+- Zero results always counts as fruitless, whatever the query's length.
+- With the assistant on, the fruitless-search box offers **Describe it
+  instead**. It switches Add Food to the Describe a meal tab (the tabs are
+  now controlled) with what was typed already in the box (new
+  `DescribeMeal initialText`), alongside the existing "Describe this dish".
+- With the assistant off, nothing from it is offered, as before.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards. "ma2loubeh djej" returned
+nothing. The box read "Nothing found. Describe it in your own words…", and
+"Describe it instead" opened the Describe a meal tab holding
+"ma2loubeh djej". Nothing was sent to Gemini.
+
+**Throughout:** 828 unit tests (2 new), with typecheck, lint and build
+clean. No migration.
+
 ### Phase 12H — Confidence foundation, 2026-10-07 (Claude Code)
 
 `lib/nutrition/confidence.ts` (pure) puts each diary entry into one of the

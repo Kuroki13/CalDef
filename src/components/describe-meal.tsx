@@ -43,11 +43,14 @@ type Parsed = {
 export function DescribeMeal({
   logDate,
   mealTypes,
+  initialText = "",
 }: {
   logDate: string;
   mealTypes: MealType[];
+  /** What was just searched for, when search sent the user here. */
+  initialText?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Parsed | null>(null);
