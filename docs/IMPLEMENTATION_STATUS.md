@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A, 12B, 12C, 12E done and live; 12D typical portions next |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A–12E done and live; 12F flexible meal templates next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -540,6 +540,7 @@ Phase 12, in the order spec §15 sets:
 - **12E — Log again / repeat: DONE, live on production since 2026-10-07.**
   Reusing a saved meal was already possible (Recipes, and My Foods since
   12B). Saved meals whose amounts can change at log time are 12F.
+- **12D — Typical portions: DONE, live on production since 2026-10-07.**
 - 12F flexible meal templates → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
@@ -909,6 +910,33 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12D — Typical portions, 2026-10-07 (Claude Code)
+
+`lib/nutrition/typical-portion.ts` (pure) learns a usual amount from the
+user's latest 10 entries of a food:
+- It uses the unit and serving logged most often (a tie goes to the more
+  recent), and never averages "1 pot" with grams.
+- It needs at least 3 entries in that unit.
+- The suggestion is the median, so one odd day does not drag it.
+- It is rounded to what a person would weigh: to 5 above 50 g or ml, to 1
+  below that, and servings to the half.
+
+It is computed from the diary read My Foods already does, so it adds no
+query, and it is passed to Add Food as `library.usual`. The portion step
+shows "Your usual: about 185 g (from your last 4) · Use this". **The amount
+is never changed until the user taps.** The suggestion is not shown for a
+serving the food no longer has.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards, using the spec's own numbers.
+178 g was logged through the UI, and 192, 185 and 181 g were added in dev
+SQL. Choosing the food from My foods showed "Your usual: about 185 g (from
+your last 4)" while the amount stayed at 100. Tapping "Use this" set it to
+185 and the preview to 199 kcal, and the button went away.
+
+**Throughout:** 798 unit tests (10 new, including the first AddFood
+component test), with typecheck, lint and build clean. No migration.
 
 ### Phase 12E — Log again / repeat, 2026-10-07 (Claude Code)
 

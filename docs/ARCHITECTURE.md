@@ -120,6 +120,7 @@ src/
     llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
+                       typical-portion.ts (your usual amount, suggested only)
     tdee/              constants.ts · bmr.ts · trend.ts · adaptive.ts
                        feasibility.ts · milestones.ts
     rate-limit.ts

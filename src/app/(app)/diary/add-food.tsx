@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/tabs";
 import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
+import { describePortion } from "@/lib/nutrition/units";
+import type { UsualPortion } from "@/lib/nutrition/typical-portion";
 import type { MealType } from "@/lib/diary";
 import {
   EMPTY_LIBRARY,
@@ -375,7 +377,11 @@ export function AddFood({
               </Alert>
             ) : null}
 
-            <PortionFields food={chosen} mealTypes={mealTypes} />
+            <PortionFields
+              food={chosen}
+              mealTypes={mealTypes}
+              usual={usualFor(chosen, library)}
+            />
 
             <PendingButton
               type="submit"
@@ -391,12 +397,34 @@ export function AddFood({
   );
 }
 
+/**
+ * The usual portion for a food, if the user has a habit with it — and only
+ * if that portion can still be expressed: a serving the food no longer has
+ * is not a suggestion anyone can act on.
+ */
+function usualFor(food: Food, library: PersonalLibrary): UsualPortion | null {
+  const id = (food as { id?: number }).id;
+  if (typeof id !== "number") return null;
+  const usual = library.usual[id];
+  if (!usual) return null;
+  if (
+    usual.unit === "serving" &&
+    !food.servings.some((s) => s.label === usual.servingLabel)
+  ) {
+    return null;
+  }
+  return usual;
+}
+
 function PortionFields({
   food,
   mealTypes,
+  usual = null,
 }: {
   food: Food;
   mealTypes: MealType[];
+  /** Offered on a tap, never applied by itself (§12D). */
+  usual?: UsualPortion | null;
 }) {
   // A drink starts in millilitres: its label is per 100 ml, and that is how
   // anyone pours one.
@@ -413,8 +441,41 @@ function PortionFields({
   const chosenServing =
     food.servings.find((s) => s.label === servingLabel) ?? defaultServing;
 
+  const usingUsual =
+    usual !== null &&
+    unit === usual.unit &&
+    Number(amount) === usual.amount &&
+    (usual.unit !== "serving" || servingLabel === usual.servingLabel);
+
   return (
     <div className="grid grid-cols-2 gap-3">
+      {usual ? (
+        <p className="text-muted-foreground col-span-2 flex flex-wrap items-center gap-x-2 text-sm">
+          <span>
+            Your usual: about{" "}
+            <span className="text-foreground font-medium tabular-nums">
+              {usual.unit === "serving"
+                ? describePortion(usual.amount, "serving", usual.servingLabel)
+                : `${usual.amount} ${usual.unit}`}
+            </span>{" "}
+            <span className="text-xs">(from your last {usual.basedOn})</span>
+          </span>
+          {usingUsual ? null : (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setUnit(usual.unit);
+                if (usual.servingLabel) setServingLabel(usual.servingLabel);
+                setAmount(String(usual.amount));
+              }}
+            >
+              Use this
+            </Button>
+          )}
+        </p>
+      ) : null}
       <div className="space-y-2">
         <Label htmlFor="amount">Amount</Label>
         <Input

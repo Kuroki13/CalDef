@@ -30,6 +30,11 @@ import {
 } from "@/lib/food/library-rank";
 import type { PersonalLibrary } from "@/lib/food/library-types";
 import type { CachedFood } from "@/lib/food/types";
+import {
+  type PortionLog,
+  type UsualPortion,
+  typicalPortion,
+} from "@/lib/nutrition/typical-portion";
 import { listRecipes } from "@/lib/recipes";
 import { listSavedMeals } from "@/lib/saved-meals";
 import { createClient } from "@/lib/supabase/server";
@@ -45,11 +50,13 @@ async function settle<T>(work: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-async function diarySignals(): Promise<LogSignal[]> {
+type DiaryRow = LogSignal & PortionLog;
+
+async function diarySignals(): Promise<DiaryRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("food_logs")
-    .select("food_id, source, created_at")
+    .select("food_id, source, created_at, amount, unit, food_servings ( label )")
     .not("food_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(LIBRARY_HISTORY_ROWS);
@@ -58,7 +65,16 @@ async function diarySignals(): Promise<LogSignal[]> {
   return (data ?? []).flatMap((row) =>
     row.food_id === null
       ? []
-      : [{ foodId: row.food_id, source: row.source, loggedAt: row.created_at }],
+      : [
+          {
+            foodId: row.food_id,
+            source: row.source,
+            loggedAt: row.created_at,
+            amount: Number(row.amount),
+            unit: row.unit,
+            servingLabel: row.food_servings?.label ?? null,
+          },
+        ],
   );
 }
 
@@ -84,7 +100,21 @@ export async function getPersonalLibrary(): Promise<PersonalLibrary> {
   const pick = (ids: number[]) =>
     ids.flatMap((id) => (byId.has(id) ? [byId.get(id) as CachedFood] : []));
 
+  // The rows arrive newest first, which is the order `typicalPortion` reads.
+  const portionsByFood = new Map<number, PortionLog[]>();
+  for (const row of signals) {
+    const list = portionsByFood.get(row.foodId) ?? [];
+    list.push(row);
+    portionsByFood.set(row.foodId, list);
+  }
+  const usual: Record<number, UsualPortion> = {};
+  for (const [foodId, logs] of portionsByFood) {
+    const portion = typicalPortion(logs);
+    if (portion) usual[foodId] = portion;
+  }
+
   return {
+    usual,
     recent: pick(recentIds),
     frequent: pick(frequentIds),
     favorites,
