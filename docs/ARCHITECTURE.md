@@ -96,6 +96,8 @@ src/
     <feature>/         feature components
   lib/
     food-log.ts        the single-food logging convergence point
+    repeat.ts          log again / copy a meal: re-logs through food-log.ts
+                       and logRecipe, never copying an old row's figures
     ai/                resolve.ts · figures.ts · conversations.ts
     supabase/          client.ts · server.ts · proxy.ts
     barcode.ts         scanner capability; barcode-fallback.ts holds the

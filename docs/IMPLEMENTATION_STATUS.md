@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A, 12B, 12C done and live; 12E repeat workflows next |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A, 12B, 12C, 12E done and live; 12D typical portions next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -537,7 +537,10 @@ Phase 12, in the order spec §15 sets:
   recipes do not come back from food search. It belongs to §13's
   personal/family recipe resolution ("Mom's Maqlouba"), and will be weighed
   there.
-- 12E repeat workflows → 12D typical
+- **12E — Log again / repeat: DONE, live on production since 2026-10-07.**
+  Reusing a saved meal was already possible (Recipes, and My Foods since
+  12B). Saved meals whose amounts can change at log time are 12F.
+- 12F flexible meal templates → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
 Phase 11:
@@ -906,6 +909,38 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12E — Log again / repeat, 2026-10-07 (Claude Code)
+
+- **Again**, on every diary entry, opens a small form: the amount is
+  prefilled in the entry's own unit (g, ml or its serving), the day defaults
+  to *today* rather than the day being viewed, and the meal defaults to the
+  entry's own.
+- **Same as the day before?** appears under any meal that had entries the
+  day before. Every item starts ticked and every amount is editable, and the
+  items are added to the day being viewed.
+- **Nothing is copied from the old row.** `lib/repeat.ts` reads only *what*
+  was eaten (food or recipe, unit, serving label) under RLS. It then logs
+  through `logCachedFood` or `logRecipe` with the user's amount, so the
+  figures are recomputed from the food's current nutrients. A partial
+  failure names exactly what did not go in, so a retry does not log the rest
+  twice. The limit is 30 items per submit.
+- **Duplicates:** the submit button disables while the request is pending
+  (invariant 11), and after success the form is replaced by what was added,
+  with no button left. To repeat on purpose, open it afresh.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards. Chicken (100 g, 107.37 kcal)
+and banana were logged to 2026-10-06's Breakfast. On 2026-10-07,
+"Same as the day before? 2 items, 196 kcal" appeared; changing the chicken
+to 200 g and adding wrote 200 g at **214.74 kcal** (recomputed) plus the
+banana, and the form locked. "Again" on the banana, at 150 g into Lunch,
+wrote 150 g at 133.50 kcal in Lunch. The run also caught the toggle and the
+submit button sharing one accessible name; the toggle now reads "Repeat
+…".
+
+**Throughout:** 788 unit tests (14 new), with typecheck, lint and build
+clean. No migration.
 
 ### Phase 12C — Personal ranking, 2026-10-07 (Claude Code)
 

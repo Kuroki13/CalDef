@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AddFood } from "@/app/(app)/diary/add-food";
+import { CopyFromYesterday } from "@/components/repeat-forms";
 import { EntryRow } from "@/app/(app)/diary/entry-row";
 import {
   Card,
@@ -60,8 +61,10 @@ export default async function DiaryPage({
   const requested = (await searchParams).date;
   const date = requested && isIsoDate(requested) ? requested : today;
 
-  const [day, target, library] = await Promise.all([
+  const [day, previousDay, target, library] = await Promise.all([
     getDiaryDay(date),
+    // For "Copy from yesterday": the day before the one being viewed.
+    getDiaryDay(addDays(date, -1)),
     getOrCreateDailyTarget(date),
     getPersonalLibrary(),
   ]);
@@ -174,6 +177,9 @@ export default async function DiaryPage({
 
       {day.mealTypes.map((meal) => {
         const entries = entriesByMeal.get(meal.id) ?? [];
+        const previous = previousDay.entries.filter(
+          (e) => e.meal_type_id === meal.id,
+        );
         const mealKcal = entries.reduce((sum, e) => sum + e.kcal, 0);
 
         return (
@@ -198,10 +204,22 @@ export default async function DiaryPage({
                         key={entry.id}
                         entry={entry}
                         aiEnabled={aiReady}
+                        mealTypes={day.mealTypes}
+                        today={today}
                       />
                   ))}
                 </ul>
               )}
+              {previous.length > 0 ? (
+                <div className="mt-3">
+                  <CopyFromYesterday
+                    entries={previous}
+                    mealTypeId={meal.id}
+                    mealName={meal.name}
+                    logDate={date}
+                  />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         );

@@ -12,18 +12,25 @@ import { toggleFavoriteAction } from "@/app/(app)/recipes/actions";
 import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { DiaryEntry } from "@/lib/diary";
+import { LogAgainForm } from "@/components/repeat-forms";
+import type { DiaryEntry, MealType } from "@/lib/diary";
 import { describePortion } from "@/lib/nutrition/units";
 
 export function EntryRow({
   entry,
   aiEnabled,
+  mealTypes = [],
+  today,
 }: {
   entry: DiaryEntry;
   /** The assistant's amend box is a shortcut; Edit below always works. */
   aiEnabled: boolean;
+  /** For "Log again"; without them the control is not offered. */
+  mealTypes?: MealType[];
+  today?: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const [again, setAgain] = useState(false);
   const [amending, setAmending] = useState(false);
   const [state, formAction] = useActionState<DiaryActionState, FormData>(
     updateEntryAmount,
@@ -114,6 +121,18 @@ export function EntryRow({
                 Amend
               </Button>
             ) : null}
+            {today && mealTypes.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setAgain((open) => !open)}
+                aria-label={`Repeat ${entry.foodName}`}
+                aria-expanded={again}
+              >
+                Again
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -140,6 +159,11 @@ export function EntryRow({
 
       {amending ? (
         <AmendInWords entry={entry} onDone={() => setAmending(false)} />
+      ) : null}
+      {again && today ? (
+        <div className="bg-muted/40 mt-2 rounded-md p-3">
+          <LogAgainForm entry={entry} mealTypes={mealTypes} defaultDate={today} />
+        </div>
       ) : null}
     </li>
   );
