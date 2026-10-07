@@ -7,7 +7,7 @@ true.
 A feature belongs under DONE only if it was **tested and verified**, not
 merely written. "It compiles" is not done.
 
-Last updated: 2026-09-06
+Last updated: 2026-10-07
 
 ---
 
@@ -27,6 +27,9 @@ Last updated: 2026-09-06
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A built and verified on development; **migration 0012 not yet on production, so the branch is not merged** |
+| 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
+| 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
 
@@ -525,6 +528,24 @@ needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
 
 ## TODO
 
+Phase 12, in the order spec §15 sets:
+
+- **12A — Custom Food Studio: built, verified on development, waiting on
+  production.** On branch `phase-12a-custom-food-studio`, not `main`, because
+  pushing `main` deploys, and the code selects `foods.notes` and
+  `foods.basis_unit`, which production will not have until migration 0012 is
+  applied there. Applying it through the authorized migration connection was
+  refused by the session's permission layer on 2026-10-07 and needs the
+  owner's go-ahead. Order once approved: apply 0012 to production → run the
+  four `supabase/tests` suites there (all roll back) → merge and push `main` →
+  check the deployment → then add the migration that drops the
+  eight-argument `save_custom_food` overload and switch
+  `custom_food_atomicity.sql` to the ten-argument call.
+- 12B My Foods → 12C personal ranking → 12E repeat workflows → 12D typical
+  portions → 12G Quick Add and 12H confidence.
+
+Phase 11:
+
 Phase 11: everything that can be checked without a phone is done — the
 migrations are applied to CalDef-prod, production permissions and RLS are
 verified, the Vercel production variables are configured, the app is deployed
@@ -542,6 +563,35 @@ What is left, and **Phase 11 stays open until it is done**:
   evidence.
 
 ## KNOWN ISSUES
+
+- **Development had drifted from the migration files. Fixed 2026-10-07.**
+  `20260905000001_explicit_api_permissions` had never been applied to
+  `CalDef`. The 2026-09-05 note says it was tried there in a rolled-back
+  transaction on purpose. So development still let the API roles `TRUNCATE`
+  while production did not, and the RLS audit failed on development. It is
+  privilege-only and already live on production, so it was applied to
+  development and recorded under its file version. `refresh_stale_cache`
+  was in effect on development but missing from its history, so it was
+  recorded there too. Development's history still uses the MCP-era
+  timestamps for 0001–0006, 0008, 0009 and 0011. That is harmless and was
+  left alone. New migrations go to development with
+  `.vercel/caldef-ops/dev-migrate.mjs`, which records each file under its
+  own version, so the two histories no longer drift apart.
+- **The RLS audit had a clock in it. Fixed 2026-10-07.** Migration 0010
+  lets any signed-in user refresh a *shared* cache row once it is more than
+  30 days old. The audit's "a foreign update touches nothing" loop was
+  written before that, so it passed until the cache was a month old and then
+  failed on every run, on production too. It now leaves out exactly those
+  stale shared rows, which the design allows. The fixture's shared row is
+  fresh, so the test still checks that a shared row is refused inside the
+  window.
+- **One component test timed out under full-suite load.**
+  `food-proposal-review.test.tsx` waited 1 s, and the parallel run uses about
+  450 s of jsdom time, so it failed about one run in three. It now waits up
+  to 5 s. It passed every time when run on its own.
+- **Development pauses when idle.** It was `INACTIVE` on 2026-10-07 after a
+  month without use. This is expected on Free (see CLAUDE.md), and
+  restoring it is free. Production was up.
 
 - ~~**Editing a custom food is three statements, not one transaction.**~~
   **RESOLVED 2026-09-07.** The whole write moved into
@@ -860,6 +910,63 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12A — Custom Food Studio, 2026-10-07 (Claude Code)
+
+The 12A gap check found most of it already built: identity, per 100 g or
+per serving, optional nutrients, edit, archive/delete, owner-only access,
+history preserved, and the "Yours" badge. Three things were missing, and
+all three are now built:
+
+- **Notes.** A new column, `foods.notes`. It is not `description`, because
+  the restaurant catalogue uses `description` to recognise a food it
+  imported. A check stops a note being put on a shared provider row. Notes
+  are never sent to Gemini: the correction route sends only the food's name
+  and brand.
+- **Per 100 ml.** A new column, `foods.basis_unit`, `g` or `ml`. Nutrients
+  are still stored per 100 g. The app already treats 1 ml as 1 g, so a
+  per-100 ml label stored unchanged logs exactly in millilitres: 250 ml is
+  2.5 × the label, whatever the drink's density. A drink shows
+  "kcal / 100 ml" everywhere, starts in millilitres when logged, and shows
+  its serving sizes in ml (`lib/food/basis.ts`). A per-serving label can say
+  its serving is measured in ml ("1 can, 330 ml").
+- **Several named portions.** "1 pot", "1 spoon": up to four beyond the main
+  serving. Two portions with the same name are refused rather than one
+  silently overwriting the other.
+
+Also found and fixed during the live run: switching the unit to "serving"
+kept the amount at 100, so the preview showed 100 glasses (12,500 kcal).
+The amount now resets to 1 or 100 when the kind of unit changes. And the
+preview no longer adds "· 100 g" to 100 ml of a drink.
+
+**Schema:** migration `20261007000001_custom_food_studio` is additive. It
+adds the two columns with safe defaults, plus a *ten-argument overload* of
+`save_custom_food`. The production code sends eight arguments, so the
+overload lets the migration go in before the deploy without saving ever
+failing in between. Applied to development only.
+
+**Verified on development**, by driving the production build in Chrome
+with a fixture account that was deleted afterwards (exact identity
+only):
+- Created "Studio oat drink" at 46 kcal per 100 ml, with a 250 ml
+  "1 glass", a 30 ml "1 splash" and a note. The database held
+  `basis_unit = ml`, the note, 46 kcal and both portions, with "1 glass" as
+  the default.
+- Searched it from the diary: "46 kcal / 100 ml · 1 glass: 115 kcal ·
+  Yours". It opened in millilitres. Logged 250 ml: the stored row was 250 ml,
+  115.00 kcal.
+- Edited it to 50 kcal, cleared the note and removed the splash. The
+  database then held 50 kcal, no note and one portion, and **the diary entry
+  stayed at 115 kcal**.
+- After the rebuild: "1 × 1 glass" showed 125 kcal · 250 ml.
+
+SQL suites run on development (all roll back): `custom_food_studio`
+(new: notes custom-only, create, blank clears the note, user B cannot read
+or edit, anon refused), `custom_food_atomicity`, `rls_isolation`, and
+`cache_refresh_history` all pass.
+
+**Throughout:** 747 unit tests (up from 730), with typecheck, lint and
+build clean. **Nothing has run against production.**
 
 ### Five items from real use, 2026-09-07 (Claude Code)
 

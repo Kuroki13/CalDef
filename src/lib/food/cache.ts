@@ -59,7 +59,7 @@ export async function searchCache({
     .from("foods")
     .select(
       `id, source, source_id, name, brand, description, barcode, is_verified,
-       data_updated_at, refreshed_at,
+       data_updated_at, refreshed_at, basis_unit,
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
@@ -100,7 +100,7 @@ export async function findCachedByBarcode(
     .from("foods")
     .select(
       `id, source, source_id, name, brand, description, barcode, is_verified,
-       data_updated_at, refreshed_at,
+       data_updated_at, refreshed_at, basis_unit,
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
@@ -331,6 +331,8 @@ type FoodRow = {
   is_verified: boolean;
   data_updated_at: string | null;
   refreshed_at?: string | null;
+  notes?: string | null;
+  basis_unit?: string | null;
   food_nutrients: {
     kcal: number;
     protein_g: number;
@@ -375,6 +377,8 @@ export function rowToFood(row: FoodRow): CachedFood[] {
       })),
       dataUpdatedAt: row.data_updated_at,
       refreshedAt: row.refreshed_at ?? null,
+      basisUnit: row.basis_unit === "ml" ? "ml" : "g",
+      notes: row.notes ?? null,
     },
   ];
 }

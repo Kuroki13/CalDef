@@ -45,6 +45,9 @@ const optionalNumber = z.preprocess(
 
 const requiredNumber = z.coerce.number().min(0);
 
+/** Enough for "1 pot", "1 spoon", "1 bowl" and a couple more; not a table. */
+export const MAX_EXTRA_SERVINGS = 4;
+
 export const customFoodInputSchema = z
   .object({
     name: z.string().trim().min(1).max(300),
@@ -67,8 +70,36 @@ export const customFoodInputSchema = z
       .optional()
       .default(null),
 
-    /** Which panel the figures were copied from. */
-    basis: z.enum(["per_100g", "per_serving"]),
+    /**
+     * The owner's own note — where it is bought, which variety. Shown to
+     * nobody else and never sent to the model.
+     */
+    notes: z
+      .preprocess(
+        (v) => (v === "" || v === undefined ? null : v),
+        z.string().trim().max(500).nullable(),
+      )
+      .optional()
+      .default(null),
+
+    /**
+     * Which panel the figures were copied from. Drinks print theirs per
+     * 100 ml, and asking someone to pretend that is per 100 g is asking them
+     * to be wrong in a way they cannot see.
+     */
+    basis: z.enum(["per_100g", "per_100ml", "per_serving"]),
+    /**
+     * Whether a serving is weighed or poured: "1 can (330 ml)" against
+     * "1 bar (45 g)". Only consulted with `per_serving`; the per-100 panels
+     * already say which they are.
+     */
+    servingUnit: z
+      .preprocess(
+        (v) => (v === "" || v === undefined || v === null ? "g" : v),
+        z.enum(["g", "ml"]),
+      )
+      .optional()
+      .default("g"),
     /**
      * What one portion weighs. Required with `per_serving`, because that is
      * the number the conversion divides by; optional otherwise, where it
@@ -94,21 +125,69 @@ export const customFoodInputSchema = z
     sugar_g: optionalNumber.optional().default(null),
     sat_fat_g: optionalNumber.optional().default(null),
     sodium_mg: optionalNumber.optional().default(null),
+
+    /**
+     * Further named portions beyond the main one — "1 pot", "1 tbsp" — so
+     * the food can be logged the way it is actually eaten. Each is an amount
+     * in the food's own unit (g, or ml for a drink), never a nutrition
+     * figure: the panel above is the only source of those.
+     */
+    extraServings: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1).max(120),
+          amount: z.coerce.number().positive().max(100000),
+        }),
+      )
+      .max(MAX_EXTRA_SERVINGS)
+      .optional()
+      .default([]),
   })
   .refine(
-    (input) => input.basis === "per_100g" || input.servingGrams !== null,
+    (input) => input.basis !== "per_serving" || input.servingGrams !== null,
     {
       path: ["servingGrams"],
       message: "Say what one serving weighs, so the figures can be scaled.",
     },
   );
 
-export type CustomFoodInput = z.infer<typeof customFoodInputSchema>;
+/**
+ * A validated label. The §12A fields are optional here, not only in the
+ * form: the restaurant importer builds one in code and has no notes, no
+ * extra portions and no millilitres, and should not have to say so.
+ */
+export type CustomFoodInput = Omit<
+  z.infer<typeof customFoodInputSchema>,
+  "notes" | "servingUnit" | "extraServings"
+> &
+  Partial<
+    Pick<
+      z.infer<typeof customFoodInputSchema>,
+      "notes" | "servingUnit" | "extraServings"
+    >
+  >;
+
+/** What a food's label is per 100 of. Stored on `foods.basis_unit`. */
+export type BasisUnit = "g" | "ml";
+
+/**
+ * The unit a food is measured in, from what its label said.
+ *
+ * A per-serving label carries no unit of its own, so its serving's unit
+ * decides: a 330 ml can is a drink whichever panel the can printed.
+ */
+export function basisUnitOf(input: Pick<CustomFoodInput, "basis" | "servingUnit">): BasisUnit {
+  if (input.basis === "per_100ml") return "ml";
+  if (input.basis === "per_100g") return "g";
+  return input.servingUnit ?? "g";
+}
 
 export type NormalisedCustomFood = {
   name: string;
   brand: string | null;
   barcode: string | null;
+  notes: string | null;
+  basisUnit: BasisUnit;
   nutrients: {
     kcal: number;
     protein_g: number;
@@ -150,8 +229,12 @@ const FIELD_NAMES: Record<string, string> = {
 export function normaliseCustomFood(
   input: CustomFoodInput,
 ): NormalisedCustomFood | { error: string } {
+  // Per 100 ml stores as it reads: ml resolves at 1 g/ml everywhere in the
+  // app (`nutrition/units.ts`), so the factor in and the factor out cancel
+  // and 250 ml logs as exactly 2.5 × the panel, whatever the density.
   const factor =
-    input.basis === "per_100g" ? 1 : 100 / (input.servingGrams as number);
+    input.basis === "per_serving" ? 100 / (input.servingGrams as number) : 1;
+  const basisUnit = basisUnitOf(input);
 
   const scale = (value: number | null): number | null =>
     value === null ? null : round2(value * factor);
@@ -182,24 +265,69 @@ export function normaliseCustomFood(
 
   // A serving weight is worth keeping whichever panel it came from: it is
   // what lets the food be logged as "1 × bar" instead of "45 g".
-  const servings =
+  const servings: NormalisedCustomFood["servings"] =
     input.servingGrams === null
       ? []
       : [
           {
             label: input.servingLabel?.trim()
               ? input.servingLabel.trim()
-              : `1 serving (${round2(input.servingGrams)} g)`,
+              : `1 serving (${round2(input.servingGrams)} ${basisUnit})`,
             grams: round2(input.servingGrams),
             isDefault: true,
           },
         ];
 
+  for (const extra of input.extraServings ?? []) {
+    servings.push({
+      label: extra.label,
+      grams: round2(extra.amount),
+      isDefault: servings.length === 0,
+    });
+  }
+
+  // `food_servings` is unique on (food, label), and a duplicate would make
+  // the save function overwrite one portion with the other in silence.
+  const seen = new Set<string>();
+  for (const serving of servings) {
+    const key = serving.label.toLowerCase();
+    if (seen.has(key)) {
+      return { error: `Two servings are both called "${serving.label}". Give each a different name.` };
+    }
+    seen.add(key);
+  }
+
   return {
     name: input.name,
     brand: input.brand,
     barcode: input.barcode,
+    notes: input.notes ?? null,
+    basisUnit,
     nutrients,
     servings,
   };
+}
+
+/**
+ * The extra named portions, read off a form as pairs.
+ *
+ * The form posts `extraServingLabel` and `extraServingAmount` once per row,
+ * in order, so the nth of each belong together. A row left entirely blank is
+ * one the user added and did not fill — skipped, not an error. A row with
+ * only one half filled is passed on, so validation names it rather than
+ * quietly dropping what was typed.
+ */
+export function extraServingsFromForm(
+  formData: FormData,
+): { label: string; amount: string }[] {
+  const labels = formData.getAll("extraServingLabel").map(String);
+  const amounts = formData.getAll("extraServingAmount").map(String);
+  const rows: { label: string; amount: string }[] = [];
+  for (let i = 0; i < Math.max(labels.length, amounts.length); i++) {
+    const label = (labels[i] ?? "").trim();
+    const amount = (amounts[i] ?? "").trim();
+    if (label === "" && amount === "") continue;
+    rows.push({ label, amount });
+  }
+  return rows;
 }

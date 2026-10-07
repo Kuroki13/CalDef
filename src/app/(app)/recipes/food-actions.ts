@@ -22,7 +22,10 @@ import {
   restoreCustomFood,
   updateCustomFood,
 } from "@/lib/food/custom";
-import { customFoodInputSchema } from "@/lib/food/custom-input";
+import {
+  customFoodInputSchema,
+  extraServingsFromForm,
+} from "@/lib/food/custom-input";
 import type { CachedFood } from "@/lib/food/types";
 
 export type CustomFoodState = {
@@ -53,7 +56,7 @@ export async function saveCustomFoodAction(
   _prev: CustomFoodState,
   formData: FormData,
 ): Promise<CustomFoodState> {
-  const raw = Object.fromEntries(formData);
+  const raw = { ...Object.fromEntries(formData), extraServings: extraServingsFromForm(formData) };
 
   const target = saveSchema.safeParse(raw);
   if (!target.success) return { error: "That food could not be identified." };
@@ -147,6 +150,10 @@ function firstMessage(error: z.ZodError): string {
     protein_g: "Protein must be a number, and not negative.",
     carbs_g: "Carbohydrate must be a number, and not negative.",
     fat_g: "Fat must be a number, and not negative.",
+    notes: "Notes can be at most 500 characters.",
   };
+  if (field.startsWith("extraServings")) {
+    return "Each extra serving needs a name and an amount above zero.";
+  }
   return named[field] ?? "Check the figures you entered.";
 }

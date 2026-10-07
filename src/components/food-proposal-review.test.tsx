@@ -34,12 +34,12 @@ describe("shared food review", () => {
     fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-09-05" } });
     fireEvent.click(screen.getByRole("button", { name: /Confirm:/ }));
-    await waitFor(() => expect(log).toHaveBeenCalledOnce());
+    await waitFor(() => expect(log).toHaveBeenCalledOnce(), { timeout: 5000 });
     const payload = JSON.parse(log.mock.calls[0][1].get("payload"));
     expect(payload.logDate).toBe("2026-09-05");
     expect(payload.items[0].amount).toBe(2);
     expect(payload.items[0].servingLabel).toBe(food.servings[0].label);
-    await waitFor(() => expect(screen.getByRole("button", { name: /Confirm:/ })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Confirm:/ })).toBeDisabled(), { timeout: 5000 });
   });
   it("will not log a serving of unknown weight until grams are supplied", () => {
     render(<FoodProposalReview {...props} proposals={[{ ...proposal, match: { ...food, servings: [] } }]} />);

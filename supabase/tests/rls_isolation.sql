@@ -221,8 +221,20 @@ begin
     'cut_phases','cut_phase_milestones','foods','food_nutrients',
     'food_servings','meal_types']
   loop
-    predicate := case when t = 'profiles'
-      then ' where id <> auth.uid()' else '' end;
+    -- Shared cache rows past the freshness window are *meant* to be
+    -- writable by any signed-in user (migration 0010: a stale provider row
+    -- may be refreshed). Without excluding them this assertion is a clock:
+    -- it passes until the database's cache is thirty days old, then fails
+    -- forever. The fixture's own shared row is fresh, so it is still here
+    -- and still refused.
+    predicate := case
+      when t = 'profiles' then ' where id <> auth.uid()'
+      when t = 'foods' then
+        ' where not (user_id is null and refreshed_at < now() - interval ''30 days'')'
+      when t in ('food_nutrients', 'food_servings') then
+        ' where food_id not in (select id from public.foods where user_id is null'
+        || ' and refreshed_at < now() - interval ''30 days'')'
+      else '' end;
     execute format('update public.%I set updated_at = updated_at%s', t, predicate);
     get diagnostics affected = row_count;
     if affected <> 0 then

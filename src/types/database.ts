@@ -443,6 +443,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           barcode: string | null
+          basis_unit: string
           brand: string | null
           created_at: string
           data_updated_at: string | null
@@ -450,6 +451,7 @@ export type Database = {
           id: number
           is_verified: boolean
           name: string
+          notes: string | null
           refreshed_at: string
           search_text: string | null
           source: Database["public"]["Enums"]["food_source"]
@@ -460,6 +462,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           barcode?: string | null
+          basis_unit?: string
           brand?: string | null
           created_at?: string
           data_updated_at?: string | null
@@ -467,6 +470,7 @@ export type Database = {
           id?: never
           is_verified?: boolean
           name: string
+          notes?: string | null
           refreshed_at?: string
           search_text?: string | null
           source: Database["public"]["Enums"]["food_source"]
@@ -477,6 +481,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           barcode?: string | null
+          basis_unit?: string
           brand?: string | null
           created_at?: string
           data_updated_at?: string | null
@@ -484,6 +489,7 @@ export type Database = {
           id?: never
           is_verified?: boolean
           name?: string
+          notes?: string | null
           refreshed_at?: string
           search_text?: string | null
           source?: Database["public"]["Enums"]["food_source"]
@@ -925,19 +931,35 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      save_custom_food: {
-        Args: {
-          p_barcode: string
-          p_brand: string
-          p_description?: string
-          p_food_id: number
-          p_name: string
-          p_nutrients: Json
-          p_servings: Json
-          p_source_id?: string
-        }
-        Returns: number
-      }
+      save_custom_food:
+        | {
+            Args: {
+              p_barcode: string
+              p_brand: string
+              p_description?: string
+              p_food_id: number
+              p_name: string
+              p_nutrients: Json
+              p_servings: Json
+              p_source_id?: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_barcode: string
+              p_basis_unit: string
+              p_brand: string
+              p_description: string
+              p_food_id: number
+              p_name: string
+              p_notes: string
+              p_nutrients: Json
+              p_servings: Json
+              p_source_id: string
+            }
+            Returns: number
+          }
     }
     Enums: {
       activity_level: "sedentary" | "light" | "moderate" | "very" | "extra"

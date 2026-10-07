@@ -30,6 +30,7 @@ import type { FoodProposal } from "@/lib/ai/resolve";
 import type { Food } from "@/lib/food/types";
 import { scaleNutrients, sumMacros, multiplyMacros } from "@/lib/nutrition/macros";
 import { toGrams, type PortionUnit } from "@/lib/nutrition/units";
+import { per100Label } from "@/lib/food/basis";
 
 type Row = {
   /** What the model proposed, or what the owner typed to add a row. */
@@ -482,7 +483,7 @@ function IngredientSearch({
                 {food.name}
                 <span className="text-muted-foreground">
                   {" "}
-                  · {Math.round(food.nutrients.kcal)} kcal / 100 g
+                  · {Math.round(food.nutrients.kcal)} kcal / {per100Label(food)}
                 </span>
               </button>
             </li>

@@ -45,6 +45,7 @@ import {
 import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
 import type { MealType } from "@/lib/diary";
+import { amountUnit, formatAmount, per100Label } from "@/lib/food/basis";
 
 type SearchState = {
   status: "idle" | "loading" | "done" | "error";
@@ -307,7 +308,7 @@ export function AddFood({
                       </span>
                       <span className="text-muted-foreground block truncate text-xs">
                         {food.brand ? `${food.brand} · ` : ""}
-                        {Math.round(food.nutrients.kcal)} kcal / 100 g
+                        {Math.round(food.nutrients.kcal)} kcal / {per100Label(food)}
                         {/* Per 100 g compares two foods fairly; the serving
                             says what you would actually eat. */}
                         <ServingHint food={food} />
@@ -330,7 +331,7 @@ export function AddFood({
                 <p className="truncate font-medium">{chosen.name}</p>
                 <p className="text-muted-foreground truncate text-sm">
                   {chosen.brand ? `${chosen.brand} · ` : ""}
-                  {Math.round(chosen.nutrients.kcal)} kcal / 100 g
+                  {Math.round(chosen.nutrients.kcal)} kcal / {per100Label(chosen)}
                 </p>
               </div>
               <Button
@@ -387,7 +388,9 @@ function PortionFields({
   food: Food;
   mealTypes: MealType[];
 }) {
-  const [unit, setUnit] = useState<"g" | "ml" | "serving">("g");
+  // A drink starts in millilitres: its label is per 100 ml, and that is how
+  // anyone pours one.
+  const [unit, setUnit] = useState<"g" | "ml" | "serving">(amountUnit(food));
   const defaultServing =
     food.servings.find((s) => s.isDefault) ?? food.servings[0] ?? null;
   const [servingLabel, setServingLabel] = useState(
@@ -422,7 +425,16 @@ function PortionFields({
         <Select
           name="unit"
           value={unit}
-          onValueChange={(v) => setUnit(v as typeof unit)}
+          onValueChange={(v) => {
+            const next = v as typeof unit;
+            // "100" means 100 g or 100 ml; carried over to servings it
+            // means a hundred glasses. Moving between the two kinds of
+            // unit resets the amount to the ordinary one for the new kind.
+            if ((next === "serving") !== (unit === "serving")) {
+              setAmount(next === "serving" ? "1" : "100");
+            }
+            setUnit(next);
+          }}
         >
           <SelectTrigger id="unit">
             <SelectValue />
@@ -451,7 +463,7 @@ function PortionFields({
             <SelectContent>
               {food.servings.map((serving) => (
                 <SelectItem key={serving.label} value={serving.label}>
-                  {serving.label} ({serving.grams} g)
+                  {serving.label} ({formatAmount(food, serving.grams)})
                 </SelectItem>
               ))}
             </SelectContent>

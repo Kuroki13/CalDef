@@ -34,7 +34,7 @@ import type { Database } from "@/types/database";
 
 /** Everything a `foods` row needs to come back as a `Food`. */
 const FOOD_COLUMNS = `id, source, source_id, name, brand, description, barcode,
-   is_verified, data_updated_at,
+   is_verified, data_updated_at, notes, basis_unit,
    food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                    sat_fat_g, sodium_mg),
    food_servings (label, grams, is_default)`;
@@ -96,7 +96,7 @@ export async function listArchivedCustomFoods(): Promise<CustomFoodSummary[]> {
     // from the literal, and a built string collapses it to an error type.
     .select(
       `id, source, source_id, name, brand, description, barcode,
-       is_verified, data_updated_at, archived_at,
+       is_verified, data_updated_at, archived_at, notes, basis_unit,
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
@@ -263,6 +263,10 @@ async function saveCustomFood(
     p_servings: normalised.servings,
     p_source_id: reference?.sourceId ?? null,
     p_description: reference?.description ?? null,
+    // Sent as "" rather than null when blank: the function clears notes on
+    // an empty string, and a blank notes field is the user clearing them.
+    p_notes: normalised.notes ?? "",
+    p_basis_unit: normalised.basisUnit,
   } as unknown as Database["public"]["Functions"]["save_custom_food"]["Args"];
 
   const { data: foodId, error } = await supabase.rpc("save_custom_food", args);

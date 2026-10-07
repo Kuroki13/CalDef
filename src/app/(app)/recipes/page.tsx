@@ -34,6 +34,7 @@ import { describePortion } from "@/lib/nutrition/units";
 import { getAccountSetup } from "@/lib/profile";
 import { listRecipes } from "@/lib/recipes";
 import { listSavedMeals } from "@/lib/saved-meals";
+import { per100Label } from "@/lib/food/basis";
 
 export const metadata: Metadata = { title: "Recipes & meals · CalDef" };
 
@@ -104,7 +105,7 @@ export default async function RecipesPage() {
                       <p className="truncate text-sm font-medium">{food.name}</p>
                       <p className="text-muted-foreground truncate text-xs">
                         {food.brand ? `${food.brand} · ` : ""}
-                        {Math.round(food.nutrients.kcal)} kcal / 100 g
+                        {Math.round(food.nutrients.kcal)} kcal / {per100Label(food)}
                       </p>
                     </div>
                     <form action={toggleFavoriteAction}>

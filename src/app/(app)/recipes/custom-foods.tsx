@@ -25,6 +25,7 @@ import { PendingButton } from "@/components/pending-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { CachedFood } from "@/lib/food/types";
+import { per100Label } from "@/lib/food/basis";
 
 export type CustomFoodRow = CachedFood & {
   useCount: number;
@@ -60,7 +61,7 @@ export function CustomFoodLibrary({
                   <p className="truncate text-sm font-medium">{food.name}</p>
                   <p className="text-muted-foreground truncate text-xs">
                     {food.brand ? `${food.brand} · ` : ""}
-                    {Math.round(food.nutrients.kcal)} kcal / 100 g ·{" "}
+                    {Math.round(food.nutrients.kcal)} kcal / {per100Label(food)} ·{" "}
                     {Math.round(food.nutrients.protein_g)}P{" "}
                     {Math.round(food.nutrients.carbs_g)}C{" "}
                     {Math.round(food.nutrients.fat_g)}F
@@ -68,6 +69,11 @@ export function CustomFoodLibrary({
                       ? ` · used ${food.useCount === 1 ? "once" : `${food.useCount} times`}`
                       : ""}
                   </p>
+                  {food.notes ? (
+                    <p className="text-muted-foreground line-clamp-2 text-xs italic">
+                      {food.notes}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
@@ -147,7 +153,7 @@ export function CustomFoodLibrary({
                       <p className="truncate text-sm">{food.name}</p>
                       <p className="text-muted-foreground truncate text-xs">
                         {food.brand ? `${food.brand} · ` : ""}
-                        {Math.round(food.nutrients.kcal)} kcal / 100 g
+                        {Math.round(food.nutrients.kcal)} kcal / {per100Label(food)}
                         {food.archivedAt
                           ? ` · retired ${food.archivedAt.slice(0, 10)}`
                           : ""}

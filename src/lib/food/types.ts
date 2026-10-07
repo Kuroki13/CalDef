@@ -44,6 +44,14 @@ export type Food = {
   servings: FoodServing[];
   /** When the provider last revised the record, if it says. */
   dataUpdatedAt: string | null;
+  /**
+   * What the label is per 100 of. Nutrients are per 100 g regardless; a
+   * drink is `ml`, resolved at 1 g/ml, so it reads and logs in millilitres.
+   * Absent means grams — every provider food is.
+   */
+  basisUnit?: "g" | "ml";
+  /** The owner's note on their own food. Never present on a provider row. */
+  notes?: string | null;
 };
 
 /**

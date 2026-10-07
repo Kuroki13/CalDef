@@ -194,6 +194,36 @@ describe("createCustomFood", () => {
     expect(args.p_description).toBe("Imported from the restaurant catalogue");
   });
 
+  it("sends notes and the label's unit, and a blank note as a clear", async () => {
+    const respond = (call: Call) =>
+      call.table === "rpc:save_custom_food"
+        ? { data: 42 }
+        : call.table === "foods" && call.op === "select"
+          ? { data: storedRow({ basis_unit: "ml", notes: "the 0% one" }) }
+          : { data: [] };
+
+    const first = fakeSupabase(respond);
+    createClient.mockResolvedValue(first.client);
+    const result = await createCustomFood(
+      input({ basis: "per_100ml", notes: "the 0% one" }),
+    );
+    if ("error" in result) throw new Error(result.error);
+    const args = rpcCall(first.calls)?.payload as Record<string, unknown>;
+    expect(args.p_notes).toBe("the 0% one");
+    expect(args.p_basis_unit).toBe("ml");
+    expect(result.food.basisUnit).toBe("ml");
+    expect(result.food.notes).toBe("the 0% one");
+
+    // An empty string, not null: the function clears notes on "" and the
+    // user emptying the field is exactly that.
+    const second = fakeSupabase(respond);
+    createClient.mockResolvedValue(second.client);
+    await updateCustomFood(42, input({ notes: null }));
+    const cleared = rpcCall(second.calls)?.payload as Record<string, unknown>;
+    expect(cleared.p_notes).toBe("");
+    expect(cleared.p_basis_unit).toBe("g");
+  });
+
   it("refuses an impossible label before writing anything", async () => {
     const { client, calls } = fakeSupabase(() => ({ data: [] }));
     createClient.mockResolvedValue(client);

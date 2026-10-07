@@ -110,3 +110,29 @@ describe("ServingHint — what a results row is worth eating", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("PortionMacros — a drink reads in millilitres", () => {
+  const drink = food({
+    source: "custom",
+    name: "Oat drink",
+    basisUnit: "ml",
+    nutrients: { kcal: 46, protein_g: 1, carbs_g: 6.7, fat_g: 1.5 },
+    servings: [{ label: "1 glass", grams: 250, isDefault: true }],
+  });
+
+  it("logs 250 ml as exactly 2.5 × the per-100 ml panel, and does not call it grams", () => {
+    render(<PortionMacros food={drink} amount={250} unit="ml" />);
+    const line = screen.getByText(/115 kcal/).closest("p");
+    expect(line?.textContent).not.toMatch(/250 g/);
+  });
+
+  it("translates a serving into the drink's own unit", () => {
+    render(<PortionMacros food={drink} amount={1} unit="serving" serving={drink.servings[0]} />);
+    expect(screen.getByText(/115 kcal/).closest("p")).toHaveTextContent("250 ml");
+  });
+
+  it("still translates ml of a weighed food into grams", () => {
+    render(<PortionMacros food={food()} amount={100} unit="ml" />);
+    expect(screen.getByText(/165 kcal/).closest("p")).toHaveTextContent("100 g");
+  });
+});

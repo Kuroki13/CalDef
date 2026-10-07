@@ -8,6 +8,7 @@ import type { FoodProposal } from "@/lib/ai/resolve";
 import type { MealType } from "@/lib/diary";
 import { restaurantReference } from "@/lib/food/restaurant-catalogue";
 import { toGrams, type PortionUnit } from "@/lib/nutrition/units";
+import { per100Label } from "@/lib/food/basis";
 
 type Choice = { index: number; amount: string; unit: PortionUnit; included: boolean };
 
@@ -89,7 +90,7 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
                     </select>
                   </label>
                 </div> : null}
-                {mode === "save" ? <p className="text-sm">Per 100 g: {row.food.nutrients.kcal} kcal · Protein {row.food.nutrients.protein_g} g · Carbs {row.food.nutrients.carbs_g} g · Fat {row.food.nutrients.fat_g} g</p> : <PortionMacros food={row.food} amount={Number(row.choice.amount)} unit={row.choice.unit} serving={row.choice.unit === "serving" ? row.serving : null} />}
+                {mode === "save" ? <p className="text-sm">Per {per100Label(row.food)}: {row.food.nutrients.kcal} kcal · Protein {row.food.nutrients.protein_g} g · Carbs {row.food.nutrients.carbs_g} g · Fat {row.food.nutrients.fat_g} g</p> : <PortionMacros food={row.food} amount={Number(row.choice.amount)} unit={row.choice.unit} serving={row.choice.unit === "serving" ? row.serving : null} />}
               </>}
             </div>
           );

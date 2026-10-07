@@ -18,6 +18,7 @@
 import { scaleNutrients } from "@/lib/nutrition/macros";
 import { toGrams, type PortionUnit } from "@/lib/nutrition/units";
 import type { Food, FoodServing } from "@/lib/food/types";
+import { amountUnit, formatAmount } from "@/lib/food/basis";
 
 /**
  * Resolves the portion the way the server will.
@@ -82,7 +83,12 @@ export function PortionMacros({
       <span className="text-muted-foreground tabular-nums">
         · Protein {macros.protein_g.toFixed(1)} g · Carbs{" "}
         {macros.carbs_g.toFixed(1)} g · Fat {macros.fat_g.toFixed(1)} g
-        {unit !== "g" ? ` · ${Math.round(grams)} g` : ""}
+        {/* The resolved size, in the food's own unit. Said only when it adds
+            something: "100 ml" of a drink is already its own size, while a
+            serving, or ml of a weighed food, is worth translating. */}
+        {unit !== amountUnit(food)
+          ? ` · ${formatAmount(food, Math.round(grams))}`
+          : ""}
       </span>
     </p>
   );

@@ -23,6 +23,7 @@ import { PendingButton } from "@/components/pending-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -31,7 +32,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MAX_EXTRA_SERVINGS } from "@/lib/food/custom-input";
 import type { CachedFood } from "@/lib/food/types";
+
+type Basis = "per_100g" | "per_100ml" | "per_serving";
+type ExtraRow = { key: number; label: string; amount: string };
 
 type Props = {
   /** Set when editing; absent when creating. */
@@ -99,7 +104,30 @@ export function CustomFoodForm({
     food?.servings[0] ??
     null;
 
-  const [basis, setBasis] = useState<"per_100g" | "per_serving">("per_100g");
+  const [basis, setBasis] = useState<Basis>(
+    food?.basisUnit === "ml" ? "per_100ml" : "per_100g",
+  );
+  // Only consulted per serving; the per-100 panels already say which unit.
+  const [servingUnit, setServingUnit] = useState<"g" | "ml">(
+    food?.basisUnit === "ml" ? "ml" : "g",
+  );
+  const measure =
+    basis === "per_100ml" ? "ml" : basis === "per_100g" ? "g" : servingUnit;
+
+  // Every serving but the main one, so an edit shows what is already there.
+  // Keys are local and only for React; the server pairs rows by position.
+  // Initial rows take their index, so new ones start past the cap.
+  const nextKey = useRef(MAX_EXTRA_SERVINGS);
+  const [extras, setExtras] = useState<ExtraRow[]>(() =>
+    (food?.servings ?? [])
+      .filter((serving) => serving !== defaultServing)
+      .slice(0, MAX_EXTRA_SERVINGS)
+      .map((serving, index) => ({
+        key: index,
+        label: serving.label,
+        amount: String(serving.grams),
+      })),
+  );
   const handledFood = useRef<number | null>(null);
   // Notify the parent after commit, never update another component in render.
   useEffect(() => {
@@ -109,7 +137,12 @@ export function CustomFoodForm({
     }
   }, [state.food, onSaved]);
 
-  const unit = basis === "per_100g" ? "per 100 g" : "per serving";
+  const unit =
+    basis === "per_100g"
+      ? "per 100 g"
+      : basis === "per_100ml"
+        ? "per 100 ml"
+        : "per serving";
 
   return (
     <form action={formAction} className="space-y-4">
@@ -160,28 +193,55 @@ export function CustomFoodForm({
         <Select
           name="basis"
           value={basis}
-          onValueChange={(value) => setBasis(value as typeof basis)}
+          onValueChange={(value) => setBasis(value as Basis)}
         >
           <SelectTrigger id={`food-basis-${food?.id ?? "new"}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="per_100g">per 100 g</SelectItem>
+            <SelectItem value="per_100ml">per 100 ml (drinks)</SelectItem>
             <SelectItem value="per_serving">per serving</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-muted-foreground text-xs">
           Copy whichever column the packet prints. Per-serving figures are
-          converted to per 100 g when they are saved.
+          converted when they are saved, so you never do that sum yourself.
         </p>
       </div>
+
+      {basis === "per_serving" ? (
+        <div className="space-y-1">
+          <Label
+            htmlFor={`food-serving-unit-${food?.id ?? "new"}`}
+            className="text-xs"
+          >
+            A serving is measured in
+          </Label>
+          <Select
+            name="servingUnit"
+            value={servingUnit}
+            onValueChange={(value) => setServingUnit(value as "g" | "ml")}
+          >
+            <SelectTrigger id={`food-serving-unit-${food?.id ?? "new"}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="g">grams (a bar, a pot)</SelectItem>
+              <SelectItem value="ml">millilitres (a can, a bottle)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <input type="hidden" name="servingUnit" value={measure} />
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <NumberField
           id={`food-serving-grams-${food?.id ?? "new"}`}
           name="servingGrams"
-          label="One serving weighs"
-          suffix="g"
+          label={measure === "ml" ? "One serving holds" : "One serving weighs"}
+          suffix={measure}
           required={basis === "per_serving"}
           defaultValue={defaultServing?.grams ?? null}
         />
@@ -269,6 +329,96 @@ export function CustomFoodForm({
           />
         </div>
       </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">
+          Other ways you eat it{" "}
+          <span className="text-muted-foreground font-normal">(optional)</span>
+        </legend>
+        <p className="text-muted-foreground text-xs">
+          Name a portion and its size — &ldquo;1 pot&rdquo;, 160 {measure} —
+          and you can log it as that later instead of weighing.
+        </p>
+        {extras.map((row, index) => (
+          <div key={row.key} className="flex items-end gap-2">
+            <div className="min-w-0 flex-1 space-y-1">
+              <Label
+                htmlFor={`food-extra-label-${food?.id ?? "new"}-${row.key}`}
+                className="text-xs"
+              >
+                Portion name
+              </Label>
+              <Input
+                id={`food-extra-label-${food?.id ?? "new"}-${row.key}`}
+                name="extraServingLabel"
+                maxLength={120}
+                defaultValue={row.label}
+                placeholder="e.g. 1 pot"
+              />
+            </div>
+            <div className="w-28 space-y-1">
+              <Label
+                htmlFor={`food-extra-amount-${food?.id ?? "new"}-${row.key}`}
+                className="text-xs"
+              >
+                Size <span className="text-muted-foreground">({measure})</span>
+              </Label>
+              <Input
+                id={`food-extra-amount-${food?.id ?? "new"}-${row.key}`}
+                name="extraServingAmount"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0"
+                defaultValue={row.amount}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={`Remove portion ${index + 1}`}
+              onClick={() =>
+                setExtras((rows) => rows.filter((r) => r.key !== row.key))
+              }
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        {extras.length < MAX_EXTRA_SERVINGS ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setExtras((rows) => [
+                ...rows,
+                { key: nextKey.current++, label: "", amount: "" },
+              ])
+            }
+          >
+            Add a portion
+          </Button>
+        ) : null}
+      </fieldset>
+
+      <div className="space-y-1">
+        <Label
+          htmlFor={`food-notes-${food?.id ?? "new"}`}
+          className="text-xs"
+        >
+          Notes <span className="text-muted-foreground">(optional, only you see these)</span>
+        </Label>
+        <Textarea
+          id={`food-notes-${food?.id ?? "new"}`}
+          name="notes"
+          maxLength={500}
+          rows={2}
+          defaultValue={food?.notes ?? ""}
+          placeholder="e.g. the 0% one from the Thursday market"
+        />
+      </div>
 
       <div className="space-y-1">
         <Label

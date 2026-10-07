@@ -105,6 +105,7 @@ src/
     food/              types.ts · provider.ts · usda.ts · off.ts
                        cache.ts · registry.ts
                        custom.ts · custom-input.ts (the user's own foods)
+                       basis.ts (g or ml: how a food's amounts read)
                        staleness.ts · history.ts (when to refetch, and
                        whose diary breaks a ranking tie)
                        text-match.ts (shared by the server's ranking and
@@ -273,6 +274,15 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     is unchanged. The corollary is that removing a food that history
     points at archives it rather than deleting it.
 
+15. **Nutrients are per 100 g, even for a drink.** `foods.basis_unit` says
+    whether a label was per 100 g or per 100 ml. It changes only the words
+    and the default unit, never the arithmetic. Millilitres convert at
+    1 g/ml everywhere (`nutrition/units.ts`), so storing a per-100 ml label
+    unchanged is what makes logging a drink in ml exact. Adding a real
+    density per food would break that unless both conversions changed
+    together. A custom food's `notes` are the owner's own and never reach
+    the model.
+
 13. **Signup is closed unless an address is named, in two places.**
     `SIGNUP_ALLOWLIST` gates the server action, and `disable_signup` on
     the Supabase project closes `/auth/v1/signup` to the publishable key
@@ -387,6 +397,14 @@ Production is `CalDef-prod` (`ccllzuelnjikmdtpuyhj`); development remains
 migrations over an authorized migration connection. Supabase MCP may only
 connect to development. Never copy development auth users or diary history.
 The migrations seed only the four built-in meal types.
+
+Development receives a migration file through
+`.vercel/caldef-ops/dev-migrate.mjs`, which records it under the file's own
+version. The Supabase MCP `apply_migration` stamps its own timestamp instead,
+and that is how the two histories drifted apart before 2026-10-07. A
+migration that changes a function signature PostgREST calls adds an overload
+rather than replacing the function. The deployed code keeps matching the old
+signature until the new code ships, and a later migration drops the old one.
 
 Migration `20260905000001` makes authenticated CRUD and sequence grants
 explicit rather than relying on Supabase project defaults. API roles cannot

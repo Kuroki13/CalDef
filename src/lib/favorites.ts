@@ -13,7 +13,7 @@ import type { CachedFood } from "@/lib/food/types";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 
 const FOOD_COLUMNS = `id, source, source_id, name, brand, description, barcode,
-   is_verified, data_updated_at,
+   is_verified, data_updated_at, notes, basis_unit,
    food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                    sat_fat_g, sodium_mg),
    food_servings (label, grams, is_default)`;

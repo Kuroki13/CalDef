@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   customFoodInputSchema,
+  extraServingsFromForm,
   normaliseCustomFood,
 } from "@/lib/food/custom-input";
 
@@ -167,5 +168,101 @@ describe("normaliseCustomFood — per 100 g, whatever the packet said", () => {
       parse(label({ kcal: "884", protein_g: "0", carbs_g: "0", fat_g: "100" })),
     );
     expect("error" in result).toBe(false);
+  });
+});
+
+describe("§12A — the rest of a label", () => {
+  it("stores a per-100 ml panel as it reads, and remembers it was ml", () => {
+    // ml resolves at 1 g/ml app-wide, so storing the panel unchanged makes
+    // 250 ml log as exactly 2.5 × the label — the conversions cancel.
+    const result = normaliseCustomFood(
+      parse(label({ basis: "per_100ml", kcal: "46", protein_g: "3.4", carbs_g: "4.8", fat_g: "1.5" })),
+    );
+    if ("error" in result) throw new Error(result.error);
+    expect(result.basisUnit).toBe("ml");
+    expect(result.nutrients).toMatchObject({ kcal: 46, protein_g: 3.4 });
+  });
+
+  it("scales a per-can panel and names the serving in ml", () => {
+    const result = normaliseCustomFood(
+      parse(label({ basis: "per_serving", servingUnit: "ml", servingGrams: "330", kcal: "139", protein_g: "0", carbs_g: "35", fat_g: "0" })),
+    );
+    if ("error" in result) throw new Error(result.error);
+    expect(result.basisUnit).toBe("ml");
+    expect(result.nutrients.kcal).toBe(42.12);
+    expect(result.servings[0].label).toBe("1 serving (330 ml)");
+  });
+
+  it("ignores a stray serving unit on a per-100 g panel", () => {
+    const result = normaliseCustomFood(parse(label({ servingUnit: "ml" })));
+    if ("error" in result) throw new Error(result.error);
+    expect(result.basisUnit).toBe("g");
+  });
+
+  it("keeps notes, and treats a blank note as none", () => {
+    expect(parse(label({ notes: "  the 0% one  " })).notes).toBe("the 0% one");
+    expect(parse(label({ notes: "" })).notes).toBeNull();
+    expect(customFoodInputSchema.safeParse(label({ notes: "x".repeat(501) })).success).toBe(false);
+  });
+
+  it("adds named portions after the main one — protein yogurt, 160 g a pot", () => {
+    const result = normaliseCustomFood(
+      parse({
+        ...label({ kcal: "72", protein_g: "10", carbs_g: "4", fat_g: "0.2", servingGrams: "160", servingLabel: "1 pot" }),
+        extraServings: [{ label: "1 spoon", amount: "15" }],
+      } as never),
+    );
+    if ("error" in result) throw new Error(result.error);
+    expect(result.servings).toEqual([
+      { label: "1 pot", grams: 160, isDefault: true },
+      { label: "1 spoon", grams: 15, isDefault: false },
+    ]);
+  });
+
+  it("makes the first named portion the default when there is no main one", () => {
+    const result = normaliseCustomFood(
+      parse({ ...label(), extraServings: [{ label: "1 pot", amount: "160" }] } as never),
+    );
+    if ("error" in result) throw new Error(result.error);
+    expect(result.servings).toEqual([{ label: "1 pot", grams: 160, isDefault: true }]);
+  });
+
+  it("refuses two portions with the same name instead of losing one", () => {
+    const result = normaliseCustomFood(
+      parse({
+        ...label({ servingGrams: "160", servingLabel: "1 pot" }),
+        extraServings: [{ label: "1 Pot", amount: "150" }],
+      } as never),
+    );
+    if (!("error" in result)) throw new Error("expected a rejection");
+    expect(result.error).toMatch(/1 Pot/);
+  });
+
+  it("refuses a portion with a name and no size", () => {
+    expect(
+      customFoodInputSchema.safeParse({ ...label(), extraServings: [{ label: "1 pot", amount: "" }] }).success,
+    ).toBe(false);
+  });
+
+  it("caps the number of extra portions", () => {
+    const five = Array.from({ length: 5 }, (_, i) => ({ label: `p${i}`, amount: "10" }));
+    expect(customFoodInputSchema.safeParse({ ...label(), extraServings: five }).success).toBe(false);
+  });
+});
+
+describe("extraServingsFromForm", () => {
+  it("pairs rows by position and skips a row left wholly blank", () => {
+    const form = new FormData();
+    form.append("extraServingLabel", "1 pot");
+    form.append("extraServingAmount", "160");
+    form.append("extraServingLabel", "");
+    form.append("extraServingAmount", "");
+    form.append("extraServingLabel", "1 spoon");
+    form.append("extraServingAmount", "");
+    expect(extraServingsFromForm(form)).toEqual([
+      { label: "1 pot", amount: "160" },
+      // Half-filled is kept, so validation can say what is missing.
+      { label: "1 spoon", amount: "" },
+    ]);
   });
 });
