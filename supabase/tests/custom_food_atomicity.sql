@@ -71,7 +71,8 @@ begin
       'Renamed Brand',
       null,
       '{"kcal":5000,"protein_g":10,"carbs_g":20,"fat_g":5}'::jsonb,
-      '[{"label":"1 bar","grams":99,"isDefault":true}]'::jsonb);
+      '[{"label":"1 bar","grams":99,"isDefault":true}]'::jsonb,
+      null, null, null, 'g');
   exception when check_violation then
     v_raised := true;
   end;
@@ -118,7 +119,8 @@ begin
     'Corrected Brand',
     '3017624010701',
     '{"kcal":250,"protein_g":12,"carbs_g":30,"fat_g":8,"fiber_g":3}'::jsonb,
-    '[{"label":"1 bar","grams":50,"isDefault":true}]'::jsonb);
+    '[{"label":"1 bar","grams":50,"isDefault":true}]'::jsonb,
+    null, null, null, 'g');
 
   select f.name, n.kcal, s.grams
     into v_name, v_kcal, v_grams
@@ -153,7 +155,7 @@ begin
   begin
     perform public.save_custom_food(
       v_food, 'Stolen', null, null,
-      '{"kcal":100,"protein_g":1,"carbs_g":1,"fat_g":1}'::jsonb, '[]'::jsonb);
+      '{"kcal":100,"protein_g":1,"carbs_g":1,"fat_g":1}'::jsonb, '[]'::jsonb, null, null, null, 'g');
   exception when insufficient_privilege then
     v_raised := true;
   end;
@@ -176,7 +178,7 @@ begin
   begin
     perform public.save_custom_food(
       null, 'Anon Food', null, null,
-      '{"kcal":100,"protein_g":1,"carbs_g":1,"fat_g":1}'::jsonb, '[]'::jsonb);
+      '{"kcal":100,"protein_g":1,"carbs_g":1,"fat_g":1}'::jsonb, '[]'::jsonb, null, null, null, 'g');
   exception when insufficient_privilege then
     v_raised := true;
   end;

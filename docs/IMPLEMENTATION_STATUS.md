@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A built and verified on development; **migration 0012 not yet on production, so the branch is not merged** |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A done and live on production; 12B next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -530,17 +530,7 @@ needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
 
 Phase 12, in the order spec §15 sets:
 
-- **12A — Custom Food Studio: built, verified on development, waiting on
-  production.** On branch `phase-12a-custom-food-studio`, not `main`, because
-  pushing `main` deploys, and the code selects `foods.notes` and
-  `foods.basis_unit`, which production will not have until migration 0012 is
-  applied there. Applying it through the authorized migration connection was
-  refused by the session's permission layer on 2026-10-07 and needs the
-  owner's go-ahead. Order once approved: apply 0012 to production → run the
-  four `supabase/tests` suites there (all roll back) → merge and push `main` →
-  check the deployment → then add the migration that drops the
-  eight-argument `save_custom_food` overload and switch
-  `custom_food_atomicity.sql` to the ten-argument call.
+- **12A — Custom Food Studio: DONE, live on production since 2026-10-07.**
 - 12B My Foods → 12C personal ranking → 12E repeat workflows → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
@@ -966,7 +956,26 @@ or edit, anon refused), `custom_food_atomicity`, `rls_isolation`, and
 `cache_refresh_history` all pass.
 
 **Throughout:** 747 unit tests (up from 730), with typecheck, lint and
-build clean. **Nothing has run against production.**
+build clean.
+
+**Production, the same day, with the owner's approval.** The permission
+layer refused the production migration twice, so the owner ran
+`prod-migrate.mjs` for 0012 themselves. 12 migrations were then applied.
+The four SQL suites passed against production and rolled back. The branch
+was fast-forwarded into `main` and pushed, and the deployment became READY
+on `caldef-woad.vercel.app`. `/login` returns 200, signed-out pages redirect
+to login, the search API returns 401 without a session, and Vercel reported
+no runtime errors after the deploy. Then migration
+`20261007000002_drop_old_save_custom_food` removed the eight-argument
+overload on development and production (13 migrations), and
+`custom_food_atomicity.sql` now calls the ten-argument signature. The
+suites passed again on both.
+
+**Not done on production:** a signed-in run. Signup is closed, so it would
+mean inserting a fixture account straight into production's `auth.users`,
+and that was not done without asking. The signed-in flow was verified
+against development on the same production build. The owner's next use of
+the food library is the production check.
 
 ### Five items from real use, 2026-09-07 (Claude Code)
 
