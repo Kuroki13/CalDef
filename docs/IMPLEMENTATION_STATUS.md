@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A done and live on production; 12B next |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A and 12B done and live; 12C personal ranking next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -531,7 +531,8 @@ needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
 Phase 12, in the order spec §15 sets:
 
 - **12A — Custom Food Studio: DONE, live on production since 2026-10-07.**
-- 12B My Foods → 12C personal ranking → 12E repeat workflows → 12D typical
+- **12B — My Foods: DONE, live on production since 2026-10-07.**
+- 12C personal ranking → 12E repeat workflows → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
 Phase 11:
@@ -900,6 +901,40 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12B — My Foods, 2026-10-07 (Claude Code)
+
+Add Food now has a **My foods** tab before Search and Describe. It opens by
+default once the account has anything in it, and Search opens for a new
+account. One list shows at a time, chosen from Recent · Frequent ·
+Favourites · Yours · Scanned · Recipes · Meals. Filters with nothing in them
+are hidden, and a filter box narrows the list (every word, accents ignored,
+brand included).
+
+- **No new data.** `lib/food/library.ts` reads the diary (last 500 entries),
+  `favorite_foods`, owned `foods`, `recipes` and `saved_meals`, which all
+  already exist. The ordering is in `lib/food/library-rank.ts`, which is
+  pure: recent by last logged; frequent needs at least two logs, ranked by
+  count, with ties going to the more recent; scanned means logged from a
+  barcode at least once. Each list holds up to 12. Retired custom foods are
+  left out. If one part fails to load, that part comes back empty and the
+  diary page still renders.
+- **No second logging path.** A food chosen here goes to the same
+  portion-and-log step as a search result. Recipes and meals log through the
+  Recipes screen's own `LogRecipeForm` / `LogSavedMealForm`. An empty recipe
+  shows no Log button. `SourceBadge` moved to `components/source-badge.tsx`
+  so both lists use the same badge.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards. A new account opened on Search.
+After two foods were logged, the diary opened on My foods, under Recent.
+Logging the chicken *from My foods*, with no search, wrote an entry through
+the normal path (3 entries, 375 kcal = 175 × 2 + 25). Frequent appeared only
+then and listed only the chicken. Starring it made Favourites appear.
+Filtering for "apple" in Favourites said so and pointed back to Search.
+
+**Throughout:** 762 unit tests (15 new), with typecheck, lint and build
+clean. No migration, so nothing about production's schema changed.
 
 ### Phase 12A — Custom Food Studio, 2026-10-07 (Claude Code)
 

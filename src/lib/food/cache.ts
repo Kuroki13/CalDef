@@ -115,6 +115,38 @@ export async function findCachedByBarcode(
 }
 
 /**
+ * Several cached foods at once, by database id, in no particular order.
+ *
+ * For the personal library, which knows *which* foods from the diary and
+ * needs them in the shape the logging path takes. Retired custom foods are
+ * left out: they stay readable wherever history points at them, but the
+ * library is for choosing what to eat next, and retiring a food means not
+ * being offered it again. RLS limits the rows to shared ones and the
+ * caller's own.
+ */
+export async function getCachedFoodsByIds(
+  ids: readonly number[],
+): Promise<CachedFood[]> {
+  if (ids.length === 0) return [];
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("foods")
+    .select(
+      `id, source, source_id, name, brand, description, barcode, is_verified,
+       data_updated_at, refreshed_at, basis_unit,
+       food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
+                       sat_fat_g, sodium_mg),
+       food_servings (label, grams, is_default)`,
+    )
+    .in("id", [...ids])
+    .is("archived_at", null);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).flatMap(rowToFood);
+}
+
+/**
  * Writes a provider food into the cache and returns its database id.
  *
  * Idempotent on `(source, source_id)`, and deliberately **insert-only**.

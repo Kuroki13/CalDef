@@ -16,9 +16,10 @@ import { BarcodeScanner } from "@/components/barcode-scanner";
 import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
 import { DescribeMeal } from "@/components/describe-meal";
+import { MyFoods } from "@/components/my-foods";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { PendingButton } from "@/components/pending-button";
+import { SourceBadge } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,6 +46,11 @@ import {
 import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
 import type { MealType } from "@/lib/diary";
+import {
+  EMPTY_LIBRARY,
+  libraryIsEmpty,
+  type PersonalLibrary,
+} from "@/lib/food/library-types";
 import { amountUnit, formatAmount, per100Label } from "@/lib/food/basis";
 
 type SearchState = {
@@ -65,9 +71,12 @@ export function AddFood({
   logDate,
   mealTypes,
   aiReady = false,
+  library = EMPTY_LIBRARY,
 }: {
   logDate: string;
   mealTypes: MealType[];
+  /** The user's own foods (§12B), offered before anything is searched. */
+  library?: PersonalLibrary;
   /** Whether the assistant can be asked to draft a dish it did not find. */
   aiReady?: boolean;
 }) {
@@ -185,19 +194,35 @@ export function AddFood({
       </CardHeader>
       <CardContent className="space-y-4">
         {!chosen ? (
-          <Tabs defaultValue="search">
+          <Tabs defaultValue={libraryIsEmpty(library) ? "search" : "mine"}>
             {/*
               Peers, deliberately. Writing a sentence is not what you do
               when search fails — it is what you do when you ate four things
               and would rather not run four searches. Behind a failure, the
               faster path was the invisible one.
             */}
-            {aiReady ? (
-              <TabsList className="mb-3">
-                <TabsTrigger value="search">Search</TabsTrigger>
+            {/*
+              My foods comes first and opens by default once there is
+              anything in it (spec §12B): a food already eaten should be
+              easier to reach than an obscure provider result, and the
+              fastest way to reach it is not to search at all.
+            */}
+            <TabsList className="mb-3">
+              <TabsTrigger value="mine">My foods</TabsTrigger>
+              <TabsTrigger value="search">Search</TabsTrigger>
+              {aiReady ? (
                 <TabsTrigger value="describe">Describe a meal</TabsTrigger>
-              </TabsList>
-            ) : null}
+              ) : null}
+            </TabsList>
+
+            <TabsContent value="mine">
+              <MyFoods
+                library={library}
+                logDate={logDate}
+                mealTypes={mealTypes}
+                onChoose={setChosen}
+              />
+            </TabsContent>
 
             <TabsContent value="describe">
               <DescribeMeal logDate={logDate} mealTypes={mealTypes} />
@@ -364,21 +389,6 @@ export function AddFood({
       </CardContent>
     </Card>
   );
-}
-
-function SourceBadge({ food }: { food: Food }) {
-  if (food.source === "usda") {
-    return (
-      <Badge variant={food.isVerified ? "default" : "secondary"}>
-        {food.isVerified ? "USDA verified" : "USDA"}
-      </Badge>
-    );
-  }
-  if (food.source === "off") {
-    // Community-contributed. The spec requires not presenting it as verified.
-    return <Badge variant="outline">Community</Badge>;
-  }
-  return <Badge variant="secondary">Yours</Badge>;
 }
 
 function PortionFields({

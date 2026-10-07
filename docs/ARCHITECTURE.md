@@ -106,6 +106,9 @@ src/
                        cache.ts · registry.ts
                        custom.ts · custom-input.ts (the user's own foods)
                        basis.ts (g or ml: how a food's amounts read)
+                       library.ts · library-rank.ts · library-types.ts
+                       (My Foods: recent, frequent, favourites, yours,
+                       scanned, recipes, meals — read, never stored)
                        staleness.ts · history.ts (when to refetch, and
                        whose diary breaks a ranking tie)
                        text-match.ts (shared by the server's ranking and

@@ -14,6 +14,7 @@ import { LinkPending } from "@/components/pending-nav";
 import { Progress } from "@/components/ui/progress";
 import { addDays, isIsoDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
+import { getPersonalLibrary } from "@/lib/food/library";
 import { hasGeminiKey } from "@/lib/env.server";
 import { remainingAgainstTarget } from "@/lib/nutrition/totals";
 import { getAccountSetup } from "@/lib/profile";
@@ -59,9 +60,10 @@ export default async function DiaryPage({
   const requested = (await searchParams).date;
   const date = requested && isIsoDate(requested) ? requested : today;
 
-  const [day, target] = await Promise.all([
+  const [day, target, library] = await Promise.all([
     getDiaryDay(date),
     getOrCreateDailyTarget(date),
+    getPersonalLibrary(),
   ]);
 
   // The assistant needs both the user's switch and a configured key. Showing
@@ -166,7 +168,9 @@ export default async function DiaryPage({
         ) : null}
       </Card>
 
-      <AddFood logDate={date} mealTypes={day.mealTypes} aiReady={aiReady} />
+      <AddFood logDate={date} mealTypes={day.mealTypes} aiReady={aiReady}
+        library={library}
+      />
 
       {day.mealTypes.map((meal) => {
         const entries = entriesByMeal.get(meal.id) ?? [];
