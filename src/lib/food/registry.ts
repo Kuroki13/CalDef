@@ -13,9 +13,9 @@ import "server-only";
 import { cacheFood, refreshCachedFood, searchCache } from "@/lib/food/cache";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
-import { loggedFoodCounts } from "@/lib/food/history";
+import { personalSignals } from "@/lib/food/history";
+import { type PersonalSignals, rankFoods } from "@/lib/food/personal-rank";
 import { safeProviderCall } from "@/lib/food/provider";
-import { fold } from "@/lib/food/text-match";
 import { isStale } from "@/lib/food/staleness";
 import { searchRestaurantCatalogue } from "@/lib/food/restaurant-catalogue";
 import type {
@@ -40,7 +40,7 @@ export async function searchFoods(
 ): Promise<SearchOutcome> {
   const [cacheResult, history] = await Promise.all([
     safeProviderCall("cache", () => searchCache(query)),
-    loggedFoodCounts(),
+    personalSignals(),
   ]);
 
   const providerResults = await Promise.all(
@@ -108,81 +108,21 @@ async function refreshStaleHits(
 }
 
 /**
- * Orders merged results by how well they match what was typed.
+ * Orders merged results: by how much of the query each accounts for, then
+ * by the user's own history within that (spec §12C, `personal-rank.ts`).
  *
- * Without this the order is the fan-out's order — cache, then USDA, then
- * Open Food Facts — so a generic USDA row always outranked the branded
- * product the user actually meant. "Dubai chocolate" returned "Beverages,
- * chocolate syrup" as its top match, because USDA answers first and matched
- * one word of two. The first result is the one the AI path proposes and the
- * one a hurried user taps, so its order is not cosmetic.
- *
- * Relevance cannot settle a single word: every chicken row matches
- * "chicken" exactly as well as every other, so the fan-out order used to
- * decide and USDA's "Chicken spread" could lead. The user's own diary
- * breaks that tie — a food they have logged before is nearly always the one
- * they mean. It is a tie-break and not a term in the score, deliberately: a
- * food eaten weekly must not outrank an exact match on what was typed just
- * because it is familiar.
- *
- * The sort is stable, so foods equal on both still keep the fan-out's order,
- * and cache hits come first among them.
+ * Without any ordering the fan-out decided — cache, then USDA, then Open
+ * Food Facts — so "Dubai chocolate" returned "Beverages, chocolate syrup"
+ * first, because USDA answers first and matched one word of two. The first
+ * result is the one the AI path proposes and the one a hurried user taps,
+ * so its order is not cosmetic.
  */
 function rank(
   foods: readonly Food[],
   text: string,
-  history: ReadonlyMap<number, number> = new Map(),
+  signals?: PersonalSignals,
 ): Food[] {
-  const scored = foods.map((food, index) => ({
-    food,
-    index,
-    score: relevance(food, text),
-    familiarity: familiarityOf(food, history),
-  }));
-
-  scored.sort(
-    (a, b) =>
-      b.score - a.score || b.familiarity - a.familiarity || a.index - b.index,
-  );
-  return scored.map((s) => s.food);
-}
-
-/**
- * How often this user has logged this food.
- *
- * Zero for anything that is not a cached row, which is the honest answer:
- * a food that has never been in the cache has never been in the diary
- * either, because logging is what puts it there.
- */
-function familiarityOf(
-  food: Food,
-  history: ReadonlyMap<number, number>,
-): number {
-  const id = (food as { id?: number }).id;
-  return typeof id === "number" ? (history.get(id) ?? 0) : 0;
-}
-
-/**
- * How much of the query this food's name and brand account for.
- *
- * Every matched term counts, and matching the whole phrase counts for more
- * again: a product literally called "Dubai chocolate" must beat one that
- * merely contains the word "chocolate". Nothing is filtered out on a low
- * score — a weak match is still a result the user can see and reject, and
- * dropping results would undo the degradation rule.
- */
-function relevance(food: Food, text: string): number {
-  const haystack = fold(`${food.name} ${food.brand ?? ""}`);
-  const needle = fold(text);
-  if (needle.length === 0) return 0;
-
-  const terms = needle.split(" ").filter((t) => t.length > 0);
-  if (terms.length === 0) return 0;
-
-  const matched = terms.filter((term) => haystack.includes(term)).length;
-  const phraseBonus = haystack.includes(needle) ? 0.5 : 0;
-
-  return matched / terms.length + phraseBonus;
+  return rankFoods(foods, text, signals);
 }
 
 /**

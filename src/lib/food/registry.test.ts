@@ -18,8 +18,23 @@ vi.mock("@/lib/food/cache", () => ({
   refreshCachedFood: (...a: unknown[]) => refreshCachedFood(...a),
 }));
 
+// The tests below speak in counts; the registry now takes the full
+// signals, so counts become uses with no recency and no favourites — the
+// same information the old tie-break had, and nothing more.
 vi.mock("@/lib/food/history", () => ({
-  loggedFoodCounts: () => loggedFoodCounts(),
+  personalSignals: async () => {
+    const counts: Map<number, number> = await loggedFoodCounts();
+    return {
+      uses: new Map(
+        [...counts].map(([id, count]) => [
+          id,
+          { count, lastLoggedAt: "2000-01-01T00:00:00Z" },
+        ]),
+      ),
+      favorites: new Set(),
+      now: new Date(),
+    };
+  },
 }));
 
 vi.mock("@/lib/food/usda", () => ({

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -9,6 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * module itself stateful across tests, so each case imports a fresh copy
  * after arranging the window it should see.
  */
+// Every case re-imports the component tree after `vi.resetModules()`, and
+// under the full parallel run that import alone has exceeded the 20 s
+// default. A timed-out case also leaves its render mounted, which is what
+// made the next case see two alerts.
+vi.setConfig({ testTimeout: 60_000 });
+
 async function renderScanner(props: {
   onDetected?: (code: string) => void;
   onCancel?: () => void;
@@ -80,9 +86,15 @@ describe("BarcodeScanner in a browser with no BarcodeDetector", () => {
     setUpWindow({ nativeDetector: false });
     await renderScanner();
 
-    expect(
-      screen.getByRole("button", { name: "Scan a barcode" }),
-    ).toBeEnabled();
+    // Capability is settled in an effect; under a loaded parallel run the
+    // first render can still be the pre-effect one.
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", { name: "Scan a barcode" }),
+        ).toBeEnabled(),
+      { timeout: 5000 },
+    );
     expect(screen.queryByText(/cannot read barcodes/i)).not.toBeInTheDocument();
   });
 });

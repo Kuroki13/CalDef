@@ -27,7 +27,7 @@ Last updated: 2026-10-07
 | 9 | AI layer | DONE |
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
-| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A and 12B done and live; 12C personal ranking next |
+| 12 | Personal Food Intelligence (spec §12) | IN PROGRESS — 12A, 12B, 12C done and live; 12E repeat workflows next |
 | 13 | Universal / multilingual food intelligence (spec §13) | TODO — after 12 |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
@@ -532,7 +532,12 @@ Phase 12, in the order spec §15 sets:
 
 - **12A — Custom Food Studio: DONE, live on production since 2026-10-07.**
 - **12B — My Foods: DONE, live on production since 2026-10-07.**
-- 12C personal ranking → 12E repeat workflows → 12D typical
+- **12C — Personal ranking: DONE, live on production since 2026-10-07.**
+  The spec's "personal recipe" signal is not a search signal yet, because
+  recipes do not come back from food search. It belongs to §13's
+  personal/family recipe resolution ("Mom's Maqlouba"), and will be weighed
+  there.
+- 12E repeat workflows → 12D typical
   portions → 12G Quick Add and 12H confidence.
 
 Phase 11:
@@ -901,6 +906,49 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 12C — Personal ranking, 2026-10-07 (Claude Code)
+
+Before this, the diary only broke exact relevance ties. So a food eaten
+every day lost to a stranger on the phrase bonus alone: USDA's "Chicken,
+broiler, breast, meat only" has both words but not the phrase, and lost
+"chicken breast" to "Chicken breast nuggets". `lib/food/personal-rank.ts`
+now ranks in two tiers:
+
+1. **Word coverage**, the share of typed words found in the name or brand.
+   Nothing personal ever crosses this tier, so a food missing a word you
+   typed cannot outrank one that has them all.
+2. **Within equal coverage**, a weighed score:
+   - the intact phrase: 0.5
+   - frequency: up to 0.45, logarithmic, saturating at 20 logs
+   - last logged within 14 days: 0.15 (within 60 days: 0.05)
+   - favourite: 0.25
+   - the user's own food: 0.2
+   - verified source: 0.05
+
+   A habit beats a phrase-only win; a food eaten once does not.
+
+`history.ts` now returns `personalSignals()`, which carries uses with
+recency, plus favourites, in place of bare counts. Each half fails to empty
+rather than failing the search. The AI parser resolves through the same
+`searchFoods`, so its first proposal follows the same order.
+
+**Verified on development** with the production build in Chrome and a
+fixture account that was removed afterwards. Searching "chicken breast"
+put "Chicken breast, fat-free, mesquite flavor, sliced" **8th**. After it
+had been logged 8 times (once through the UI, seven copies of that entry in
+dev SQL, since only the count mattered), it came **1st**. Searching "turkey
+breast" with the same history put turkey in all of the top places: the
+chicken matches one word of two, so it stays in the lower tier.
+
+Also fixed: `barcode-scanner.test.tsx` timed out at 20 s about one run in
+three. Each case re-imports the component tree after `vi.resetModules()`,
+which is slow under full parallel load, and a timed-out case left its
+render mounted, so the next case saw two alerts. The file now allows 60 s,
+and three consecutive full runs were clean.
+
+**Throughout:** 774 unit tests (12 new), with typecheck, lint and build
+clean. No migration.
 
 ### Phase 12B — My Foods, 2026-10-07 (Claude Code)
 

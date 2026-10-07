@@ -106,6 +106,8 @@ src/
                        cache.ts · registry.ts
                        custom.ts · custom-input.ts (the user's own foods)
                        basis.ts (g or ml: how a food's amounts read)
+                       personal-rank.ts (search order: word coverage,
+                       then phrase + the user's own history)
                        library.ts · library-rank.ts · library-types.ts
                        (My Foods: recent, frequent, favourites, yours,
                        scanned, recipes, meals — read, never stored)
