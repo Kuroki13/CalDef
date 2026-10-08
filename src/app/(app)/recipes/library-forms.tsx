@@ -182,10 +182,13 @@ export function LogRecipeForm({
   mealTypes,
   cookedWeightG = null,
   servings = null,
+  searchedFor = null,
 }: {
   recipeId: number;
   logDate: string;
   mealTypes: MealType[];
+  /** The phrase this recipe was found for, so logging it teaches (§13I). */
+  searchedFor?: string | null;
   /** When the finished dish was weighed, it can be logged in grams. */
   cookedWeightG?: number | null;
   /** How many servings it makes, for the grams hint. */
@@ -206,6 +209,7 @@ export function LogRecipeForm({
       <input type="hidden" name="recipeId" value={recipeId} />
       <input type="hidden" name="logDate" value={logDate} />
       <input type="hidden" name="unit" value={unit} />
+      {searchedFor ? <input type="hidden" name="searchedFor" value={searchedFor} /> : null}
 
       <div className="flex flex-wrap items-end gap-2">
         <div className="w-24 space-y-1">

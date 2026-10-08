@@ -505,6 +505,60 @@ export type Database = {
         }
         Relationships: []
       }
+      food_vocabulary: {
+        Row: {
+          choice_count: number
+          created_at: string
+          food_id: number | null
+          id: number
+          last_chosen_at: string
+          phrase: string
+          phrase_key: string
+          recipe_id: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          choice_count?: number
+          created_at?: string
+          food_id?: number | null
+          id?: never
+          last_chosen_at?: string
+          phrase: string
+          phrase_key: string
+          recipe_id?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          choice_count?: number
+          created_at?: string
+          food_id?: number | null
+          id?: never
+          last_chosen_at?: string
+          phrase?: string
+          phrase_key?: string
+          recipe_id?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_vocabulary_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_vocabulary_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           activity_level: Database["public"]["Enums"]["activity_level"]
@@ -943,6 +997,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      record_food_choice: {
+        Args: {
+          p_food_id: number
+          p_phrase: string
+          p_phrase_key: string
+          p_recipe_id: number
+        }
+        Returns: undefined
+      }
       save_custom_food: {
         Args: {
           p_barcode: string

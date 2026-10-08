@@ -12,6 +12,7 @@ import "server-only";
 
 import {
   cacheFood,
+  getCachedFoodsByIds,
   ownFoodsNamingDish,
   refreshCachedFood,
   searchCache,
@@ -20,6 +21,8 @@ import { type Recognised, namesDish, recognise } from "@/lib/food/cultural/recog
 import { hasStrongMatch } from "@/lib/food/text-match";
 import { getRecipe, listRecipeNames } from "@/lib/recipes";
 import { matchRecipes } from "@/lib/recipe-match";
+import { learnedFor } from "@/lib/vocabulary";
+import { PINNED_AT } from "@/lib/vocabulary-key";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
 import { personalSignals } from "@/lib/food/history";
@@ -57,7 +60,7 @@ export async function searchFoods(
   const providerQuery = dish ? { ...query, text: dish.searchAs } : query;
   const rankText = providerQuery.text;
 
-  const [cacheResult, cacheByDish, ownDishFoods, history, recipes] = await Promise.all([
+  const [cacheResult, cacheByDish, ownDishFoods, history, matchedRecipes, learnedAll] = await Promise.all([
     safeProviderCall("cache", () => searchCache(query)),
     dish && dish.searchAs !== query.text
       ? safeProviderCall("cache", () => searchCache(providerQuery))
@@ -66,7 +69,29 @@ export async function searchFoods(
     personalSignals(),
     // §13G: the user's own recipes answer before any database does.
     recipeHits(query.text, dish).catch(() => []),
+    // §13I: what this exact phrase has meant to this user before.
+    learnedFor(query.text).catch(() => []),
   ]);
+
+  // A habit, not a one-off: twice for the same phrase before it leads.
+  const learned = learnedAll.filter((pick) => pick.count >= PINNED_AT);
+  const learnedFoodIds = learned.flatMap((p) => (p.foodId === null ? [] : [p.foodId]));
+  const learnedRecipeIds = learned.flatMap((p) => (p.recipeId === null ? [] : [p.recipeId]));
+
+  // A learned item may share no word with the phrase — "the usual" — so it
+  // is fetched by id rather than hoped for in the results.
+  const [learnedFoods, learnedRecipes] = await Promise.all([
+    getCachedFoodsByIds(learnedFoodIds).catch(() => []),
+    Promise.all(
+      learnedRecipeIds
+        .filter((id) => !matchedRecipes.some((r) => r.id === id))
+        .map((id) => recipeHitById(id).catch(() => null)),
+    ),
+  ]);
+  const recipes = pinFirst(
+    [...matchedRecipes, ...learnedRecipes.flatMap((r) => (r ? [r] : []))],
+    (r) => learnedRecipeIds.indexOf(r.id),
+  );
 
   const providerResults = await Promise.all(
     PROVIDERS.map((provider) => provider.search(providerQuery)),
@@ -86,9 +111,10 @@ export async function searchFoods(
     dish !== null && namesDish(food.name, dish.dish.id);
 
   const references = searchRestaurantCatalogue(query.text);
-  const ranked = rank(
+  const rankedByText = rank(
     dedupe([
       ...refreshed,
+      ...learnedFoods,
       ...ownDishFoods,
       ...results.flatMap((r) => r.foods),
       ...(cacheByDish?.foods ?? []),
@@ -97,7 +123,16 @@ export async function searchFoods(
     history,
     namesSameDish,
   );
-  const foods = dedupe([...references, ...ranked]);
+  const ranked = pinFirst(rankedByText, (food) => {
+    const id = (food as { id?: number }).id;
+    return typeof id === "number" ? learnedFoodIds.indexOf(id) : -1;
+  });
+  // What the user has picked for this phrase leads even a restaurant
+  // reference: it is the answer they have given twice already.
+  const learnedFirst = ranked.slice(0, learnedFoods.length).filter((food) =>
+    learnedFoodIds.includes((food as { id?: number }).id ?? -1),
+  );
+  const foods = dedupe([...learnedFirst, ...references, ...ranked]);
 
   return {
     foods,
@@ -108,11 +143,22 @@ export async function searchFoods(
     recognised: dish
       ? {
           ...describeRecognised(dish),
-          variantOpen: dish.variantOpen && ownDishFoods.length === 0 && recipes.length === 0,
+          variantOpen:
+            dish.variantOpen &&
+            ownDishFoods.length === 0 &&
+            recipes.length === 0 &&
+            learned.length === 0,
         }
       : null,
     recipes,
+    learned: learned.map((p) => ({
+      vocabularyId: p.vocabularyId,
+      foodId: p.foodId,
+      recipeId: p.recipeId,
+      count: p.count,
+    })),
     strongMatch:
+      learned.length > 0 ||
       recipes.length > 0 ||
       references.length > 0 ||
       ranked.some(namesSameDish) ||
@@ -208,6 +254,34 @@ async function recipeHits(text: string, dish: Recognised | null): Promise<Recipe
         ]
       : [],
   );
+}
+
+/**
+ * Moves the items `order` names (index ≥ 0) to the front, in that order;
+ * everything else keeps its place behind them.
+ */
+function pinFirst<T>(items: readonly T[], order: (item: T) => number): T[] {
+  const pinned = items
+    .map((item) => ({ item, at: order(item) }))
+    .filter((p) => p.at >= 0)
+    .sort((a, b) => a.at - b.at)
+    .map((p) => p.item);
+  return [...pinned, ...items.filter((item) => order(item) < 0)];
+}
+
+async function recipeHitById(id: number): Promise<RecipeHit | null> {
+  const detail = await getRecipe(id);
+  if (!detail || detail.ingredients.length === 0) return null;
+  return {
+    id: detail.recipe.id,
+    name: detail.recipe.name,
+    servings: Number(detail.recipe.servings),
+    kcalPerServing: detail.perServing.kcal,
+    proteinPerServing: detail.perServing.protein_g,
+    isFamily: detail.recipe.is_family,
+    cookedWeightG:
+      detail.recipe.cooked_weight_g === null ? null : Number(detail.recipe.cooked_weight_g),
+  };
 }
 
 /** What the screen is told about a recognised dish — names, never numbers. */

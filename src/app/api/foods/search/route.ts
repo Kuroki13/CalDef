@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
       recognised: outcome.recognised ?? null,
       strongMatch: outcome.strongMatch ?? null,
       recipes: outcome.recipes ?? [],
+      learned: outcome.learned ?? [],
       notice: describeDegradation(outcome.results),
     },
     { headers },

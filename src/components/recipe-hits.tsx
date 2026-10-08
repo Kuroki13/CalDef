@@ -17,18 +17,28 @@ import { LogRecipeForm } from "@/app/(app)/recipes/library-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { MealType } from "@/lib/diary";
-import type { RecipeHit } from "@/lib/food/types";
+import type { LearnedHit, RecipeHit } from "@/lib/food/types";
 
 export function RecipeHits({
   recipes,
   logDate,
   mealTypes,
+  searchedFor = null,
+  learned = [],
+  onForget,
 }: {
   recipes: RecipeHit[];
   logDate: string;
   mealTypes: MealType[];
+  /** What was typed, so logging from here teaches the app (§13I). */
+  searchedFor?: string | null;
+  /** Recipes this phrase has come to mean, with the id that forgets each. */
+  learned?: LearnedHit[];
+  onForget?: (vocabularyId: number) => void;
 }) {
   const [open, setOpen] = useState<number | null>(recipes.length === 1 ? recipes[0].id : null);
+  const learnedFor = (recipeId: number) =>
+    learned.find((pick) => pick.recipeId === recipeId) ?? null;
 
   return (
     <section aria-labelledby="recipe-hits-heading" className="space-y-1">
@@ -41,6 +51,11 @@ export function RecipeHits({
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{recipe.name}</p>
+                {learnedFor(recipe.id) && searchedFor ? (
+                  <p className="text-xs font-medium">
+                    Your usual for &ldquo;{searchedFor}&rdquo;
+                  </p>
+                ) : null}
                 <p className="text-muted-foreground text-xs">
                   {Math.round(recipe.kcalPerServing)} kcal ·{" "}
                   {Math.round(recipe.proteinPerServing)} g protein a serving · makes{" "}
@@ -49,6 +64,17 @@ export function RecipeHits({
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Badge variant="secondary">{recipe.isFamily ? "Family" : "Recipe"}</Badge>
+                {learnedFor(recipe.id) && onForget ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Stop putting ${recipe.name} first for “${searchedFor ?? ""}”`}
+                    onClick={() => onForget((learnedFor(recipe.id) as LearnedHit).vocabularyId)}
+                  >
+                    Not this
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -68,6 +94,7 @@ export function RecipeHits({
                 mealTypes={mealTypes}
                 cookedWeightG={recipe.cookedWeightG}
                 servings={recipe.servings}
+                searchedFor={searchedFor}
               />
             ) : null}
           </li>

@@ -12,6 +12,7 @@ const offSearch = vi.fn();
 const offLookupBarcode = vi.fn();
 const ownFoodsNamingDish = vi.fn();
 const listRecipeNames = vi.fn();
+const getCachedFoodsByIds = vi.fn();
 const getRecipe = vi.fn();
 
 vi.mock("@/lib/recipes", () => ({
@@ -25,7 +26,11 @@ vi.mock("@/lib/food/cache", () => ({
   cacheFood: (...a: unknown[]) => cacheFood(...a),
   refreshCachedFood: (...a: unknown[]) => refreshCachedFood(...a),
   ownFoodsNamingDish: (...a: unknown[]) => ownFoodsNamingDish(...a),
+  getCachedFoodsByIds: (...a: unknown[]) => getCachedFoodsByIds(...a),
 }));
+
+const learnedFor = vi.fn();
+vi.mock("@/lib/vocabulary", () => ({ learnedFor: (p: string) => learnedFor(p) }));
 
 // The tests below speak in counts; the registry now takes the full
 // signals, so counts become uses with no recency and no favourites — the
@@ -98,6 +103,8 @@ beforeEach(() => {
   searchCache.mockResolvedValue([]);
   ownFoodsNamingDish.mockResolvedValue([]);
   listRecipeNames.mockResolvedValue([]);
+  learnedFor.mockResolvedValue([]);
+  getCachedFoodsByIds.mockResolvedValue([]);
   getRecipe.mockResolvedValue(null);
   loggedFoodCounts.mockResolvedValue(new Map());
   usdaSearch.mockResolvedValue(ok("usda", []));
@@ -533,5 +540,40 @@ describe("searchFoods — the user's own recipes (§13G)", () => {
     const outcome = await searchFoods({ text: "hummus" });
     expect(outcome.recipes).toEqual([]);
     expect(outcome.foods).toHaveLength(1);
+  });
+});
+
+describe("searchFoods — what a phrase means to this user (§13I)", () => {
+  const fresh = new Date().toISOString();
+  const meatLeaves = { ...food("off", "m", "Stuffed grape leaves with meat"), id: 31, refreshedAt: fresh };
+  const plainLeaves = { ...food("usda", "p", "Grape leaves, stuffed with rice"), id: 32, refreshedAt: fresh };
+
+  it("puts the food chosen twice for this phrase first, with its forget id", async () => {
+    learnedFor.mockResolvedValue([{ vocabularyId: 5, foodId: 31, recipeId: null, count: 3 }]);
+    getCachedFoodsByIds.mockResolvedValue([meatLeaves]);
+    usdaSearch.mockResolvedValue(ok("usda", [plainLeaves]));
+
+    const outcome = await searchFoods({ text: "warak" });
+
+    expect(outcome.foods[0].name).toBe("Stuffed grape leaves with meat");
+    expect(outcome.learned).toEqual([{ vocabularyId: 5, foodId: 31, recipeId: null, count: 3 }]);
+    // Their habit answers "which kind?".
+    expect(outcome.recognised?.variantOpen).toBe(false);
+  });
+
+  it("does not let a single pick lead — once is not a habit", async () => {
+    learnedFor.mockResolvedValue([{ vocabularyId: 6, foodId: 31, recipeId: null, count: 1 }]);
+    usdaSearch.mockResolvedValue(ok("usda", [plainLeaves]));
+    const outcome = await searchFoods({ text: "warak" });
+    expect(outcome.learned).toEqual([]);
+    expect(getCachedFoodsByIds).toHaveBeenCalledWith([]);
+  });
+
+  it("answers a phrase that names no food at all — 'the usual'", async () => {
+    learnedFor.mockResolvedValue([{ vocabularyId: 7, foodId: 31, recipeId: null, count: 4 }]);
+    getCachedFoodsByIds.mockResolvedValue([meatLeaves]);
+    const outcome = await searchFoods({ text: "the usual" });
+    expect(outcome.foods[0].name).toBe("Stuffed grape leaves with meat");
+    expect(outcome.strongMatch).toBe(true);
   });
 });

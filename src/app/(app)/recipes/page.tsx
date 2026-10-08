@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 
+import { listVocabulary } from "@/lib/vocabulary";
+import { PINNED_AT } from "@/lib/vocabulary-key";
 import {
   deleteRecipeAction,
+  forgetVocabularyAction,
   deleteSavedMealAction,
   removeIngredientAction,
   toggleFavoriteAction,
@@ -46,7 +49,7 @@ export default async function RecipesPage() {
 
   const today = todayInTimeZone(profile.timezone);
 
-  const [day, recipes, savedMeals, favorites, customFoods, retiredFoods] =
+  const [day, recipes, savedMeals, favorites, customFoods, retiredFoods, vocabulary] =
     await Promise.all([
     getDiaryDay(today),
     listRecipes(),
@@ -54,6 +57,7 @@ export default async function RecipesPage() {
     getFavorites(),
     listCustomFoods(),
     listArchivedCustomFoods(),
+    listVocabulary().catch(() => []),
   ]);
 
   // A Quick Add has no food behind it, so it cannot be an ingredient or a
@@ -326,6 +330,56 @@ export default async function RecipesPage() {
             <h3 className="mb-3 text-sm font-medium">New recipe</h3>
             <CreateRecipeForm entries={entryOptions} />
           </div>
+        </CardContent>
+      </Card>
+
+      {/*
+        §13I: everything CalDef has learned about this user's words, in
+        one place, each removable. Learned only from their own picks, used
+        only for them, never sent to the assistant.
+      */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Your words</CardTitle>
+          <CardDescription>
+            What your searches have come to mean. After you pick the same
+            food for the same words twice, it comes first for those words.
+            Only you see this, and removing a line makes CalDef forget it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {vocabulary.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              Nothing learned yet. Search, pick, and log as usual.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {vocabulary.map((entry) => (
+                <li key={entry.vocabularyId} className="flex items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm">
+                      &ldquo;{entry.phrase}&rdquo; → {entry.itemName}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Picked {entry.count === 1 ? "once" : `${entry.count} times`}
+                      {entry.count >= PINNED_AT ? " · comes first" : " · once more and it comes first"}
+                    </p>
+                  </div>
+                  <form action={forgetVocabularyAction}>
+                    <input type="hidden" name="vocabularyId" value={entry.vocabularyId} />
+                    <PendingButton
+                      type="submit"
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Forget that “${entry.phrase}” means ${entry.itemName}`}
+                    >
+                      Forget
+                    </PendingButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
 

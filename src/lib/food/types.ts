@@ -133,4 +133,17 @@ export type SearchOutcome = {
   strongMatch?: boolean;
   /** The user's own recipes that answer the query, preferred first. */
   recipes?: RecipeHit[];
+  /**
+   * What this phrase has come to mean to this user (§13I): items they have
+   * chosen for it at least twice, now listed first. Each carries the id
+   * that forgets it.
+   */
+  learned?: LearnedHit[];
+};
+
+export type LearnedHit = {
+  vocabularyId: number;
+  foodId: number | null;
+  recipeId: number | null;
+  count: number;
 };

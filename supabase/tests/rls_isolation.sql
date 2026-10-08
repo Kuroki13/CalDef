@@ -26,7 +26,7 @@ begin
   end if;
   select count(*) into table_count from pg_class
     where relnamespace = 'public'::regnamespace and relkind = 'r';
-  if table_count <> 20 then raise exception 'FAIL: expected 20 tables'; end if;
+  if table_count <> 21 then raise exception 'FAIL: expected 21 tables'; end if;
   for t in select relname, relrowsecurity from pg_class
     where relnamespace = 'public'::regnamespace and relkind = 'r'
   loop
@@ -48,7 +48,7 @@ begin
       raise exception 'FAIL: API role can truncate %', t.relname;
     end if;
   end loop;
-  raise notice 'PASS: grants, API roles, RLS and four policies on all 20 tables';
+  raise notice 'PASS: grants, API roles, RLS and four policies on all 21 tables';
 end $$;
 
 -- =====================================================================
@@ -219,7 +219,7 @@ begin
     'weekly_checkins','food_logs','recipes','recipe_ingredients','saved_meals',
     'saved_meal_items','favorite_foods','ai_conversations','ai_messages',
     'cut_phases','cut_phase_milestones','foods','food_nutrients',
-    'food_servings','meal_types']
+    'food_servings','meal_types','food_vocabulary']
   loop
     -- Shared cache rows past the freshness window are *meant* to be
     -- writable by any signed-in user (migration 0010: a stale provider row
@@ -252,7 +252,7 @@ begin
   if affected <> 1 then
     raise exception 'FAIL: own profile update affected % rows', affected;
   end if;
-  raise notice 'PASS: update/delete isolation on all 20 tables; own update allowed';
+  raise notice 'PASS: update/delete isolation on all 21 tables; own update allowed';
 end $$;
 
 -- =====================================================================
@@ -354,7 +354,7 @@ begin
     'weekly_checkins','food_logs','recipes','recipe_ingredients','saved_meals',
     'saved_meal_items','favorite_foods','ai_conversations','ai_messages',
     'cut_phases','cut_phase_milestones','foods','food_nutrients',
-    'food_servings','meal_types']
+    'food_servings','meal_types','food_vocabulary']
   loop
     begin
       execute format('select count(*) from public.%I', t) into n;
@@ -363,10 +363,10 @@ begin
       null; -- expected
     end;
   end loop;
-  raise notice 'PASS: anon denied on all 20 tables';
+  raise notice 'PASS: anon denied on all 21 tables';
 end $$;
 
-select 'anon denied on all 20 tables' as result;
+select 'anon denied on all 21 tables' as result;
 
 -- =====================================================================
 -- 5. CUSTOM FOODS — owned by one user, and never rewriting history

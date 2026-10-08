@@ -14,6 +14,7 @@ import {
   updateRecipeSettings,
 } from "@/lib/recipes";
 import { overridesFromForm } from "@/lib/meal-template";
+import { forgetVocabulary, recordChoice } from "@/lib/vocabulary";
 import {
   createSavedMealFromEntries,
   deleteSavedMeal,
@@ -85,6 +86,8 @@ const logRecipeSchema = z.object({
   /** Servings, or grams when `unit` says so. */
   servings: z.coerce.number().positive().max(100000),
   unit: z.enum(["serving", "g"]).optional().default("serving"),
+  /** What was typed to find it, when it came from search (§13I). */
+  searchedFor: z.string().trim().max(200).optional(),
 });
 
 export async function logRecipeAction(
@@ -104,6 +107,10 @@ export async function logRecipeAction(
     { amount: parsed.data.servings, unit: parsed.data.unit },
   );
   if ("error" in result) return { error: result.error };
+
+  if (parsed.data.searchedFor) {
+    await recordChoice(parsed.data.searchedFor, { recipeId: parsed.data.recipeId });
+  }
 
   revalidateAll();
   return { ok: true, notice: "Added to your diary." };
@@ -313,4 +320,12 @@ export async function updateRecipeSettingsAction(
 
   revalidateAll();
   return { ok: true, notice: "Saved." };
+}
+
+/** Forgets one thing CalDef learned about the user's words (§13I). */
+export async function forgetVocabularyAction(formData: FormData): Promise<void> {
+  const id = Number(formData.get("vocabularyId"));
+  if (!Number.isInteger(id) || id <= 0) return;
+  await forgetVocabulary(id);
+  revalidatePath("/recipes");
 }

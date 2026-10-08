@@ -12,6 +12,7 @@
 import { useActionState, useState } from "react";
 
 import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
+import { forgetVocabularyAction } from "@/app/(app)/recipes/actions";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
@@ -48,7 +49,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { hasStrongMatch } from "@/lib/food/text-match";
-import type { Food, RecipeHit, RecognisedDish } from "@/lib/food/types";
+import type { Food, LearnedHit, RecipeHit, RecognisedDish } from "@/lib/food/types";
 import { describePortion } from "@/lib/nutrition/units";
 import type { UsualPortion } from "@/lib/nutrition/typical-portion";
 import type { MealType } from "@/lib/diary";
@@ -70,6 +71,10 @@ type SearchState = {
   strongMatch: boolean | null;
   /** The user's own recipes that answer it, shown first (§13G). */
   recipes: RecipeHit[];
+  /** What this phrase has come to mean to this user (§13I). */
+  learned: LearnedHit[];
+  /** The text these results answer — not whatever the box says now. */
+  text: string;
 };
 
 const IDLE: SearchState = {
@@ -80,6 +85,8 @@ const IDLE: SearchState = {
   recognised: null,
   strongMatch: null,
   recipes: [],
+  learned: [],
+  text: "",
 };
 
 export function AddFood({
@@ -98,6 +105,10 @@ export function AddFood({
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>(IDLE);
   const [chosen, setChosen] = useState<Food | null>(null);
+  // The phrase a food was picked for, so logging it teaches the app what
+  // that phrase means to this user (§13I). Only set from search: a pick
+  // from My foods or a scan answered no phrase.
+  const [pickedFor, setPickedFor] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [creatingFood, setCreatingFood] = useState(false);
   const [quickAdding, setQuickAdding] = useState(false);
@@ -133,6 +144,7 @@ export function AddFood({
 
       if (response.ok && body.food) {
         setSearch(IDLE);
+        setPickedFor(null);
         setChosen(body.food);
         return;
       }
@@ -184,6 +196,18 @@ export function AddFood({
     await searchFor(query);
   }
 
+  /**
+   * "Not this": forgets what the phrase was learned to mean, then shows the
+   * search again as it would be without it (§13I — every learned mapping
+   * is reversible, and from the place it shows up).
+   */
+  async function forgetPick(vocabularyId: number) {
+    const form = new FormData();
+    form.set("vocabularyId", String(vocabularyId));
+    await forgetVocabularyAction(form);
+    await searchFor(search.text);
+  }
+
   /** Also called by the variant question, with the variant's phrase. */
   async function searchFor(raw: string) {
     const text = raw.trim();
@@ -216,6 +240,8 @@ export function AddFood({
         recognised: body.recognised ?? null,
         strongMatch: typeof body.strongMatch === "boolean" ? body.strongMatch : null,
         recipes: Array.isArray(body.recipes) ? body.recipes : [],
+        learned: Array.isArray(body.learned) ? body.learned : [],
+        text,
       });
     } catch {
       setSearch({
@@ -261,7 +287,10 @@ export function AddFood({
                 library={library}
                 logDate={logDate}
                 mealTypes={mealTypes}
-                onChoose={setChosen}
+                onChoose={(food) => {
+                  setPickedFor(null);
+                  setChosen(food);
+                }}
               />
             </TabsContent>
 
@@ -294,6 +323,7 @@ export function AddFood({
                 onSaved={(food) => {
                   setCreatingFood(false);
                   setSearch(IDLE);
+                  setPickedFor(null);
                   setChosen(food);
                 }}
               />
@@ -362,6 +392,9 @@ export function AddFood({
                 recipes={search.recipes}
                 logDate={logDate}
                 mealTypes={mealTypes}
+                searchedFor={search.text}
+                learned={search.learned}
+                onForget={(id) => void forgetPick(id)}
               />
             ) : null}
 
@@ -421,12 +454,17 @@ export function AddFood({
             ) : null}
 
             <ul className="divide-y">
-              {search.foods.map((food) => (
-                <li key={`${food.source}:${food.sourceId}`}>
+              {search.foods.map((food) => {
+                const pick = learnedPick(search.learned, food);
+                return (
+                <li key={`${food.source}:${food.sourceId}`} className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => setChosen(food)}
-                    className="hover:bg-accent/50 flex w-full items-center justify-between gap-3 rounded-md px-2 py-3 text-left"
+                    onClick={() => {
+                      setPickedFor(search.text);
+                      setChosen(food);
+                    }}
+                    className="hover:bg-accent/50 flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-2 py-3 text-left"
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">
@@ -439,11 +477,28 @@ export function AddFood({
                             says what you would actually eat. */}
                         <ServingHint food={food} />
                       </span>
+                      {pick ? (
+                        <span className="text-foreground block text-xs font-medium">
+                          Your usual for &ldquo;{search.text}&rdquo;
+                        </span>
+                      ) : null}
                     </span>
                     <SourceBadge food={food} />
                   </button>
+                  {pick ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Stop putting ${food.name} first for “${search.text}”`}
+                      onClick={() => void forgetPick(pick.vocabularyId)}
+                    >
+                      Not this
+                    </Button>
+                  ) : null}
                 </li>
-              ))}
+                );
+              })}
             </ul>
             </TabsContent>
           </Tabs>
@@ -451,6 +506,9 @@ export function AddFood({
           <form action={formAction} className="space-y-4">
             <input type="hidden" name="logDate" value={logDate} />
             <input type="hidden" name="food" value={JSON.stringify(chosen)} />
+            {pickedFor ? (
+              <input type="hidden" name="searchedFor" value={pickedFor} />
+            ) : null}
 
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -494,6 +552,13 @@ export function AddFood({
       </CardContent>
     </Card>
   );
+}
+
+/** The learned pick behind a food in the results, if there is one. */
+function learnedPick(learned: LearnedHit[], food: Food): LearnedHit | null {
+  const id = (food as { id?: number }).id;
+  if (typeof id !== "number") return null;
+  return learned.find((pick) => pick.foodId === id) ?? null;
 }
 
 /**

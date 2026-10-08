@@ -16,6 +16,7 @@ import { z } from "zod";
 import { cacheFood } from "@/lib/food/cache";
 import { foodPayloadSchema } from "@/lib/food/payload";
 import { logCachedFood, updateEntryPortion } from "@/lib/food-log";
+import { recordChoice } from "@/lib/vocabulary";
 import type { Food } from "@/lib/food/types";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 
@@ -30,6 +31,8 @@ const logSchema = z.object({
   servingLabel: z.string().trim().max(120).optional(),
   /** The provider food, serialised by the search UI. */
   food: z.string().min(2),
+  /** What was typed to find it, when it came from search (§13I). */
+  searchedFor: z.string().trim().max(200).optional(),
 });
 
 export async function logFood(
@@ -65,6 +68,12 @@ export async function logFood(
     source: "manual",
   });
   if ("error" in result) return result;
+
+  // §13I: this phrase meant this food, to this user. Only after the entry
+  // is written, and never at its expense.
+  if (parsed.data.searchedFor) {
+    await recordChoice(parsed.data.searchedFor, { foodId });
+  }
 
   revalidatePath("/diary");
   revalidatePath("/dashboard");

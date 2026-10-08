@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G, 13H live; personal vocabulary (13I) next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G, 13H live; 13I built and verified on development, **waiting on migration 0016 in production** |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -561,7 +561,13 @@ Phase 13, in the order spec §15 sets:
   because its ingredient weights are raw and a cooked plate weighs
   something else. That comes with 13H.
 - **Family Foods and cooked weight (13H): DONE, live on production since 2026-10-08.**
-- Then personal vocabulary (13I), then
+- **Personal vocabulary (13I): built and verified on development, on branch
+  `phase-13i-personal-vocabulary`.** Waiting on the owner to apply
+  `20261008000002_personal_vocabulary` to production. The code reads the
+  new `food_vocabulary` table, so `main` must not get it first. Once
+  applied: run `personal_vocabulary.sql` and `rls_isolation.sql` (now 21
+  tables) against production, merge, push, check the deploy.
+- Then
   evaluate French and Canadian datasets (13J/13K), restaurant resolution
   (13L/13M), and connecting confidence to resolution (13N).
 - Not yet: the AI parser preserving `original_text` (§13.1). The manual
@@ -932,6 +938,53 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13I — Personal vocabulary, 2026-10-08 (Claude Code)
+
+"warak", "my yogurt", "the usual": words that mean one particular food *to
+this user*.
+
+- **Migration 0016** (`20261008000002_personal_vocabulary`) adds
+  `food_vocabulary`, one row per (user, phrase key, food or recipe), with
+  the choice count and when it was last chosen. It has RLS with four
+  owner-only policies and explicit grants (anon revoked, which the
+  project's default privileges would otherwise have granted). It points at
+  exactly one target and cascades with it. `record_food_choice` is a
+  `security invoker` upsert that counts rather than overwrites.
+  `rls_isolation.sql` now expects 21 tables and includes this one in both
+  isolation loops.
+- **Learning** happens only when a food or recipe picked **from search** is
+  logged: `searchedFor` rides along with the log form and is recorded
+  after the entry is written. A failure to record never costs the log.
+  Picks from My foods, a scan or a new food answer no phrase and teach
+  nothing. Phrases are keyed with the same spelling rules as search
+  (`vocabulary-key.ts`), so "Warak", "waraq" and "200 g warak" are one
+  phrase.
+- **Using it:** an item chosen at least **twice** for a phrase (`PINNED_AT`)
+  leads that search, ahead even of a restaurant reference. It is fetched by
+  id, so "the usual" works although it names no food. It is marked
+  **"Your usual for “warak”"** and closes the "which kind?" question. Once
+  is not a habit: a single pick changes nothing.
+- **Reversible, from where it shows:** **Not this** beside the badge forgets
+  the mapping and repeats the search. The Recipes page's **Your words**
+  lists everything learned ("picked 2 times · comes first"), each with
+  Forget. Nothing here reaches a model (§13.2).
+- `supabase/tests/personal_vocabulary.sql` (new): two picks count to 2, a
+  mapping must have a target, user B can neither read nor delete A's
+  vocabulary, B's own pick of the same word starts at 1 (a word is never
+  redefined for anyone else), and anon cannot record. It passes on
+  development, as does the 21-table `rls_isolation`.
+
+**Verified on development** with the production build in Chrome against the
+live providers, with a fixture account removed afterwards. Before any
+learning, "warak" listed "Homemade style stuffed grape leaves" **5th**.
+After it was picked and logged twice, it came **1st**, marked "Your usual
+for “warak”". Your words read "“warak” → Homemade style stuffed grape
+leaves · Picked 2 times · comes first". **Not this** removed the row and
+the order returned.
+
+**Throughout:** 890 unit tests (17 new), with typecheck, lint and build
+clean.
 
 ### Phase 13H — Family Foods, and logging a recipe in grams, 2026-10-08 (Claude Code)
 

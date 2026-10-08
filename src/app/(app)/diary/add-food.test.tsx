@@ -1,9 +1,16 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 
 // Everything that would reach a server, or a camera, is out of scope here.
-vi.mock("@/app/(app)/diary/actions", () => ({ logFood: vi.fn(async () => ({})) }));
+const logFood = vi.fn(async (..._args: unknown[]) => ({}));
+const forgetVocabularyAction = vi.fn(async (..._args: unknown[]) => undefined);
+vi.mock("@/app/(app)/diary/actions", () => ({
+  logFood: (prev: unknown, form: FormData) => logFood(prev, form),
+}));
+vi.mock("@/app/(app)/recipes/actions", () => ({
+  forgetVocabularyAction: (form: FormData) => forgetVocabularyAction(form),
+}));
 vi.mock("@/app/(app)/recipes/library-forms", () => ({
   LogRecipeForm: () => null,
   LogSavedMealForm: () => null,
@@ -246,5 +253,53 @@ describe("AddFood — your own recipe first (§13G)", () => {
     const rice = screen.getByRole("button", { name: /Rice, white, cooked/ });
     expect(heading.compareDocumentPosition(rice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText(/How do you want to add it/)).not.toBeInTheDocument();
+  });
+});
+
+describe("AddFood — what your words mean (§13I)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("marks the learned pick, sends the phrase when logging it, and forgets on request", async () => {
+    const respond = (learned: unknown[]) =>
+      new Response(
+        JSON.stringify({
+          foods: [{ ...chicken, id: 31, name: "Stuffed grape leaves with meat" }],
+          learned,
+          strongMatch: true,
+          text: "warak",
+        }),
+        { status: 200 },
+      );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond([{ vocabularyId: 5, foodId: 31, recipeId: null, count: 3 }]))
+      .mockResolvedValueOnce(respond([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AddFood logDate="2026-10-08" mealTypes={meals} />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: "warak" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText(/Your usual for “warak”/, {}, { timeout: 5000 })).toBeInTheDocument();
+
+    // "Not this" forgets, then searches the same words again.
+    fireEvent.click(screen.getByRole("button", { name: /Stop putting .* first for “warak”/ }));
+    await waitFor(() => expect(forgetVocabularyAction).toHaveBeenCalledOnce(), { timeout: 5000 });
+    expect((forgetVocabularyAction.mock.calls[0][0] as FormData).get("vocabularyId")).toBe("5");
+    await waitFor(() => expect(screen.queryByText(/Your usual for/)).not.toBeInTheDocument(), { timeout: 5000 });
+
+    // Picking it from the results carries the phrase into the log form.
+    fireEvent.click(screen.getByRole("button", { name: /Stuffed grape leaves with meat/ }));
+    const form = screen.getByRole("button", { name: "Add to diary" }).closest("form") as HTMLFormElement;
+    expect(new FormData(form).get("searchedFor")).toBe("warak");
+  });
+
+  it("sends no phrase for a food picked from My foods, which answered none", () => {
+    render(
+      <AddFood logDate="2026-10-08" mealTypes={meals} library={{ ...library, usual: {} }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Chicken breast, grilled/ }));
+    const form = screen.getByRole("button", { name: "Add to diary" }).closest("form") as HTMLFormElement;
+    expect(new FormData(form).get("searchedFor")).toBeNull();
   });
 });
