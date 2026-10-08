@@ -18,6 +18,7 @@ import { CustomFoodForm } from "@/components/custom-food-form";
 import { DescribeMeal } from "@/components/describe-meal";
 import { MyFoods } from "@/components/my-foods";
 import { NoMatchChoices } from "@/components/no-match-choices";
+import { RecipeHits } from "@/components/recipe-hits";
 import { RecognisedDishNote } from "@/components/recognised-dish";
 import { QuickAddForm } from "@/components/quick-add-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -47,7 +48,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { hasStrongMatch } from "@/lib/food/text-match";
-import type { Food, RecognisedDish } from "@/lib/food/types";
+import type { Food, RecipeHit, RecognisedDish } from "@/lib/food/types";
 import { describePortion } from "@/lib/nutrition/units";
 import type { UsualPortion } from "@/lib/nutrition/typical-portion";
 import type { MealType } from "@/lib/diary";
@@ -67,6 +68,8 @@ type SearchState = {
   recognised: RecognisedDish | null;
   /** The server's verdict on whether anything answers the query. */
   strongMatch: boolean | null;
+  /** The user's own recipes that answer it, shown first (§13G). */
+  recipes: RecipeHit[];
 };
 
 const IDLE: SearchState = {
@@ -76,6 +79,7 @@ const IDLE: SearchState = {
   error: null,
   recognised: null,
   strongMatch: null,
+  recipes: [],
 };
 
 export function AddFood({
@@ -211,6 +215,7 @@ export function AddFood({
         error: null,
         recognised: body.recognised ?? null,
         strongMatch: typeof body.strongMatch === "boolean" ? body.strongMatch : null,
+        recipes: Array.isArray(body.recipes) ? body.recipes : [],
       });
     } catch {
       setSearch({
@@ -352,6 +357,14 @@ export function AddFood({
                 "maqlouba" with none. Useless also covers results that are
                 there but are not what was asked for — "chicken maqlouba"
                 returning chicken spread and chicken fat. */}
+            {search.status === "done" && search.recipes.length > 0 ? (
+              <RecipeHits
+                recipes={search.recipes}
+                logDate={logDate}
+                mealTypes={mealTypes}
+              />
+            ) : null}
+
             {/* One question at a time (§15.2): while "which kind?" is open,
                 its answer comes first, and these follow it. */}
             {noMatch &&

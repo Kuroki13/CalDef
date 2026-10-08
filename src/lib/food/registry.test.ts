@@ -11,6 +11,13 @@ const usdaSearch = vi.fn();
 const offSearch = vi.fn();
 const offLookupBarcode = vi.fn();
 const ownFoodsNamingDish = vi.fn();
+const listRecipeNames = vi.fn();
+const getRecipe = vi.fn();
+
+vi.mock("@/lib/recipes", () => ({
+  listRecipeNames: () => listRecipeNames(),
+  getRecipe: (id: number) => getRecipe(id),
+}));
 
 vi.mock("@/lib/food/cache", () => ({
   searchCache: (...a: unknown[]) => searchCache(...a),
@@ -90,6 +97,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   searchCache.mockResolvedValue([]);
   ownFoodsNamingDish.mockResolvedValue([]);
+  listRecipeNames.mockResolvedValue([]);
+  getRecipe.mockResolvedValue(null);
   loggedFoodCounts.mockResolvedValue(new Map());
   usdaSearch.mockResolvedValue(ok("usda", []));
   offSearch.mockResolvedValue(ok("off", []));
@@ -477,5 +486,44 @@ describe("searchFoods — a dish in any spelling (§13A)", () => {
     expect(usdaSearch).toHaveBeenCalledWith(expect.objectContaining({ text: "chicken breast" }));
     expect(ownFoodsNamingDish).not.toHaveBeenCalled();
     expect(outcome.recognised).toBeNull();
+  });
+});
+
+describe("searchFoods — the user's own recipes (§13G)", () => {
+  const detail = (id: number, name: string, ingredients = 3) => ({
+    recipe: { id, name, servings: 6 },
+    ingredients: Array.from({ length: ingredients }, (_, i) => ({ id: i })),
+    perServing: { kcal: 540, protein_g: 28, carbs_g: 60, fat_g: 18 },
+  });
+
+  it("offers the family recipe for any spelling of the dish, and asks nothing", async () => {
+    listRecipeNames.mockResolvedValue([
+      { id: 7, name: "Mom's Chicken Maqlouba" },
+      { id: 8, name: "Lentil soup" },
+    ]);
+    getRecipe.mockImplementation(async (id: number) => (id === 7 ? detail(7, "Mom's Chicken Maqlouba") : null));
+
+    const outcome = await searchFoods({ text: "ma2loubeh" });
+
+    expect(outcome.recipes).toEqual([
+      { id: 7, name: "Mom's Chicken Maqlouba", servings: 6, kcalPerServing: 540, proteinPerServing: 28 },
+    ]);
+    expect(getRecipe).toHaveBeenCalledTimes(1);
+    expect(outcome.strongMatch).toBe(true);
+    expect(outcome.recognised?.variantOpen).toBe(false);
+  });
+
+  it("does not offer a recipe with nothing in it", async () => {
+    listRecipeNames.mockResolvedValue([{ id: 9, name: "Maqlouba idea" }]);
+    getRecipe.mockResolvedValue(detail(9, "Maqlouba idea", 0));
+    expect((await searchFoods({ text: "maqlouba" })).recipes).toEqual([]);
+  });
+
+  it("still searches when the recipe book cannot be read", async () => {
+    listRecipeNames.mockRejectedValue(new Error("down"));
+    usdaSearch.mockResolvedValue(ok("usda", [food("usda", "h", "Hummus, commercial")]));
+    const outcome = await searchFoods({ text: "hummus" });
+    expect(outcome.recipes).toEqual([]);
+    expect(outcome.foods).toHaveLength(1);
   });
 });

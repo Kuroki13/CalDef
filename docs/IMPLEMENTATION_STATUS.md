@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C (normalisation, aliases, Arabic dictionary) live; personal/family recipe resolution next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C and 13G (recipes in search) live; 13H Family Foods + cooked weight next (needs a migration) |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -556,8 +556,14 @@ The owner's next use of the diary is that check.
 Phase 13, in the order spec §15 sets:
 - **Multilingual normalisation, alias resolution, cultural dictionary
   (13A–13C, with the variant question of 13D/13E): DONE, live 2026-10-07.**
-- Next: personal/family recipe resolution (13G/13H — recipes in search,
-  "Mom's Maqlouba" preferred), then personal vocabulary (13I), then
+- **Personal recipes in search (13G): DONE, live 2026-10-08.** Logged in
+  servings only. Logging a recipe in grams needs its *cooked* weight,
+  because its ingredient weights are raw and a cooked plate weighs
+  something else. That comes with 13H.
+- Next: Family Foods (13H). A `family` mark on recipes and custom foods,
+  with a Family view in My Foods, plus an optional cooked weight on recipes
+  so "450 g maqlouba" can be logged honestly. This needs one additive
+  migration. Then personal vocabulary (13I), then
   evaluate French and Canadian datasets (13J/13K), restaurant resolution
   (13L/13M), and connecting confidence to resolution (13N).
 - Not yet: the AI parser preserving `original_text` (§13.1). The manual
@@ -928,6 +934,37 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13G — Your recipes in search, 2026-10-08 (Claude Code)
+
+Search now checks the user's own recipes. `lib/recipe-match.ts` (pure)
+matches a recipe whose name holds every typed word, or names the same dish
+the query named, in any spelling. It ranks the asked-for variant first and
+a different variant last, and returns at most 5. In `registry.ts`, recipe
+*names* are read lightly (`listRecipeNames`) and matched on the server,
+then only the matches are read in full for their per-serving figures,
+computed from the ingredients' nutrient rows as logging does. Empty recipes
+are not offered. The recipe book never leaves the server (§13.2), and a
+failure to read it leaves the search intact. A recipe hit counts as a
+strong match and closes the "which kind?" question, because the user's
+recipe is which kind.
+
+On screen, a **Your recipes** block sits above the database results, with
+"406 kcal · 28 g protein a serving · makes 6". A single hit opens its log
+form straight away. Logging goes through the Recipes screen's own
+`LogRecipeForm`, in servings. Grams are deliberately not offered: the
+recipe's weight is raw-ingredient weight, and using it for a cooked plate
+would invent a number.
+
+**Verified on development** with the production build in Chrome and a
+fixture account removed afterwards, its recipe with it. 600 g raw chicken
+(644 kcal) and 500 g raw rice (1793 kcal) were logged and made into "Mom's
+Chicken Maqlouba", 6 servings. Searching **"ma2loubeh"** showed it under
+Your recipes at **406 kcal a serving**, with no variant question. Logging
+1.5 servings wrote a recipe entry of **609.35 kcal**.
+
+**Throughout:** 871 unit tests (8 new), with typecheck, lint and build
+clean. No migration.
 
 ### Phase 13A–13C — Recognising dishes in any spelling, 2026-10-07 (Claude Code)
 

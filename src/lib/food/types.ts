@@ -103,6 +103,16 @@ export type RecognisedDish = {
   searchAs: string;
 };
 
+/** One of the user's own recipes that answers a search (§13G). */
+export type RecipeHit = {
+  id: number;
+  name: string;
+  servings: number;
+  /** Computed from the ingredients' stored nutrients, as logging will. */
+  kcalPerServing: number;
+  proteinPerServing: number;
+};
+
 export type SearchOutcome = {
   foods: Food[];
   results: ProviderResult[];
@@ -116,4 +126,6 @@ export type SearchOutcome = {
    * ways in when this is false.
    */
   strongMatch?: boolean;
+  /** The user's own recipes that answer the query, preferred first. */
+  recipes?: RecipeHit[];
 };

@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
       degraded: outcome.degraded,
       recognised: outcome.recognised ?? null,
       strongMatch: outcome.strongMatch ?? null,
+      recipes: outcome.recipes ?? [],
       notice: describeDegradation(outcome.results),
     },
     { headers },

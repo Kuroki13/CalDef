@@ -18,6 +18,8 @@ import {
 } from "@/lib/food/cache";
 import { type Recognised, namesDish, recognise } from "@/lib/food/cultural/recognise";
 import { hasStrongMatch } from "@/lib/food/text-match";
+import { getRecipe, listRecipeNames } from "@/lib/recipes";
+import { matchRecipes } from "@/lib/recipe-match";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
 import { personalSignals } from "@/lib/food/history";
@@ -30,6 +32,7 @@ import type {
   Food,
   FoodSearchQuery,
   ProviderResult,
+  RecipeHit,
   RecognisedDish,
   SearchOutcome,
 } from "@/lib/food/types";
@@ -54,13 +57,15 @@ export async function searchFoods(
   const providerQuery = dish ? { ...query, text: dish.searchAs } : query;
   const rankText = providerQuery.text;
 
-  const [cacheResult, cacheByDish, ownDishFoods, history] = await Promise.all([
+  const [cacheResult, cacheByDish, ownDishFoods, history, recipes] = await Promise.all([
     safeProviderCall("cache", () => searchCache(query)),
     dish && dish.searchAs !== query.text
       ? safeProviderCall("cache", () => searchCache(providerQuery))
       : Promise.resolve(null),
     dish ? ownFoodsNamingDish(dish.dish.id).catch(() => []) : Promise.resolve([]),
     personalSignals(),
+    // §13G: the user's own recipes answer before any database does.
+    recipeHits(query.text, dish).catch(() => []),
   ]);
 
   const providerResults = await Promise.all(
@@ -101,9 +106,14 @@ export async function searchFoods(
     // §13E: no question when the user's own food already answers it —
     // "Mom's Maqlouba" is which kind.
     recognised: dish
-      ? { ...describeRecognised(dish), variantOpen: dish.variantOpen && ownDishFoods.length === 0 }
+      ? {
+          ...describeRecognised(dish),
+          variantOpen: dish.variantOpen && ownDishFoods.length === 0 && recipes.length === 0,
+        }
       : null,
+    recipes,
     strongMatch:
+      recipes.length > 0 ||
       references.length > 0 ||
       ranked.some(namesSameDish) ||
       (rankText.trim().split(/\s+/).length > 1
@@ -162,6 +172,37 @@ function rank(
   namesSameDish?: (food: Food) => boolean,
 ): Food[] {
   return rankFoods(foods, text, signals, namesSameDish);
+}
+
+/**
+ * The caller's recipes that answer the query, with what one serving costs.
+ *
+ * Names are matched first, from a light read; only the few that match are
+ * read in full. RLS limits both reads to the caller's own recipes, and the
+ * matching happens here — the recipe book never leaves the server (§13.2).
+ * A recipe with no ingredients cannot be logged and is not offered.
+ */
+async function recipeHits(text: string, dish: Recognised | null): Promise<RecipeHit[]> {
+  const names = await listRecipeNames();
+  const matched = matchRecipes(
+    names,
+    text,
+    dish ? { id: dish.dish.id, variantId: dish.variant?.id ?? null } : null,
+  );
+  const details = await Promise.all(matched.map((r) => getRecipe(r.id)));
+  return details.flatMap((detail) =>
+    detail && detail.ingredients.length > 0
+      ? [
+          {
+            id: detail.recipe.id,
+            name: detail.recipe.name,
+            servings: Number(detail.recipe.servings),
+            kcalPerServing: detail.perServing.kcal,
+            proteinPerServing: detail.perServing.protein_g,
+          },
+        ]
+      : [],
+  );
 }
 
 /** What the screen is told about a recognised dish — names, never numbers. */

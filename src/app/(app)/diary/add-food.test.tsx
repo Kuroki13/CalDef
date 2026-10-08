@@ -214,3 +214,37 @@ describe("AddFood — a recognised dish (§13A–§13E)", () => {
     expect(screen.queryByText(/How do you want to add it/)).not.toBeInTheDocument();
   });
 });
+
+describe("AddFood — your own recipe first (§13G)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("lists the family recipe above everything else, with what a serving costs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            foods: [{ ...chicken, name: "Rice, white, cooked" }],
+            recipes: [
+              { id: 7, name: "Mom's Chicken Maqlouba", servings: 6, kcalPerServing: 540, proteinPerServing: 28 },
+            ],
+            recognised: null,
+            strongMatch: true,
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    render(<AddFood logDate="2026-10-08" mealTypes={meals} aiReady />);
+    fireEvent.change(screen.getByLabelText("Search foods"), { target: { value: "ma2loubeh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const heading = await screen.findByText("Your recipes", {}, { timeout: 5000 });
+    expect(screen.getByText("Mom's Chicken Maqlouba")).toBeInTheDocument();
+    expect(screen.getByText(/540 kcal · 28 g protein a serving · makes 6/)).toBeInTheDocument();
+    // Above the database results, which are still there to choose.
+    const rice = screen.getByRole("button", { name: /Rice, white, cooked/ });
+    expect(heading.compareDocumentPosition(rice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/How do you want to add it/)).not.toBeInTheDocument();
+  });
+});

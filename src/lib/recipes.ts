@@ -68,6 +68,18 @@ export async function listRecipes(): Promise<RecipeDetail[]> {
   );
 }
 
+/** Just the names, for matching a search against the recipe book (§13G). */
+export async function listRecipeNames(): Promise<{ id: number; name: string }[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("id, name")
+    .order("name", { ascending: true })
+    .limit(500);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function getRecipe(id: number): Promise<RecipeDetail | null> {
   const supabase = await createClient();
 
