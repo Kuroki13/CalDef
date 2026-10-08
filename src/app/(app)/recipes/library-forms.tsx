@@ -9,6 +9,7 @@ import {
   logFavoriteAction,
   logRecipeAction,
   logSavedMealAction,
+  updateRecipeSettingsAction,
   type LibraryState,
 } from "@/app/(app)/recipes/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -179,37 +180,65 @@ export function LogRecipeForm({
   recipeId,
   logDate,
   mealTypes,
+  cookedWeightG = null,
+  servings = null,
 }: {
   recipeId: number;
   logDate: string;
   mealTypes: MealType[];
+  /** When the finished dish was weighed, it can be logged in grams. */
+  cookedWeightG?: number | null;
+  /** How many servings it makes, for the grams hint. */
+  servings?: number | null;
 }) {
   const [state, formAction] = useActionState<LibraryState, FormData>(
     logRecipeAction,
     {},
   );
+  const weighed = cookedWeightG !== null && cookedWeightG > 0;
+  const [unit, setUnit] = useState<"serving" | "g">("serving");
+  const perServingG =
+    weighed && servings ? Math.round((cookedWeightG as number) / servings) : null;
 
   return (
     <form action={formAction} className="space-y-3">
       <Feedback state={state} />
       <input type="hidden" name="recipeId" value={recipeId} />
       <input type="hidden" name="logDate" value={logDate} />
+      <input type="hidden" name="unit" value={unit} />
 
-      <div className="flex items-end gap-2">
+      <div className="flex flex-wrap items-end gap-2">
         <div className="w-24 space-y-1">
           <Label htmlFor={`servings-${recipeId}`} className="text-xs">
-            Servings
+            {unit === "g" ? "Grams" : "Servings"}
           </Label>
           <Input
+            key={unit}
             id={`servings-${recipeId}`}
             name="servings"
             type="number"
             step="any"
-            min="0.1"
-            defaultValue={1}
+            min={unit === "g" ? "1" : "0.1"}
+            defaultValue={unit === "g" ? (perServingG ?? 300) : 1}
           />
         </div>
-        <div className="flex-1 space-y-1">
+        {weighed ? (
+          <div className="w-28 space-y-1">
+            <Label htmlFor={`unit-${recipeId}`} className="text-xs">
+              In
+            </Label>
+            <Select value={unit} onValueChange={(v) => setUnit(v as "serving" | "g")}>
+              <SelectTrigger id={`unit-${recipeId}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="serving">servings</SelectItem>
+                <SelectItem value="g">grams</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        <div className="min-w-32 flex-1 space-y-1">
           <Label htmlFor={`meal-${recipeId}`} className="text-xs">
             Meal
           </Label>
@@ -230,6 +259,71 @@ export function LogRecipeForm({
           Log
         </PendingButton>
       </div>
+      {perServingG ? (
+        <p className="text-muted-foreground text-xs">
+          One serving is about {perServingG} g of the finished dish.
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+/**
+ * Whether a recipe is a family dish, and what the finished dish weighed
+ * (§13H, §13G). The weight is optional and only ever typed by the user:
+ * weigh the pot once, and the recipe can be logged in grams from then on.
+ */
+export function RecipeSettingsForm({
+  recipeId,
+  isFamily,
+  cookedWeightG,
+}: {
+  recipeId: number;
+  isFamily: boolean;
+  cookedWeightG: number | null;
+}) {
+  const [state, formAction] = useActionState<LibraryState, FormData>(
+    updateRecipeSettingsAction,
+    {},
+  );
+
+  return (
+    <form action={formAction} className="space-y-2">
+      <Feedback state={state} />
+      <input type="hidden" name="recipeId" value={recipeId} />
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="isFamily"
+            defaultChecked={isFamily}
+            className="size-4"
+          />
+          Family food
+        </label>
+        <div className="w-40 space-y-1">
+          <Label htmlFor={`cooked-${recipeId}`} className="text-xs">
+            Finished dish weighed (g)
+          </Label>
+          <Input
+            id={`cooked-${recipeId}`}
+            name="cookedWeightG"
+            type="number"
+            inputMode="decimal"
+            step="any"
+            min="1"
+            defaultValue={cookedWeightG ?? ""}
+            placeholder="optional"
+          />
+        </div>
+        <PendingButton type="submit" size="sm" variant="secondary" pendingLabel="Saving…">
+          Save
+        </PendingButton>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Weigh the whole pot once after cooking, and this recipe can be logged
+        in grams.
+      </p>
     </form>
   );
 }

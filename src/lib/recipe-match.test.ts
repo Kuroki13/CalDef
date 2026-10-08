@@ -31,6 +31,16 @@ describe("matchRecipes — §13G", () => {
     expect(names("lentil")).toEqual(["Lentil soup"]);
   });
 
+  it("nudges a family recipe ahead of an equal one, but not past the variant asked for", () => {
+    const withFamily = [
+      { id: 10, name: "Maqlouba from the café" },
+      { id: 11, name: "Teta's maqlouba", isFamily: true },
+      { id: 12, name: "Chicken maqlouba (quick)" },
+    ];
+    expect(matchRecipes(withFamily, "maqlouba", dishOf("maqlouba")).map((r) => r.id)).toEqual([11, 10, 12]);
+    expect(matchRecipes(withFamily, "maqlouba djej", dishOf("maqlouba djej"))[0].id).toBe(12);
+  });
+
   it("finds nothing for an unrelated query", () => {
     expect(names("chicken breast")).toEqual([]);
   });

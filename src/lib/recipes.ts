@@ -14,6 +14,10 @@ import "server-only";
  * rule holds here as it does everywhere else.
  */
 
+import {
+  type RecipePortionInput,
+  recipePortion,
+} from "@/lib/nutrition/recipe-portion";
 import { cacheFood } from "@/lib/food/cache";
 import type { Food } from "@/lib/food/types";
 import {
@@ -69,15 +73,17 @@ export async function listRecipes(): Promise<RecipeDetail[]> {
 }
 
 /** Just the names, for matching a search against the recipe book (§13G). */
-export async function listRecipeNames(): Promise<{ id: number; name: string }[]> {
+export async function listRecipeNames(): Promise<
+  { id: number; name: string; isFamily: boolean }[]
+> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("recipes")
-    .select("id, name")
+    .select("id, name, is_family")
     .order("name", { ascending: true })
     .limit(500);
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []).map((r) => ({ id: r.id, name: r.name, isFamily: r.is_family }));
 }
 
 export async function getRecipe(id: number): Promise<RecipeDetail | null> {
@@ -323,7 +329,8 @@ export async function logRecipe(
   recipeId: number,
   logDate: string,
   mealTypeId: number,
-  servings: number,
+  /** A number is servings, as it always was; grams need a weighed dish. */
+  portion: number | RecipePortionInput,
 ): Promise<{ ok: true } | { error: string }> {
   const userId = await requireUserId();
   const supabase = await createClient();
@@ -334,28 +341,59 @@ export async function logRecipe(
     return { error: "That recipe has no ingredients yet." };
   }
 
-  const macros = multiplyMacros(detail.perServing, servings);
-  const totalGrams = detail.ingredients.reduce((sum, i) => sum + i.grams, 0);
-  const gramsPerServing = totalGrams / Number(detail.recipe.servings);
-  const grams = Math.max(gramsPerServing * servings, 0.001);
+  const wanted: RecipePortionInput =
+    typeof portion === "number" ? { amount: portion, unit: "serving" } : portion;
+  const resolved = recipePortion(
+    {
+      perServing: detail.perServing,
+      servings: Number(detail.recipe.servings),
+      rawGrams: detail.ingredients.reduce((sum, i) => sum + i.grams, 0),
+      cookedWeightG:
+        detail.recipe.cooked_weight_g === null ? null : Number(detail.recipe.cooked_weight_g),
+    },
+    wanted,
+  );
+  if ("error" in resolved) return resolved;
 
   const { error } = await supabase.from("food_logs").insert({
     user_id: userId,
     log_date: logDate,
     meal_type_id: mealTypeId,
     recipe_id: recipeId,
-    amount: servings,
-    unit: "serving" as const,
-    grams,
-    kcal: macros.kcal,
-    protein_g: macros.protein_g,
-    carbs_g: macros.carbs_g,
-    fat_g: macros.fat_g,
+    amount: wanted.amount,
+    unit: wanted.unit,
+    grams: resolved.grams,
+    kcal: resolved.macros.kcal,
+    protein_g: resolved.macros.protein_g,
+    carbs_g: resolved.macros.carbs_g,
+    fat_g: resolved.macros.fat_g,
     source: "recipe" as const,
     notes: detail.recipe.name,
   });
   if (error) return { error: error.message };
 
+  return { ok: true };
+}
+
+/**
+ * The two things that make a recipe a family dish and a weighable one
+ * (§13H, §13G). Owner-scoped by RLS; the filter turns a foreign id into
+ * "not found" rather than a database error.
+ */
+export async function updateRecipeSettings(
+  recipeId: number,
+  settings: { isFamily: boolean; cookedWeightG: number | null },
+): Promise<{ ok: true } | { error: string }> {
+  const userId = await requireUserId();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("recipes")
+    .update({ is_family: settings.isFamily, cooked_weight_g: settings.cookedWeightG })
+    .eq("id", recipeId)
+    .eq("user_id", userId)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "That recipe is not one of yours." };
   return { ok: true };
 }
 

@@ -18,6 +18,7 @@ import { useActionState, useState } from "react";
 import {
   deleteCustomFoodAction,
   restoreCustomFoodAction,
+  setFoodFamilyAction,
   type CustomFoodState,
 } from "@/app/(app)/recipes/food-actions";
 import { CustomFoodForm } from "@/components/custom-food-form";
@@ -76,6 +77,25 @@ export function CustomFoodLibrary({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  {/* §13H: a household food, gathered under Family in My
+                      Foods. A mark on the food, not a copy of it. */}
+                  <form action={setFoodFamilyAction}>
+                    <input type="hidden" name="foodId" value={food.id} />
+                    <input type="hidden" name="family" value={String(!food.isFamily)} />
+                    <PendingButton
+                      type="submit"
+                      size="sm"
+                      variant={food.isFamily ? "secondary" : "ghost"}
+                      aria-pressed={Boolean(food.isFamily)}
+                      aria-label={
+                        food.isFamily
+                          ? `Remove ${food.name} from family foods`
+                          : `Mark ${food.name} as a family food`
+                      }
+                    >
+                      Family
+                    </PendingButton>
+                  </form>
                   <Button
                     type="button"
                     size="sm"

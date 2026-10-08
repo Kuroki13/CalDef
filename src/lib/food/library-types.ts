@@ -14,7 +14,19 @@ export type LibraryRecipe = {
   kcalPerServing: number;
   /** An empty recipe cannot be logged, and is offered no button. */
   hasIngredients: boolean;
+  isFamily: boolean;
+  /** What the finished dish weighed, which lets it be logged in grams. */
+  cookedWeightG: number | null;
 };
+
+/**
+ * A family food is a recipe or a custom food the owner marked (§13H) —
+ * there is no family-food table, by the spec's own instruction. `name`
+ * and `brand` sit at the top so the list can be filtered like any other.
+ */
+export type FamilyItem =
+  | { kind: "recipe"; id: string; name: string; brand?: null; recipe: LibraryRecipe }
+  | { kind: "food"; id: string; name: string; brand: string | null; food: CachedFood };
 
 export type LibraryMeal = {
   id: number;
@@ -40,6 +52,8 @@ export type PersonalLibrary = {
   scanned: CachedFood[];
   recipes: LibraryRecipe[];
   meals: LibraryMeal[];
+  /** Household dishes: marked recipes first, then marked foods (§13H). */
+  family: FamilyItem[];
   /**
    * The user's usual amount of each food they have a habit with (§12D),
    * keyed by `foods.id`. A plain object rather than a Map so it survives
@@ -52,6 +66,7 @@ export const LIBRARY_LISTS = [
   "recent",
   "frequent",
   "favorites",
+  "family",
   "custom",
   "scanned",
   "recipes",
@@ -66,6 +81,7 @@ export const EMPTY_LIBRARY: PersonalLibrary = {
   scanned: [],
   recipes: [],
   meals: [],
+  family: [],
   usual: {},
 };
 

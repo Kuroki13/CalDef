@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C and 13G (recipes in search) live; 13H Family Foods + cooked weight next (needs a migration) |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G live; 13H built and verified on development, **waiting on migration 0015 in production** |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -560,10 +560,14 @@ Phase 13, in the order spec §15 sets:
   servings only. Logging a recipe in grams needs its *cooked* weight,
   because its ingredient weights are raw and a cooked plate weighs
   something else. That comes with 13H.
-- Next: Family Foods (13H). A `family` mark on recipes and custom foods,
-  with a Family view in My Foods, plus an optional cooked weight on recipes
-  so "450 g maqlouba" can be logged honestly. This needs one additive
-  migration. Then personal vocabulary (13I), then
+- **Family Foods and cooked weight (13H): built and verified on
+  development, on branch `phase-13h-family-foods`.** Waiting on the owner
+  to apply `20261008000001_family_foods_cooked_weight` to production. The
+  code reads `recipes.is_family`, `recipes.cooked_weight_g` and
+  `foods.is_family`, so `main` must not get it first. Once applied: run
+  `family_foods.sql` and `rls_isolation.sql` against production, merge,
+  push, check the deploy.
+- Then personal vocabulary (13I), then
   evaluate French and Canadian datasets (13J/13K), restaurant resolution
   (13L/13M), and connecting confidence to resolution (13N).
 - Not yet: the AI parser preserving `original_text` (§13.1). The manual
@@ -934,6 +938,48 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13H — Family Foods, and logging a recipe in grams, 2026-10-08 (Claude Code)
+
+- **Migration 0015** (`20261008000001_family_foods_cooked_weight`) is
+  additive. It adds `recipes.is_family` and `foods.is_family` (default
+  false; a check keeps it off shared provider rows) and
+  `recipes.cooked_weight_g` (optional, positive). There is **no
+  family-food table**, as §13H instructs: a family dish is a recipe or a
+  custom food carrying a mark.
+- **Cooked weight** is the honest route to "450 g maqlouba". A recipe knows
+  its *raw* ingredient weights, and a cooked plate is not a raw plate.
+  `lib/nutrition/recipe-portion.ts` (pure) logs grams as a fraction of the
+  weighed pot and **refuses grams for an unweighed recipe**, telling the
+  user to weigh it once. A serving of a weighed dish now records its real
+  cooked weight. `logRecipe` takes servings or `{amount, unit}`. A repeat
+  of a recipe entry logged in grams repeats in grams.
+- **Screens.**
+  - Each recipe on the Recipes screen has a "Family food" checkbox and a
+    "Finished dish weighed (g)" field.
+  - Each custom food in the library has a Family toggle.
+  - `LogRecipeForm` offers servings or grams once the dish was weighed,
+    with "One serving is about 400 g of the finished dish". It is used on
+    the Recipes screen, in My Foods and in search's Your recipes.
+  - My Foods gains a **Family** view of marked recipes and foods.
+  - Search's Your recipes badges a family recipe "Family" and nudges it
+    ahead of an equal match, never past the variant that was asked for.
+- `supabase/tests/family_foods.sql` (new) checks that a provider row
+  cannot be a family food, that a cooked weight of 0 is refused, and that
+  another user can neither read nor mark the recipe. It passes on
+  development, as do `rls_isolation` and `quick_add`.
+
+**Verified on development** with the production build in Chrome and a
+fixture account removed afterwards, its recipe with it. "Mom's Chicken
+Maqlouba" (600 g raw chicken + 500 g raw rice, 6 servings) was marked
+Family and weighed at 2400 g. "ma2loubeh" showed it under Your recipes
+badged **Family**, with "One serving is about 400 g of the finished dish".
+**450 g** was logged as a recipe entry of 450 g at **457.01 kcal**
+(406.23 × 450/400). My Foods → Family listed it as "Recipe · 406 kcal a
+serving", and the diary line read "450 g".
+
+**Throughout:** 881 unit tests (10 new), with typecheck, lint and build
+clean.
 
 ### Phase 13G — Your recipes in search, 2026-10-08 (Claude Code)
 

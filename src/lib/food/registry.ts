@@ -199,6 +199,11 @@ async function recipeHits(text: string, dish: Recognised | null): Promise<Recipe
             servings: Number(detail.recipe.servings),
             kcalPerServing: detail.perServing.kcal,
             proteinPerServing: detail.perServing.protein_g,
+            isFamily: detail.recipe.is_family,
+            cookedWeightG:
+              detail.recipe.cooked_weight_g === null
+                ? null
+                : Number(detail.recipe.cooked_weight_g),
           },
         ]
       : [],

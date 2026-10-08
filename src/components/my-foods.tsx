@@ -26,7 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MealType } from "@/lib/diary";
 import { per100Label } from "@/lib/food/basis";
-import type { LibraryMeal, LibraryRecipe, PersonalLibrary } from "@/lib/food/library-types";
+import type {
+  FamilyItem,
+  LibraryMeal,
+  LibraryRecipe,
+  PersonalLibrary,
+} from "@/lib/food/library-types";
 import { fold, terms } from "@/lib/food/text-match";
 import type { Food } from "@/lib/food/types";
 
@@ -34,6 +39,7 @@ export type LibraryView =
   | "recent"
   | "frequent"
   | "favorites"
+  | "family"
   | "custom"
   | "scanned"
   | "recipes"
@@ -43,6 +49,7 @@ export const VIEW_LABELS: Record<LibraryView, string> = {
   recent: "Recent",
   frequent: "Frequent",
   favorites: "Favourites",
+  family: "Family",
   custom: "Yours",
   scanned: "Scanned",
   recipes: "Recipes",
@@ -53,6 +60,7 @@ const ORDER: LibraryView[] = [
   "recent",
   "frequent",
   "favorites",
+  "family",
   "custom",
   "scanned",
   "recipes",
@@ -169,9 +177,60 @@ export function MyFoods({
                 recipeId={recipe.id}
                 logDate={logDate}
                 mealTypes={mealTypes}
+                cookedWeightG={recipe.cookedWeightG}
+                servings={recipe.servings}
               />
             </LibraryRow>
           ))}
+        </ul>
+      ) : current === "family" ? (
+        <ul className="divide-y">
+          {(visible as FamilyItem[]).map((item) =>
+            item.kind === "recipe" ? (
+              <LibraryRow
+                key={item.id}
+                title={item.recipe.name}
+                detail={
+                  item.recipe.hasIngredients
+                    ? `Recipe · ${Math.round(item.recipe.kcalPerServing)} kcal a serving`
+                    : "Recipe · no ingredients yet"
+                }
+                open={openId === item.id}
+                onToggle={
+                  item.recipe.hasIngredients
+                    ? () => setOpenId((id) => (id === item.id ? null : item.id))
+                    : undefined
+                }
+              >
+                <LogRecipeForm
+                  recipeId={item.recipe.id}
+                  logDate={logDate}
+                  mealTypes={mealTypes}
+                  cookedWeightG={item.recipe.cookedWeightG}
+                  servings={item.recipe.servings}
+                />
+              </LibraryRow>
+            ) : (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onChoose(item.food)}
+                  className="hover:bg-accent/50 flex w-full items-center justify-between gap-3 rounded-md px-2 py-3 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {item.food.name}
+                    </span>
+                    <span className="text-muted-foreground block truncate text-xs">
+                      {Math.round(item.food.nutrients.kcal)} kcal / {per100Label(item.food)}
+                      <ServingHint food={item.food} />
+                    </span>
+                  </span>
+                  <SourceBadge food={item.food} />
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       ) : current === "meals" ? (
         <ul className="divide-y">

@@ -11,6 +11,7 @@ import {
   deleteRecipe,
   logRecipe,
   removeIngredient,
+  updateRecipeSettings,
 } from "@/lib/recipes";
 import { overridesFromForm } from "@/lib/meal-template";
 import {
@@ -81,7 +82,9 @@ const logRecipeSchema = z.object({
   recipeId: z.coerce.number().int().positive(),
   logDate: z.iso.date(),
   mealTypeId: z.coerce.number().int().positive(),
-  servings: z.coerce.number().positive().max(100),
+  /** Servings, or grams when `unit` says so. */
+  servings: z.coerce.number().positive().max(100000),
+  unit: z.enum(["serving", "g"]).optional().default("serving"),
 });
 
 export async function logRecipeAction(
@@ -91,11 +94,14 @@ export async function logRecipeAction(
   const parsed = logRecipeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Check the servings and meal." };
 
+  if (parsed.data.unit === "serving" && parsed.data.servings > 100) {
+    return { error: "That is more servings than a recipe makes. Did you mean grams?" };
+  }
   const result = await logRecipe(
     parsed.data.recipeId,
     parsed.data.logDate,
     parsed.data.mealTypeId,
-    parsed.data.servings,
+    { amount: parsed.data.servings, unit: parsed.data.unit },
   );
   if ("error" in result) return { error: result.error };
 
@@ -272,4 +278,39 @@ export async function toggleFavoriteAction(formData: FormData): Promise<void> {
   }
 
   revalidateAll();
+}
+
+const recipeSettingsSchema = z.object({
+  recipeId: z.coerce.number().int().positive(),
+  isFamily: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  cookedWeightG: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce.number().positive().max(100000).nullable(),
+  ),
+});
+
+/**
+ * A recipe's family mark and cooked weight (§13H, §13G). The weight is
+ * what lets "450 g" of the dish be logged; leaving it blank keeps the
+ * recipe to servings, which is honest when it was never weighed.
+ */
+export async function updateRecipeSettingsAction(
+  _prev: LibraryState,
+  formData: FormData,
+): Promise<LibraryState> {
+  const parsed = recipeSettingsSchema.safeParse({
+    recipeId: formData.get("recipeId"),
+    isFamily: formData.get("isFamily"),
+    cookedWeightG: formData.get("cookedWeightG"),
+  });
+  if (!parsed.success) return { error: "The cooked weight must be a number of grams above zero." };
+
+  const result = await updateRecipeSettings(parsed.data.recipeId, {
+    isFamily: parsed.data.isFamily,
+    cookedWeightG: parsed.data.cookedWeightG,
+  });
+  if ("error" in result) return { error: result.error };
+
+  revalidateAll();
+  return { ok: true, notice: "Saved." };
 }

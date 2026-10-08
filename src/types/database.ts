@@ -452,6 +452,7 @@ export type Database = {
           data_updated_at: string | null
           description: string | null
           id: number
+          is_family: boolean
           is_verified: boolean
           name: string
           notes: string | null
@@ -471,6 +472,7 @@ export type Database = {
           data_updated_at?: string | null
           description?: string | null
           id?: never
+          is_family?: boolean
           is_verified?: boolean
           name: string
           notes?: string | null
@@ -490,6 +492,7 @@ export type Database = {
           data_updated_at?: string | null
           description?: string | null
           id?: never
+          is_family?: boolean
           is_verified?: boolean
           name?: string
           notes?: string | null
@@ -671,6 +674,8 @@ export type Database = {
       recipes: {
         Row: {
           ai_drafted_at: string | null
+          cooked_weight_g: number | null
+          is_family: boolean
           created_at: string
           id: number
           name: string
@@ -681,6 +686,8 @@ export type Database = {
         }
         Insert: {
           ai_drafted_at?: string | null
+          cooked_weight_g?: number | null
+          is_family?: boolean
           created_at?: string
           id?: never
           name: string
@@ -691,6 +698,8 @@ export type Database = {
         }
         Update: {
           ai_drafted_at?: string | null
+          cooked_weight_g?: number | null
+          is_family?: boolean
           created_at?: string
           id?: never
           name?: string

@@ -13,6 +13,7 @@ import {
   LogFavoriteForm,
   LogRecipeForm,
   LogSavedMealForm,
+  RecipeSettingsForm,
 } from "@/app/(app)/recipes/library-forms";
 import { CustomFoodLibrary } from "@/app/(app)/recipes/custom-foods";
 import { PendingButton } from "@/components/pending-button";
@@ -295,11 +296,23 @@ export default async function RecipesPage() {
                     entries={entryOptions}
                   />
 
+                  <RecipeSettingsForm
+                    recipeId={recipe.id}
+                    isFamily={recipe.is_family}
+                    cookedWeightG={
+                      recipe.cooked_weight_g === null ? null : Number(recipe.cooked_weight_g)
+                    }
+                  />
+
                   {ingredients.length > 0 ? (
                     <LogRecipeForm
                       recipeId={recipe.id}
                       logDate={today}
                       mealTypes={day.mealTypes}
+                      cookedWeightG={
+                        recipe.cooked_weight_g === null ? null : Number(recipe.cooked_weight_g)
+                      }
+                      servings={Number(recipe.servings)}
                     />
                   ) : null}
                 </li>

@@ -2,16 +2,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const logSavedMealAction = vi.fn();
+const logRecipeAction = vi.fn();
 vi.mock("@/app/(app)/recipes/actions", () => ({
   addIngredientsAction: vi.fn(),
   createRecipeAction: vi.fn(),
   createSavedMealAction: vi.fn(),
   logFavoriteAction: vi.fn(),
-  logRecipeAction: vi.fn(),
+  logRecipeAction: (prev: unknown, form: FormData) => logRecipeAction(prev, form),
+  updateRecipeSettingsAction: vi.fn(),
   logSavedMealAction: (prev: unknown, form: FormData) => logSavedMealAction(prev, form),
 }));
 
-const { LogSavedMealForm } = await import("@/app/(app)/recipes/library-forms");
+const { LogRecipeForm, LogSavedMealForm } = await import("@/app/(app)/recipes/library-forms");
 
 const meals = [{ id: 1, slug: "lunch", name: "Lunch", sort_order: 2 }];
 const items = [
@@ -71,5 +73,22 @@ describe("LogSavedMealForm — a template, not a prescription (§12F)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Log it again" }));
     expect(screen.getByRole("button", { name: "Log 2" })).toBeEnabled();
+  });
+});
+
+describe("LogRecipeForm — grams only for a weighed dish (§13G)", () => {
+  it("offers servings alone when the finished dish was never weighed", () => {
+    render(<LogRecipeForm recipeId={7} logDate="2026-10-08" mealTypes={meals} />);
+    expect(screen.getByLabelText("Servings")).toHaveValue(1);
+    expect(screen.queryByLabelText("In")).not.toBeInTheDocument();
+  });
+
+  it("offers grams once it was, and says what a serving weighs", async () => {
+    logRecipeAction.mockResolvedValue({ ok: true, notice: "Added to your diary." });
+    render(
+      <LogRecipeForm recipeId={7} logDate="2026-10-08" mealTypes={meals} cookedWeightG={2400} servings={6} />,
+    );
+    expect(screen.getByText("One serving is about 400 g of the finished dish.")).toBeInTheDocument();
+    expect(screen.getByLabelText("In")).toBeInTheDocument();
   });
 });

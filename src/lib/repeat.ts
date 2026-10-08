@@ -93,12 +93,11 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
             source: "manual",
           })
         : source.recipe_id !== null
-          ? await logRecipe(
-              source.recipe_id,
-              input.logDate,
-              input.mealTypeId,
-              item.amount,
-            )
+          ? await logRecipe(source.recipe_id, input.logDate, input.mealTypeId, {
+              amount: item.amount,
+              // Grams again when it was logged in grams (a weighed dish).
+              unit: source.unit === "g" ? "g" : "serving",
+            })
           : { error: "There is nothing behind this entry to log again." };
 
     if ("error" in result) failed.push({ name, reason: result.error });

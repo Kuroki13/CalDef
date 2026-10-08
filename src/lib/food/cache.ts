@@ -389,6 +389,7 @@ type FoodRow = {
   refreshed_at?: string | null;
   notes?: string | null;
   basis_unit?: string | null;
+  is_family?: boolean | null;
   food_nutrients: {
     kcal: number;
     protein_g: number;
@@ -435,6 +436,7 @@ export function rowToFood(row: FoodRow): CachedFood[] {
       refreshedAt: row.refreshed_at ?? null,
       basisUnit: row.basis_unit === "ml" ? "ml" : "g",
       notes: row.notes ?? null,
+      isFamily: row.is_family === true,
     },
   ];
 }

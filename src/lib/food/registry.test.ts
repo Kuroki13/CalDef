@@ -491,7 +491,7 @@ describe("searchFoods — a dish in any spelling (§13A)", () => {
 
 describe("searchFoods — the user's own recipes (§13G)", () => {
   const detail = (id: number, name: string, ingredients = 3) => ({
-    recipe: { id, name, servings: 6 },
+    recipe: { id, name, servings: 6, is_family: true, cooked_weight_g: 2400 },
     ingredients: Array.from({ length: ingredients }, (_, i) => ({ id: i })),
     perServing: { kcal: 540, protein_g: 28, carbs_g: 60, fat_g: 18 },
   });
@@ -506,7 +506,15 @@ describe("searchFoods — the user's own recipes (§13G)", () => {
     const outcome = await searchFoods({ text: "ma2loubeh" });
 
     expect(outcome.recipes).toEqual([
-      { id: 7, name: "Mom's Chicken Maqlouba", servings: 6, kcalPerServing: 540, proteinPerServing: 28 },
+      {
+        id: 7,
+        name: "Mom's Chicken Maqlouba",
+        servings: 6,
+        kcalPerServing: 540,
+        proteinPerServing: 28,
+        isFamily: true,
+        cookedWeightG: 2400,
+      },
     ]);
     expect(getRecipe).toHaveBeenCalledTimes(1);
     expect(outcome.strongMatch).toBe(true);

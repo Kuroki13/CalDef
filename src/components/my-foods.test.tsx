@@ -34,8 +34,8 @@ const library: PersonalLibrary = {
   frequent: [chicken],
   custom: [yogurt],
   recipes: [
-    { id: 7, name: "Mom's maqlouba", servings: 6, kcalPerServing: 540, hasIngredients: true },
-    { id: 8, name: "Empty idea", servings: 1, kcalPerServing: 0, hasIngredients: false },
+    { id: 7, name: "Mom's maqlouba", servings: 6, kcalPerServing: 540, hasIngredients: true, isFamily: true, cookedWeightG: 2400 },
+    { id: 8, name: "Empty idea", servings: 1, kcalPerServing: 0, hasIngredients: false, isFamily: false, cookedWeightG: null },
   ],
 };
 
@@ -43,6 +43,32 @@ const renderLibrary = (lib = library, onChoose = vi.fn()) => {
   render(<MyFoods library={lib} logDate="2026-10-07" mealTypes={[]} onChoose={onChoose} />);
   return onChoose;
 };
+
+const familyLibrary: PersonalLibrary = {
+  ...EMPTY_LIBRARY,
+  family: [
+    {
+      kind: "recipe",
+      id: "recipe:7",
+      name: "Mom's maqlouba",
+      recipe: { id: 7, name: "Mom's maqlouba", servings: 6, kcalPerServing: 540, hasIngredients: true, isFamily: true, cookedWeightG: 2400 },
+    },
+    { kind: "food", id: "food:2", name: yogurt.name, brand: yogurt.brand, food: { ...yogurt, isFamily: true } },
+  ],
+};
+
+describe("MyFoods — Family (§13H)", () => {
+  it("gathers marked recipes and foods under one filter", () => {
+    const onChoose = vi.fn();
+    render(<MyFoods library={familyLibrary} logDate="2026-10-08" mealTypes={[]} onChoose={onChoose} />);
+    expect(screen.getByRole("button", { name: "Family" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Mom's maqlouba")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Protein yogurt/ }));
+    expect(onChoose).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Log Mom's maqlouba" }));
+    expect(screen.getByText("log recipe 7")).toBeInTheDocument();
+  });
+});
 
 describe("availableViews", () => {
   it("offers only the filters that have something in them, in a fixed order", () => {

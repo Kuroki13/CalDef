@@ -16,7 +16,7 @@
 import { recognise } from "@/lib/food/cultural/recognise";
 import { fold, terms } from "@/lib/food/text-match";
 
-export type RecipeName = { id: number; name: string };
+export type RecipeName = { id: number; name: string; isFamily?: boolean };
 
 export type QueryDish = { id: string; variantId: string | null } | null;
 
@@ -40,7 +40,12 @@ export function matchRecipes<T extends RecipeName>(
       dish?.variantId != null && named?.variant?.id === dish.variantId ? 1 : 0;
     const otherVariant =
       dish?.variantId != null && named?.variant && named.variant.id !== dish.variantId ? 1 : 0;
-    return [{ recipe, index, score: sameVariant * 2 - otherVariant + (literal ? 1 : 0) }];
+    // A family dish is what the word means at home (§13G, §13H): a nudge
+    // within equals, never enough to pass the variant that was asked for.
+    const family = recipe.isFamily ? 0.5 : 0;
+    return [
+      { recipe, index, score: sameVariant * 2 - otherVariant + (literal ? 1 : 0) + family },
+    ];
   });
 
   return scored

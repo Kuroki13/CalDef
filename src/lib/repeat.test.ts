@@ -90,8 +90,14 @@ describe("repeatEntries", () => {
 
   it("logs a recipe again as servings of the recipe", async () => {
     await repeatEntries({ ...target, items: [{ entryId: 12, amount: 1.5 }] });
-    expect(logRecipe).toHaveBeenCalledWith(9, "2026-10-07", 2, 1.5);
+    expect(logRecipe).toHaveBeenCalledWith(9, "2026-10-07", 2, { amount: 1.5, unit: "serving" });
     expect(logCachedFood).not.toHaveBeenCalled();
+  });
+
+  it("repeats a weighed recipe in grams when it was logged in grams", async () => {
+    rows.mockResolvedValue({ data: [{ ...stew, unit: "g" }], error: null });
+    await repeatEntries({ ...target, items: [{ entryId: 12, amount: 450 }] });
+    expect(logRecipe).toHaveBeenCalledWith(9, "2026-10-07", 2, { amount: 450, unit: "g" });
   });
 
   it("names what did not go in, and still logs the rest", async () => {

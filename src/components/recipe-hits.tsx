@@ -48,7 +48,7 @@ export function RecipeHits({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <Badge variant="secondary">Recipe</Badge>
+                <Badge variant="secondary">{recipe.isFamily ? "Family" : "Recipe"}</Badge>
                 <Button
                   type="button"
                   size="sm"
@@ -62,7 +62,13 @@ export function RecipeHits({
               </div>
             </div>
             {open === recipe.id ? (
-              <LogRecipeForm recipeId={recipe.id} logDate={logDate} mealTypes={mealTypes} />
+              <LogRecipeForm
+                recipeId={recipe.id}
+                logDate={logDate}
+                mealTypes={mealTypes}
+                cookedWeightG={recipe.cookedWeightG}
+                servings={recipe.servings}
+              />
             ) : null}
           </li>
         ))}

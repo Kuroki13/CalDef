@@ -52,6 +52,8 @@ export type Food = {
   basisUnit?: "g" | "ml";
   /** The owner's note on their own food. Never present on a provider row. */
   notes?: string | null;
+  /** A household food the owner marked as family (§13H). Custom only. */
+  isFamily?: boolean;
 };
 
 /**
@@ -111,6 +113,9 @@ export type RecipeHit = {
   /** Computed from the ingredients' stored nutrients, as logging will. */
   kcalPerServing: number;
   proteinPerServing: number;
+  isFamily: boolean;
+  /** Set when the finished dish was weighed, so grams can be logged. */
+  cookedWeightG: number | null;
 };
 
 export type SearchOutcome = {

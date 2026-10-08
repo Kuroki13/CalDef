@@ -20,6 +20,7 @@ import {
   createCustomFood,
   deleteCustomFood,
   restoreCustomFood,
+  setCustomFoodFamily,
   updateCustomFood,
 } from "@/lib/food/custom";
 import {
@@ -156,4 +157,14 @@ function firstMessage(error: z.ZodError): string {
     return "Each extra serving needs a name and an amount above zero.";
   }
   return named[field] ?? "Check the figures you entered.";
+}
+
+/** Marks or unmarks one of the user's own foods as a family food (§13H). */
+export async function setFoodFamilyAction(formData: FormData): Promise<void> {
+  const parsed = z
+    .object({ foodId: z.coerce.number().int().positive(), family: z.enum(["true", "false"]) })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+  await setCustomFoodFamily(parsed.data.foodId, parsed.data.family === "true");
+  revalidateAll();
 }

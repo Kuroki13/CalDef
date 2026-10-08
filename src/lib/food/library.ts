@@ -113,6 +113,17 @@ export async function getPersonalLibrary(): Promise<PersonalLibrary> {
     if (portion) usual[foodId] = portion;
   }
 
+  const libraryRecipes = recipes.map((detail) => ({
+    id: detail.recipe.id,
+    name: detail.recipe.name,
+    servings: Number(detail.recipe.servings),
+    kcalPerServing: detail.perServing.kcal,
+    hasIngredients: detail.ingredients.length > 0,
+    isFamily: detail.recipe.is_family,
+    cookedWeightG:
+      detail.recipe.cooked_weight_g === null ? null : Number(detail.recipe.cooked_weight_g),
+  }));
+
   return {
     usual,
     recent: pick(recentIds),
@@ -123,13 +134,26 @@ export async function getPersonalLibrary(): Promise<PersonalLibrary> {
     // newest-first order, since the sort is stable.
     custom: [...custom].sort((a, b) => b.useCount - a.useCount),
     scanned: pick(scannedIds),
-    recipes: recipes.map((detail) => ({
-      id: detail.recipe.id,
-      name: detail.recipe.name,
-      servings: Number(detail.recipe.servings),
-      kcalPerServing: detail.perServing.kcal,
-      hasIngredients: detail.ingredients.length > 0,
-    })),
+    recipes: libraryRecipes,
+    family: [
+      ...libraryRecipes
+        .filter((recipe) => recipe.isFamily)
+        .map((recipe) => ({
+          kind: "recipe" as const,
+          id: `recipe:${recipe.id}`,
+          name: recipe.name,
+          recipe,
+        })),
+      ...custom
+        .filter((food) => food.isFamily)
+        .map((food) => ({
+          kind: "food" as const,
+          id: `food:${food.id}`,
+          name: food.name,
+          brand: food.brand,
+          food,
+        })),
+    ],
     meals: meals.map((detail) => ({
       id: detail.meal.id,
       name: detail.meal.name,

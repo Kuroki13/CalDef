@@ -34,7 +34,7 @@ import type { Database } from "@/types/database";
 
 /** Everything a `foods` row needs to come back as a `Food`. */
 const FOOD_COLUMNS = `id, source, source_id, name, brand, description, barcode,
-   is_verified, data_updated_at, notes, basis_unit,
+   is_verified, data_updated_at, notes, basis_unit, is_family,
    food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                    sat_fat_g, sodium_mg),
    food_servings (label, grams, is_default)`;
@@ -96,7 +96,7 @@ export async function listArchivedCustomFoods(): Promise<CustomFoodSummary[]> {
     // from the literal, and a built string collapses it to an error type.
     .select(
       `id, source, source_id, name, brand, description, barcode,
-       is_verified, data_updated_at, archived_at, notes, basis_unit,
+       is_verified, data_updated_at, archived_at, notes, basis_unit, is_family,
        food_nutrients (kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
                        sat_fat_g, sodium_mg),
        food_servings (label, grams, is_default)`,
@@ -158,6 +158,27 @@ export async function restoreCustomFood(
   if (error) return { error: error.message };
 
   return { restored: true };
+}
+
+/**
+ * Marks one of the owner's foods as a family food, or unmarks it (§13H).
+ * A flag, not a copy: the food is the same food either way.
+ */
+export async function setCustomFoodFamily(
+  id: number,
+  isFamily: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const userId = await requireUserId();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("foods")
+    .update({ is_family: isFamily })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "That food is not one of yours." };
+  return { ok: true };
 }
 
 /** One of the owner's foods, or null when it is not theirs or not there. */
