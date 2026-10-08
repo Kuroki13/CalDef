@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G live; 13H built and verified on development, **waiting on migration 0015 in production** |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G, 13H live; personal vocabulary (13I) next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -560,13 +560,7 @@ Phase 13, in the order spec §15 sets:
   servings only. Logging a recipe in grams needs its *cooked* weight,
   because its ingredient weights are raw and a cooked plate weighs
   something else. That comes with 13H.
-- **Family Foods and cooked weight (13H): built and verified on
-  development, on branch `phase-13h-family-foods`.** Waiting on the owner
-  to apply `20261008000001_family_foods_cooked_weight` to production. The
-  code reads `recipes.is_family`, `recipes.cooked_weight_g` and
-  `foods.is_family`, so `main` must not get it first. Once applied: run
-  `family_foods.sql` and `rls_isolation.sql` against production, merge,
-  push, check the deploy.
+- **Family Foods and cooked weight (13H): DONE, live on production since 2026-10-08.**
 - Then personal vocabulary (13I), then
   evaluate French and Canadian datasets (13J/13K), restaurant resolution
   (13L/13M), and connecting confidence to resolution (13N).
@@ -980,6 +974,11 @@ serving", and the diary line read "450 g".
 
 **Throughout:** 881 unit tests (10 new), with typecheck, lint and build
 clean.
+
+**Production:** the owner applied migration 0015, so production now has 15
+migrations. `family_foods`, `rls_isolation`, `quick_add` and
+`custom_food_atomicity` then passed against production and rolled back.
+Only after that was the branch merged and deployed.
 
 ### Phase 13G — Your recipes in search, 2026-10-08 (Claude Code)
 
