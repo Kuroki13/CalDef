@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13I live; 13J/13K evaluated (`docs/DATASET_EVALUATION.md`), **awaiting the owner's decision** |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13I live; Ciqual (13J) built and verified on development, **waiting on migration 0017 in production**; CNF (13K) next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -863,8 +863,8 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## DECISIONS
 
-- **Ciqual and the Canadian Nutrient File — evaluated 2026-10-08, decision
-  pending with the owner.** See `docs/DATASET_EVALUATION.md`. Both are free
+- **Ciqual and the Canadian Nutrient File — evaluated 2026-10-08; the owner
+  decided "both, start with Ciqual" the same day.** See `docs/DATASET_EVALUATION.md`. Both are free
   and openly licensed: Ciqual 2025 under Etalab 2.0, CNF 2026 under the Open
   Government Licence – Canada, attribution required for both. They fit the
   zero-cost rule.
@@ -876,7 +876,8 @@ What is left, and **Phase 11 stays open until it is done**:
     providers over compact bundled files, so there is no bulk database
     import and no running cost.
   - Neither helps Arabic coverage.
-  - Nothing is integrated until the owner decides.
+  - Ciqual is being built first, then the CNF's 1,195 Canadian-original
+    foods.
 
 - **The rate limiter stays in process, and that is a decision rather than
   a limitation.** Settled 2026-09-07, having been asked to move it to
@@ -948,6 +949,48 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13J — Ciqual, 2026-10-08 (Claude Code)
+
+Owner's decision: "both, start with Ciqual".
+
+- **`scripts/build-ciqual.mjs`** reduces the official 2025 XML (69 MB of
+  values) to `src/lib/food/data/ciqual.json`: 3,323 foods, 432 KB,
+  committed. It reads energy from constituent 328 (EU 1169/2011 kcal) and
+  the seven figures CalDef stores, converting decimal commas. "traces" and
+  "<x" are read as 0, "-" as missing. **161 foods without energy or a core
+  macro are left out**, because logging them would put invented zeros in a
+  diary. Re-run it for a new edition.
+- **`lib/food/ciqual.ts`** is a provider behind the usual port that
+  searches the table in memory: no key, no network, no running cost, and
+  never down. Every word must appear in the French or the English name.
+  Each result is named in the language the query matched, with the other
+  language in `description`. Ranking reads both languages for the two
+  national tables, so a cached French row still answers an English query.
+  ANSES's generic "sans précision (aliment moyen)" food leads a bare query.
+  `isVerified` is true, and confidence is **Strong**.
+- **Migration 0017** (`20261008000003_ciqual_cnf_sources`) adds `ciqual` and
+  `cnf` to the `food_source` enum. It is additive. A Ciqual food is cached
+  as a shared row only when it is logged, like every provider food.
+- On screen there is a "Ciqual" badge, the other-language name under the
+  result ("Maple syrup — Sirop d'érable"), and **the credit line the
+  licence requires** wherever a Ciqual result appears. It comes from
+  `lib/food/attribution.ts`, which keeps the table out of the browser
+  bundle. The build was checked: 0 client files contain the table and 4
+  server files do.
+
+**Verified on development** with the production build in Chrome and a
+fixture account removed afterwards. "maple syrup" led with "Maple syrup —
+Sirop d'érable · 269 kcal · Ciqual". "quiche lorraine" led with "Quiche
+lorraine, préemballée · 269 kcal · Ciqual". The credit line showed.
+Logging 150 g of the quiche wrote a `foods` row with `source = ciqual`,
+`source_id = 25405`, verified, and an entry of **403.50 kcal**
+(269 × 1.5), shown in the diary as **Strong**. For "croissant", USDA's
+croissants rank ahead of Ciqual's: equal tier and both verified, so the
+order falls to the fan-out, and the user's own picks will settle it.
+
+**Throughout:** 898 unit tests (8 new, against the real bundled table), with
+typecheck, lint and build clean.
 
 ### Phase 13I — Personal vocabulary, 2026-10-08 (Claude Code)
 

@@ -58,6 +58,7 @@ import {
   libraryIsEmpty,
   type PersonalLibrary,
 } from "@/lib/food/library-types";
+import { ATTRIBUTION } from "@/lib/food/attribution";
 import { amountUnit, formatAmount, per100Label } from "@/lib/food/basis";
 
 type SearchState = {
@@ -472,6 +473,10 @@ export function AddFood({
                       </span>
                       <span className="text-muted-foreground block truncate text-xs">
                         {food.brand ? `${food.brand} · ` : ""}
+                        {/* A national table is bilingual: the other
+                            language's name, so "Maple syrup" also reads
+                            as "Sirop d'érable". */}
+                        {bilingual(food) && food.description ? `${food.description} · ` : ""}
                         {Math.round(food.nutrients.kcal)} kcal / {per100Label(food)}
                         {/* Per 100 g compares two foods fairly; the serving
                             says what you would actually eat. */}
@@ -500,6 +505,15 @@ export function AddFood({
                 );
               })}
             </ul>
+            {/* The credit each reference table's licence requires, shown
+                wherever its data is. */}
+            {(["ciqual", "cnf"] as const)
+              .filter((source) => search.foods.some((food) => food.source === source))
+              .map((source) => (
+                <p key={source} className="text-muted-foreground text-xs">
+                  {ATTRIBUTION[source]}
+                </p>
+              ))}
             </TabsContent>
           </Tabs>
         ) : (
@@ -553,6 +567,8 @@ export function AddFood({
     </Card>
   );
 }
+
+const bilingual = (food: Food) => food.source === "ciqual" || food.source === "cnf";
 
 /** The learned pick behind a food in the results, if there is one. */
 function learnedPick(learned: LearnedHit[], food: Food): LearnedHit | null {

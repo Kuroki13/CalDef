@@ -27,7 +27,7 @@ export type EntryProvenance = {
   isEstimate: boolean;
   /** The food behind a single-food entry; null for recipes and estimates. */
   food: {
-    source: "usda" | "off" | "custom";
+    source: "usda" | "off" | "custom" | "ciqual" | "cnf";
     isVerified: boolean;
     /** A custom row imported from the reviewed restaurant catalogue. */
     isRestaurantReference: boolean;
@@ -52,6 +52,8 @@ export function entryConfidence(entry: EntryProvenance): Confidence {
 
   if (food.source === "custom") return "exact";
   if (food.source === "usda") return food.isVerified ? "strong" : "estimated";
+  // National, laboratory-based tables, like USDA's (§13J/§13K).
+  if (food.source === "ciqual" || food.source === "cnf") return "strong";
   return "strong";
 }
 

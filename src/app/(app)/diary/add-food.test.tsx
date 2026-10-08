@@ -3,8 +3,8 @@ import { afterEach } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 
 // Everything that would reach a server, or a camera, is out of scope here.
-const logFood = vi.fn(async (..._args: unknown[]) => ({}));
-const forgetVocabularyAction = vi.fn(async (..._args: unknown[]) => undefined);
+const logFood = vi.fn<(...args: unknown[]) => Promise<object>>(async () => ({}));
+const forgetVocabularyAction = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 vi.mock("@/app/(app)/diary/actions", () => ({
   logFood: (prev: unknown, form: FormData) => logFood(prev, form),
 }));

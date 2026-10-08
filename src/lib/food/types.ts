@@ -10,7 +10,7 @@
 import type { Nutrients } from "@/lib/nutrition/macros";
 
 /** Matches the `public.food_source` enum. */
-export type FoodSource = "usda" | "off" | "custom";
+export type FoodSource = "usda" | "off" | "custom" | "ciqual" | "cnf";
 
 export type FoodServing = {
   label: string;

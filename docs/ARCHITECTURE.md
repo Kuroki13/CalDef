@@ -20,7 +20,7 @@ Keep this synchronized with the implementation.
 | Database   | Postgres 17 on Supabase (`CalDef` development, `CalDef-prod` production; Free, eu-west-1) |
 | Auth       | Supabase Auth, email/password |
 | Hosting    | Vercel Hobby |
-| Food data  | USDA FoodData Central, Open Food Facts (v3 product, cgi search) |
+| Food data  | USDA FoodData Central, Open Food Facts (v3 product, cgi search), ANSES Ciqual 2025 (bundled table, Etalab 2.0) |
 | Barcodes   | `BarcodeDetector` where the browser has it, ZXing (`@zxing/browser`, MIT) loaded on demand where it does not — which is every browser on iOS |
 | LLM        | Gemini Developer API, free tier (`gemini-3.5-flash-lite`), behind `LLMProvider` |
 | Tests      | Vitest (unit/integration), SQL-level RLS tests |
@@ -109,6 +109,9 @@ src/
     signup-allowlist.ts who may create one in the first place
     food/              types.ts · provider.ts · usda.ts · off.ts
                        cache.ts · registry.ts
+                       ciqual.ts · data/ciqual.json (built by
+                       scripts/build-ciqual.mjs; searched in memory)
+                       attribution.ts (the credit lines licences require)
                        custom.ts · custom-input.ts (the user's own foods)
                        basis.ts (g or ml: how a food's amounts read)
                        cultural/ normalize.ts · dictionary.ts · recognise.ts

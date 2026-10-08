@@ -1027,7 +1027,7 @@ export type Database = {
       ai_role: "user" | "assistant" | "system"
       confidence_level: "low" | "medium" | "high"
       cut_phase_status: "active" | "completed" | "abandoned"
-      food_source: "usda" | "off" | "custom"
+      food_source: "usda" | "off" | "custom" | "ciqual" | "cnf"
       goal_type: "lose" | "maintain" | "gain" | "recomp"
       log_source:
         | "manual"
@@ -1172,7 +1172,7 @@ export const Constants = {
       ai_role: ["user", "assistant", "system"],
       confidence_level: ["low", "medium", "high"],
       cut_phase_status: ["active", "completed", "abandoned"],
-      food_source: ["usda", "off", "custom"],
+      food_source: ["usda", "off", "custom", "ciqual", "cnf"],
       goal_type: ["lose", "maintain", "gain", "recomp"],
       log_source: [
         "manual",

@@ -77,7 +77,7 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
                   {row.candidates.map((food, index) => <option key={index} value={index}>{food.brand ? `${food.brand} · ` : ""}{food.name}</option>)}
                 </select>
                 <p className="text-muted-foreground text-xs">
-                  {reference ? <>Official restaurant reference · Canada · <a className="underline" href={reference.url} target="_blank" rel="noopener noreferrer">Nutrition source</a> · Checked {reference.reviewed}. Saved reference, not a live web search. Standard item only; check toppings and customisations.</> : row.food.source === "usda" ? "USDA FoodData Central" : row.food.source === "off" ? "Open Food Facts · community-contributed" : "Your custom food"}
+                  {reference ? <>Official restaurant reference · Canada · <a className="underline" href={reference.url} target="_blank" rel="noopener noreferrer">Nutrition source</a> · Checked {reference.reviewed}. Saved reference, not a live web search. Standard item only; check toppings and customisations.</> : row.food.source === "usda" ? "USDA FoodData Central" : row.food.source === "off" ? "Open Food Facts · community-contributed" : row.food.source === "ciqual" ? "Ciqual (ANSES, France)" : row.food.source === "cnf" ? "Canadian Nutrient File (Health Canada)" : "Your custom food"}
                 </p>
                 {mode === "log" ? <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1 text-xs" htmlFor={`${id}-${i}`}>Amount

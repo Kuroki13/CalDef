@@ -69,12 +69,20 @@ export type TextMatch = {
   phrase: boolean;
 };
 
-export function textMatch(food: Pick<Food, "name" | "brand">, query: string): TextMatch {
+export function textMatch(
+  food: Pick<Food, "name" | "brand"> & Partial<Pick<Food, "source" | "description">>,
+  query: string,
+): TextMatch {
   const needle = fold(query);
   const words = needle.split(" ").filter((w) => w.length > 0);
   if (words.length === 0) return { coverage: 0, phrase: false };
 
-  const haystack = fold(`${food.name} ${food.brand ?? ""}`);
+  // A bilingual table keeps its other-language name in `description`
+  // (§13J/§13K): "Sirop d'érable" answers "maple syrup" too.
+  const bilingual = food.source === "ciqual" || food.source === "cnf";
+  const haystack = fold(
+    `${food.name} ${food.brand ?? ""} ${bilingual ? (food.description ?? "") : ""}`,
+  );
   const found = words.filter((word) => haystack.includes(word)).length;
   return { coverage: found / words.length, phrase: haystack.includes(needle) };
 }

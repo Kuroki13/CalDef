@@ -18,6 +18,9 @@ export function SourceBadge({ food }: { food: Food }) {
       </Badge>
     );
   }
+  // National reference tables, credited by name as their licences require.
+  if (food.source === "ciqual") return <Badge variant="default">Ciqual</Badge>;
+  if (food.source === "cnf") return <Badge variant="default">Health Canada</Badge>;
   if (food.source === "off") {
     // Community-contributed. The spec requires not presenting it as verified.
     return <Badge variant="outline">Community</Badge>;

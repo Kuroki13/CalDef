@@ -19,7 +19,7 @@ import { z } from "zod";
 
 export const foodPayloadSchema = z.object({
   sourceId: z.string().min(1).max(200),
-  source: z.enum(["usda", "off", "custom"]),
+  source: z.enum(["usda", "off", "custom", "ciqual", "cnf"]),
   name: z.string().trim().min(1).max(300),
   brand: z.string().trim().max(200).nullable(),
   description: z.string().trim().max(500).nullable(),

@@ -59,6 +59,15 @@ vi.mock("@/lib/food/usda", () => ({
   },
 }));
 
+const ciqualSearch = vi.fn();
+vi.mock("@/lib/food/ciqual", () => ({
+  ciqualProvider: {
+    name: "Ciqual",
+    isAvailable: () => true,
+    search: (...a: unknown[]) => ciqualSearch(...a),
+  },
+}));
+
 vi.mock("@/lib/food/off", () => ({
   offProvider: {
     name: "OFF",
@@ -109,6 +118,7 @@ beforeEach(() => {
   loggedFoodCounts.mockResolvedValue(new Map());
   usdaSearch.mockResolvedValue(ok("usda", []));
   offSearch.mockResolvedValue(ok("off", []));
+  ciqualSearch.mockResolvedValue(ok("ciqual", []));
 });
 
 describe("searchFoods", () => {
