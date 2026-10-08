@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G, 13H live; 13I built and verified on development, **waiting on migration 0016 in production** |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13I live; evaluate French/Canadian datasets (13J/13K) next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -561,12 +561,7 @@ Phase 13, in the order spec §15 sets:
   because its ingredient weights are raw and a cooked plate weighs
   something else. That comes with 13H.
 - **Family Foods and cooked weight (13H): DONE, live on production since 2026-10-08.**
-- **Personal vocabulary (13I): built and verified on development, on branch
-  `phase-13i-personal-vocabulary`.** Waiting on the owner to apply
-  `20261008000002_personal_vocabulary` to production. The code reads the
-  new `food_vocabulary` table, so `main` must not get it first. Once
-  applied: run `personal_vocabulary.sql` and `rls_isolation.sql` (now 21
-  tables) against production, merge, push, check the deploy.
+- **Personal vocabulary (13I): DONE, live on production since 2026-10-08.**
 - Then
   evaluate French and Canadian datasets (13J/13K), restaurant resolution
   (13L/13M), and connecting confidence to resolution (13N).
@@ -985,6 +980,11 @@ the order returned.
 
 **Throughout:** 890 unit tests (17 new), with typecheck, lint and build
 clean.
+
+**Production:** the owner applied migration 0016, so production now has 16
+migrations. `personal_vocabulary`, `rls_isolation` (21 tables),
+`family_foods` and `quick_add` then passed against production and rolled
+back. Only after that was the branch merged and deployed.
 
 ### Phase 13H — Family Foods, and logging a recipe in grams, 2026-10-08 (Claude Code)
 
