@@ -53,7 +53,10 @@ export function entryConfidence(entry: EntryProvenance): Confidence {
   if (food.source === "custom") return "exact";
   if (food.source === "usda") return food.isVerified ? "strong" : "estimated";
   // National, laboratory-based tables, like USDA's (§13J/§13K).
-  if (food.source === "ciqual" || food.source === "cnf") return "strong";
+  if (food.source === "ciqual" || food.source === "cnf") {
+    // A CNF recipe compilation is computed from ingredients, not analysed.
+    return food.isVerified ? "strong" : "estimated";
+  }
   return "strong";
 }
 

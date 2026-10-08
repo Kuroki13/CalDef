@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13J (Ciqual) live; CNF (13K) next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13K live; restaurants (13L/13M) next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -876,8 +876,8 @@ What is left, and **Phase 11 stays open until it is done**:
     providers over compact bundled files, so there is no bulk database
     import and no running cost.
   - Neither helps Arabic coverage.
-  - Ciqual is being built first, then the CNF's 1,195 Canadian-original
-    foods.
+  - Both are now live: Ciqual since 2026-10-08, and the CNF's 1,195
+    Canadian-original foods the same day.
 
 - **The rate limiter stays in process, and that is a decision rather than
   a limitation.** Settled 2026-09-07, having been asked to move it to
@@ -949,6 +949,41 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13K — Canadian Nutrient File, 2026-10-08 (Claude Code)
+
+- **`scripts/build-cnf.mjs`** reduces the official 2026 CSVs to
+  `src/lib/food/data/cnf.json`. It keeps **only the 1,195 foods with no USDA
+  NDB code**, all of which have energy and the three macros. The other
+  4,798 are USDA data CalDef already searches, so keeping them would
+  duplicate foods blindly. The result is 257 KB, committed. Each food brings
+  up to five of Health Canada's household measures as servings, **in
+  grams** ("1 pie (20 cm dia)" = 450 g; "250 ml" of poutine = 165 g, a real
+  density). Inedible-refuse and bare-gram measures are skipped. The 109
+  recipe compilations (source code 35) are kept but **not marked verified**.
+- **`lib/food/reference-table.ts`** is the one bilingual in-memory search
+  both national tables now use. Ciqual moved onto it unchanged in
+  behaviour, so the two cannot drift. `cnf.ts` is the provider; English is
+  preferred when both languages match equally.
+- Confidence for `cnf` is **Strong**, or **Estimated** for an unverified
+  recipe compilation. The badge reads "Health Canada", with the OGL credit
+  line wherever a CNF result appears. No migration: 0017 already added
+  `cnf`.
+- A test found that **peameal bacon is not in the kept set**: CNF took it
+  from USDA, so it is exactly the kind of row left out on purpose. The test
+  was corrected; the data was not.
+
+**Verified on development** with the production build in Chrome and a
+fixture account removed afterwards. "tourtiere" led with "Tourtiere,
+homemade — Tourtière maison · 272 kcal · 1 piece: 307 kcal · Health
+Canada" and "Pie, tourtiere, commercial — Pâté, tourtière, commercial · 1
+pie (20 cm dia): 1733 kcal". The OGL credit line showed. Logging **1 piece**
+wrote `source = cnf`, 113 g, **307.36 kcal** (272 × 1.13), shown as
+**Strong**. Neither table is in the browser bundle: 0 client files contain
+either, and 4 server files each do.
+
+**Throughout:** 903 unit tests (5 new, against the real table), with
+typecheck, lint and build clean.
 
 ### Phase 13J — Ciqual, 2026-10-08 (Claude Code)
 

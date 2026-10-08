@@ -68,6 +68,14 @@ vi.mock("@/lib/food/ciqual", () => ({
   },
 }));
 
+vi.mock("@/lib/food/cnf", () => ({
+  cnfProvider: {
+    name: "CNF",
+    isAvailable: () => true,
+    search: async () => ({ source: "cnf", ok: true, foods: [] }),
+  },
+}));
+
 vi.mock("@/lib/food/off", () => ({
   offProvider: {
     name: "OFF",

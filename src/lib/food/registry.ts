@@ -24,6 +24,7 @@ import { matchRecipes } from "@/lib/recipe-match";
 import { learnedFor } from "@/lib/vocabulary";
 import { PINNED_AT } from "@/lib/vocabulary-key";
 import { ciqualProvider } from "@/lib/food/ciqual";
+import { cnfProvider } from "@/lib/food/cnf";
 import { offProvider } from "@/lib/food/off";
 import { usdaProvider } from "@/lib/food/usda";
 import { personalSignals } from "@/lib/food/history";
@@ -41,9 +42,9 @@ import type {
   SearchOutcome,
 } from "@/lib/food/types";
 
-// Ciqual answers from a bundled table (no network), so it costs nothing to
-// ask on every search (§13J).
-export const PROVIDERS = [usdaProvider, ciqualProvider, offProvider];
+// Ciqual and the CNF answer from bundled tables (no network), so they cost
+// nothing to ask on every search (§13J/§13K).
+export const PROVIDERS = [usdaProvider, ciqualProvider, cnfProvider, offProvider];
 
 /**
  * Searches every source and merges the results.
