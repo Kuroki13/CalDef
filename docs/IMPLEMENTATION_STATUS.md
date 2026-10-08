@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13I live; Ciqual (13J) built and verified on development, **waiting on migration 0017 in production**; CNF (13K) next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13J (Ciqual) live; CNF (13K) next |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -991,6 +991,12 @@ order falls to the fan-out, and the user's own picks will settle it.
 
 **Throughout:** 898 unit tests (8 new, against the real bundled table), with
 typecheck, lint and build clean.
+
+**Production:** the owner applied migration 0017, so production now has 17
+migrations. `rls_isolation`, `custom_food_atomicity`,
+`personal_vocabulary`, `family_foods` and `quick_add` then passed against
+production and rolled back. Only after that was the branch merged and
+deployed.
 
 ### Phase 13I — Personal vocabulary, 2026-10-08 (Claude Code)
 
