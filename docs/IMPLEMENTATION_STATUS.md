@@ -28,7 +28,7 @@ Last updated: 2026-10-07
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13I live; evaluate French/Canadian datasets (13J/13K) next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13I live; 13J/13K evaluated (`docs/DATASET_EVALUATION.md`), **awaiting the owner's decision** |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -862,6 +862,21 @@ What is left, and **Phase 11 stays open until it is done**:
   the same thing.**
 
 ## DECISIONS
+
+- **Ciqual and the Canadian Nutrient File — evaluated 2026-10-08, decision
+  pending with the owner.** See `docs/DATASET_EVALUATION.md`. Both are free
+  and openly licensed: Ciqual 2025 under Etalab 2.0, CNF 2026 under the Open
+  Government Licence – Canada, attribution required for both. They fit the
+  zero-cost rule.
+  - Ciqual covers 17 of the 18 §13J French foods, where USDA covers 2.
+  - CNF covers the Canadian staples, but 80% of it (4,798 of 5,993 foods) is
+    copied from USDA.
+  - The recommendation: adopt Ciqual whole; adopt only CNF's 1,195
+    non-USDA foods, with their real household measures; ship both as
+    providers over compact bundled files, so there is no bulk database
+    import and no running cost.
+  - Neither helps Arabic coverage.
+  - Nothing is integrated until the owner decides.
 
 - **The rate limiter stays in process, and that is a decision rather than
   a limitation.** Settled 2026-09-07, having been asked to move it to
