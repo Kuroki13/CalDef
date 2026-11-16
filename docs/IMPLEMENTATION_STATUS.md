@@ -7,7 +7,7 @@ true.
 A feature belongs under DONE only if it was **tested and verified**, not
 merely written. "It compiles" is not done.
 
-Last updated: 2026-10-07
+Last updated: 2026-11-16
 
 ---
 
@@ -29,6 +29,7 @@ Last updated: 2026-10-07
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
 | 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13K live; restaurants (13L/13M) next |
+| 16 | Strength training and visual identity (spec §16) | DONE in code and deployed 2026-11-16 — **not yet seen in a real browser or on the iPhone**; see TODO |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -526,7 +527,84 @@ closest to refusing.
 frame denial, a permissions policy allowing only the camera the scanner
 needs, and HSTS. `connect-src` is `'self'` alone — see DECISIONS.
 
+### Spec §16 — strength training and visual identity (2026-11-16)
+
+Owner's amendment of 2026-11-16 (spec §16). Verified as far as it can be
+without a browser; what could not be is listed under TODO, not here.
+
+**Visual identity.** Tokens in `globals.css`: one accent (cobalt) on cool
+paper with ink text, `--success` / `--warning`, three macro colours, a
+matching dark set. Buttons and inputs are 40 px and up. `PageHeader`,
+`Stat` and `EmptyState` (`components/page-header.tsx`) are shared by every
+screen. Restyled: dashboard, diary header and summary, weight, recipes &
+foods, phase, assistant, settings, sign-in. The phone tab bar is Today ·
+Diary · Training · Weight · More (was seven tabs); it pads for the home
+indicator, and a dark strip sits under the status bar of the installed
+app, whose text iOS keeps white. The interface language is unchanged
+(English); the app has no translations to preserve.
+
+**Training.**
+
+- **Library**: 179 catalogue exercises (`scripts/exercise-catalogue.txt`,
+  written for CalDef — no third-party dataset, no media), across 14 muscle
+  groups, 8 equipment types and all 4 measures. Search ignores case and
+  accents, matches name or alias (French aliases included), filters by
+  muscle and equipment. Custom exercises: create, edit (never the
+  measure), remove — retired instead when history points at them.
+- **Workouts**: create, name, add several exercises, reorder, replace,
+  remove; sets, rep range, optional weight, time for timed exercises,
+  rest, notes; edit, duplicate, delete behind a confirmation.
+- **Live session** (`/training/session`): previous performance per
+  exercise, fields by measure, tick/untick (ticking an empty set adopts
+  the suggestion), add/remove set, add/replace/remove exercise for this
+  session only, notes, running time, rest timer with ±15 s, finish,
+  discard behind a confirmation. Save state always visible.
+- **History and progress**: list, detail with duration and notes, "do
+  this session again", delete; per exercise: chart (two sessions
+  minimum), records (heaviest set, estimated 1RM marked as an estimate,
+  best session volume, most reps, longest, furthest) and every session.
+- **Dashboard**: session in progress or the last one. No calorie figure
+  is derived from training.
+
+**Database**: migrations `20261116000001_training` and
+`20261116000002_exercise_catalogue`, applied to development and to
+production (19 migrations on production). Six tables, RLS with four
+policies each, three `security invoker` functions.
+
 ## TODO
+
+**Spec §16 — what is still unverified.** The interactive screens have
+**not been seen in a browser**: no automated browser is installed here and
+installing one on the fly was refused. So the redesign's actual appearance
+on a phone and a desktop, the live session's typing, ticking and timer,
+the exercise picker sheet, the "More" sheet and contrast in practice are
+all unchecked by eye. The owner's first use is that check. On the iPhone
+specifically:
+
+1. Install: Safari → Share → Add to Home Screen; opens frameless; the
+   status bar text is readable over the dark strip; the tab bar clears
+   the home indicator.
+2. Tabs: Today, Diary, Training, Weight, More; More opens a sheet with
+   Recipes & foods, Phase, Assistant, Settings.
+3. Create "Push A" (search "bench", "developpe couche", filter chips),
+   set sets/reps/rest, save.
+4. Start; type a weight and reps with the numeric keyboard open — the
+   field stays visible and the page does not zoom; tick the set.
+5. Rest timer appears; lock the phone 30 s; unlock — the remaining time
+   is right. (No sound or notification while locked: expected.)
+6. Turn on airplane mode, change a set: "Not saved · Retry" appears.
+   Close the app, reopen in airplane mode: the value is still shown.
+   Turn the network back on: it reads "Saved" on its own.
+7. Refresh mid-session: nothing lost. Finish: lands on the saved session.
+8. History shows it; start "Push A" again: "Last time" shows the sets.
+9. Safari console (Mac → Develop): no CSP violation on `/training/session`.
+10. Diary: log a food as before; barcode scanner still opens.
+
+Not built, on purpose (spec §16.4): a programme/calendar planner; exercise
+illustrations; supersets; editing a completed session's sets.
+
+The dark token set exists and is kept in step, but nothing switches the
+app to it — there was no theme switch before this work either.
 
 Phase 12, in the order spec §15 sets:
 
@@ -938,6 +1016,7 @@ What is left, and **Phase 11 stays open until it is done**:
   logins work, and GitHub authentication is valid. Production verification
   and deployment are still in progress, not yet passed.
 - Physical iPhone verification requires the owner/device after deployment.
+  The §16 checklist (training, redesign) is under TODO.
 - Leaked-password protection is a paid feature, not an outstanding request
   to enable a free toggle (see KNOWN ISSUES).
 
@@ -949,6 +1028,71 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Spec §16 — training and visual identity, 2026-11-16 (Claude Code)
+
+**Baseline before any change:** 915 unit tests, typecheck and lint clean
+(with the uncommitted restaurant work in the tree).
+
+**After:** **1007 unit tests** in the working tree (92 new), typecheck,
+lint and `next build` clean. A clean checkout of the pushed commit —
+without the restaurant work — passes **995**. New tests cover: the
+catalogue's integrity and coverage; search (case, accents, aliases,
+filters, ranking); volume, best set, records and progress, including that
+nothing is invented from uncompleted sets; unit round-trips; timers after
+a long gap with no ticks; the save queue (latest value wins, one in
+flight, failure kept and retried, refusal not retried, restore after a
+reload, flush); set drafts; and every server action's validation and
+payload (30 tests).
+
+One of those tests found a real defect before it shipped: weights stored
+to two decimals of a kilogram turned 135 lb into 134.99 lb. They are
+stored to three.
+
+**SQL, development then production (rolled back):**
+`supabase/tests/training.sql` — catalogue read-only to users; another
+user's templates, sessions, sets and exercises invisible and untouchable;
+a foreign id attaches nothing and starts nothing; start idempotent on its
+token, one session in progress; finish keeps only completed sets and
+refuses an empty session; a past session survives its template being
+edited and deleted; an exercise with history cannot be deleted; anon
+reaches nothing. `rls_isolation.sql` now audits **27 tables**. All seven
+suites pass on development; `training.sql` and `rls_isolation.sql` pass
+on production.
+
+Writing that test also found a defect in the first draft of
+`start_workout`: sets inserted in the same statement as their exercises
+(a CTE) were refused by RLS, because a CTE's rows are invisible to the
+rest of its statement. It is two statements now.
+
+**Journey, development, real signed-in fixture account, production build
+(`.vercel/caldef-ops/training-e2e.mjs`, 31 checks, all pass):** create
+"Push A" with three exercises → `/training` shows it → a double start
+opens one session → dashboard and `/training` show it in progress →
+planned sets carry the target weight → four sets recorded → re-read from
+the server, nothing lost → finish → `/training/session` redirects →
+history shows `80 kg × 10`, `80 kg × 9`, `50 kg × 8`, `1:15` and not the
+exercise that was not done → exercise page shows records, marks the
+estimate, draws no chart from one session → editing the template leaves
+the past session unchanged → a repeat reads last time's sets → discard
+removes it → `/diary` and every other page still render → unknown session
+is a 404. The fixture account was removed afterwards; development holds
+0 sessions, 0 templates, 0 custom exercises and the 179 catalogue rows.
+
+This drives the database through the same API and renders the real
+pages, but **it does not click anything**: the client screens were not
+exercised in a browser. See TODO.
+
+**Deployment:** three pushes. `fd7b18a` (schema) deployed READY.
+`51ae092` (training code) **failed to build on Vercel** — it imported
+`formatLongDate`, which was committed one commit later; nothing was
+published from it and production stayed on the previous deployment. The
+mistake was in how the work was split into commits, not in the code.
+`e238e4e` contains both and deployed **READY**, aliased to
+`caldef-woad.vercel.app`. Checked from outside, signed out: `/login` 200,
+`/training` and `/dashboard` redirect to `/login`, the manifest serves.
+Production was not signed into (no fixture account is written to
+production's `auth.users`), so its training pages are unseen there.
 
 ### Phase 13K — Canadian Nutrient File, 2026-10-08 (Claude Code)
 

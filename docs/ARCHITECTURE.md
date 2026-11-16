@@ -82,6 +82,8 @@ src/
       weight/          weigh-ins and trend
       phase/           2-Month Cut mode
       recipes/         recipes and saved meals
+      training/        workouts, the live session, history, exercises
+                       (actions.ts holds every training write)
       assistant/       AI chat
       settings/        profile, goals, AI toggle
     api/
@@ -93,6 +95,10 @@ src/
   components/
     ui/                shadcn primitives
     service-worker.tsx registers /sw.js after load
+    page-header.tsx    PageHeader · Stat · EmptyState, on every screen
+    training/          picker, template editor, live session, rest timer,
+                       progress chart; set-draft.ts is where typed text
+                       meets stored units
     <feature>/         feature components
   lib/
     food-log.ts        the single-food logging convergence point
@@ -128,6 +134,15 @@ src/
                        whose diary breaks a ranking tie)
                        text-match.ts (shared by the server's ranking and
                        the search box's "is this any use?")
+    training/          types.ts (the vocabulary) · search.ts · metrics.ts
+                       (volume, records, progress) · format.ts (kg/lb,
+                       km/mi, clocks) · timer.ts · input.ts (zod) ·
+                       save-queue.ts (the live session's saves) ·
+                       store.ts (server-only reads) · view.ts ·
+                       data/exercises.json (built by
+                       scripts/build-exercises.mjs from
+                       scripts/exercise-catalogue.txt, as is the seed
+                       migration)
     llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
@@ -332,6 +347,53 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     boundary is `FoodText` whether it was typed a second ago or last
     week. A message the gate refuses is dropped whole, never trimmed.
 
+18. **A session is history, and a template is not.** `workout_session_exercises`
+    stores the exercise's name, measure, muscle group, equipment and
+    targets as they were when the session started, and
+    `workout_sessions.name` the template's name. Nothing a session shows
+    is read through its template or re-read from `exercises`, so editing
+    or deleting a template, or renaming a custom exercise, cannot change
+    a past session — invariant 12, for training. The corollaries: the
+    template link is `on delete set null`; an exercise that history points
+    at is `on delete restrict` and is archived instead; and how an
+    exercise is measured can never be edited.
+
+19. **Training is separate from energy.** No training code reads or writes
+    a calorie target, no burned-calorie figure exists anywhere, and no
+    training code imports `lib/llm`. Volume is computed only for
+    `weight_reps` exercises, progress only within one exercise id, and an
+    estimated one-rep max is flagged `estimated` in the data, not only in
+    the label.
+
+20. **The live session never loses or duplicates a write.** Changes to a
+    set go through `lib/training/save-queue.ts`: one save in flight, the
+    latest value per set, failures kept and retried, the queue mirrored to
+    `localStorage`, and a refusal from the server dropped and reported
+    rather than retried forever. Saving a set is "make it equal to this",
+    so resending is safe. Starting is idempotent on a browser-made token
+    and a partial unique index allows one session in progress per user
+    (`start_workout`); adding a set is an upsert on its position.
+    `finish_workout` is called only after the queue has flushed, and the
+    screen says "finished" only on its answer.
+
+21. **Durations are subtraction, not counting.** The session clock and the
+    rest timer are `now − timestamp` (`lib/training/timer.ts`); the
+    interval only repaints. A locked phone is therefore right on the first
+    repaint after it wakes. Nothing rings in the background and the UI
+    does not claim otherwise.
+
+22. **A foreign id attaches nothing.** A foreign key is checked without
+    RLS, so child-table policies name both ends: a template or session
+    exercise requires the parent to be the user's *and* the exercise to be
+    one that user can see. The three training functions are
+    `security invoker`, so RLS decides inside them exactly as outside.
+
+23. **Colour is a token.** `globals.css` defines every colour, radius and
+    state once (light and dark), including `--success`, `--warning` and
+    the three macro colours. Screens use the names; a literal colour in a
+    component is a defect. One accent means "the action" or "the measured
+    thing", never decoration.
+
 ## 6. Adaptive TDEE model
 
 Two signals, one estimate:
@@ -399,6 +461,8 @@ the goal would be reached at the safe rate. No shaming language.
 | Contract | providers against recorded fixtures, plus failure modes | Vitest + mocked fetch |
 | Integration | route handlers with a stubbed Supabase session | Vitest |
 | RLS | cross-user access denied on every table | SQL against the dev project |
+| Training | isolation, forged parents, idempotent start, history after a template is deleted | `supabase/tests/training.sql` |
+| Journey | "Push A" end to end as a real signed-in account, pages fetched from the production build | `.vercel/caldef-ops/training-e2e.mjs`, development only |
 | Build | typecheck, lint, production build | `tsc`, `eslint`, `next build` |
 | Delivery | served bytes: headers, manifest, icons, install tags | HTTP against `next start` |
 

@@ -53,6 +53,12 @@ Tables (Postgres, created only via `supabase/migrations/`):
     ai_messages           messages within a thread
     cut_phases            a bounded phase (see section 8)
     cut_phase_milestones  weekly milestone targets for a phase
+    exercises             shared exercise catalogue + each user's own (§16)
+    workout_templates     a reusable training plan (§16)
+    workout_template_exercises  its exercises, in order, with targets
+    workout_sessions      a session performed, or in progress
+    workout_session_exercises   a session's exercises, snapshotted
+    workout_sets          one set: weight, reps, time, distance
 
 Every table requires: primary key, correct foreign keys with sensible
 `on delete` behavior, indexes on lookup columns, `created_at` /
@@ -193,7 +199,7 @@ Requirements:
 Authentication · food search · food logging · meals · calories and
 macros · weight entry · charts · adaptive TDEE · recipes · saved meals ·
 barcode scanning · AI parsing · AI assistant · responsive mobile UI ·
-RLS security · PWA installability.
+RLS security · PWA installability · strength-training log (§16).
 
 PWA: installable via Safari → Share → Add to Home Screen. No App Store,
 no Apple Developer account.
@@ -705,3 +711,123 @@ before asking; ask one useful question at a time; offer choices rather
 than demanding retyping; remember confirmed choices; allow them to be
 corrected; mark estimates clearly; and keep manual search available at
 all times.
+
+---
+
+## 16. Strength training and visual identity
+
+**Amendment by the account owner, 2026-11-16.** The product now tracks
+training as well as food, and has a look of its own. This extends the
+scope of §1; it does **not** lift §14's restriction — Adaptive Coaching
+and the rest of phases 14–19 stay out.
+
+### 16.1 Visual identity
+
+A sober, sporty, contemporary mobile app. One accent colour, a restricted
+palette, a clear hierarchy in which the important figure is read first,
+tabular numbers, regular spacing. Cards where they group something, not
+around every line. Icons from the library already installed. Charts drawn
+from real data only. Motion only where it explains something. No
+decorative gradients, no pervasive glass, no generic dashboard.
+
+Colours, radii, type and interactive states are **tokens**, defined once
+(`globals.css`) and read everywhere; a colour is never written into a
+screen. Controls are large enough for a thumb, the layout respects the
+iPhone's safe areas, and every server-bound control keeps its loading,
+empty, error, success and disabled states.
+
+A competitor's app may inspire what the product *does*. Its screens,
+catalogue and media are never copied.
+
+### 16.2 Navigation
+
+Training is a first-class destination. On a phone the tab bar holds the
+daily loop — Today, Diary, Training, Weight — and the rest sits behind
+"More". The home screen shows the session in progress, or the last one.
+
+### 16.3 Exercise library
+
+A shared catalogue plus each user's own exercises. Every exercise has: a
+stable identifier, a name, search aliases, a primary muscle group,
+secondary muscles where known, equipment, **what a set of it records**
+(weight × reps, reps only, time, or distance + time), and a short cue.
+
+Search ignores case and accents and matches name or alias; filters by
+muscle group and equipment; several exercises can be added at once; a
+missing exercise can be created. The catalogue is **extensible, not
+exhaustive** — state the real count, never "every exercise".
+
+Only data and media whose licence permits the use. No proprietary
+catalogue is extracted. No paid dependency. An entry without an
+illustration is better than a misleading or unlicensed image.
+
+### 16.4 Workouts and sessions
+
+Two things that are never confused:
+
+    WORKOUT (template)   a reusable plan — "Push A"
+    SESSION              what was actually done, on a date, with results
+
+A workout can be created, named, reordered, edited, duplicated and
+deleted; each exercise has sets, a rep target or range, an optional
+target weight, a rest time and a note. There is no programme planner in
+this version — a clear list of workouts, extensible later.
+
+**A session is history.** It carries its own copy of what it needs, so
+editing or deleting a workout, or renaming an exercise, never changes a
+past session.
+
+### 16.5 Performing a session
+
+Usable at the gym, quickly, with one hand. Exercises in order; the
+previous performance of each; weight and reps per set, or time, or
+distance, according to the exercise; tick and untick a set; add and
+remove a set; add or replace an exercise **without changing the
+workout**; notes; the session's running time; a rest timer; an explicit
+finish and an explicit discard.
+
+Required behaviour:
+
+- Entries are saved as they are made, and a refresh or an accidental
+  close resumes without loss.
+- The save state shown is the true one, including when the connection is
+  the problem.
+- A session is not marked finished until its save is confirmed.
+- A double tap or a network retry never creates a duplicate.
+- Timers are computed from timestamps, so they are right after the app
+  was in the background. **No notification or sound in the background is
+  promised**, because a browser does not guarantee one.
+
+### 16.6 History and progress
+
+The list of sessions; each session's exercises, sets, real duration and
+notes; starting again from a past session; history per exercise; a
+simple progression; personal records where the data supports them.
+
+- Volume (weight × reps) exists only for exercises it means something
+  for.
+- Nothing is compared across different machines, variants or units:
+  progress is per exercise.
+- An estimate is labelled as one.
+- No chart ever shows demonstration data in a real account.
+
+### 16.7 What training does not do
+
+- It does **not** change calorie targets, automatically or otherwise.
+- **No "calories burned" estimate** is stored, derived or shown. Adding
+  one requires a stated, reliable method written into this document
+  first.
+- It needs no model. No profile, training history or other personal data
+  is sent to Gemini; §5's data minimization is unchanged.
+- §11–§13 are unchanged: Gemini still receives food text only, never
+  computes calories, never invents restaurant nutrition.
+
+### 16.8 Security
+
+Per §9: RLS on every new table with explicit policies for read and
+write; one user can never reach another's sessions or private exercises;
+the shared catalogue is readable under an explicit policy and writable
+by no user; **knowing an identifier is never enough to attach data to
+someone else's workout or session**, nor to use someone else's exercise;
+every input is validated on the server.
+
