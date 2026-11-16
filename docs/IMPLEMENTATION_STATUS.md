@@ -1144,6 +1144,15 @@ as Tomorrow when moved), alternatives on the exercise page, and training
 frequency on Progress. It found one real inconsistency before it shipped:
 Today still offered a workout that had already been done that day.
 
+**Deployment:** migrations `20261117000001`–`03` applied to production (22
+in all) after their commit; `training.sql` and `rls_isolation.sql` pass
+there, rolled back. Commits `2ad63a0` (schema), `7d0eeaf` (application) and
+`e74b883` (docs) all deployed READY — the application commit was
+type-checked and tested on a clean checkout before it was pushed, so the
+split-commit failure of the first pass did not recur. Checked from outside,
+signed out: `/login` 200, `/training` and `/dashboard` redirect to sign-in,
+the manifest serves the new theme colour. Production was not signed into.
+
 ### Spec §16 — training and visual identity, 2026-11-16 (Claude Code)
 
 **Baseline before any change:** 915 unit tests, typecheck and lint clean
