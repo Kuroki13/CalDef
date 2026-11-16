@@ -26,7 +26,7 @@ begin
   end if;
   select count(*) into table_count from pg_class
     where relnamespace = 'public'::regnamespace and relkind = 'r';
-  if table_count <> 21 then raise exception 'FAIL: expected 21 tables'; end if;
+  if table_count <> 27 then raise exception 'FAIL: expected 27 tables'; end if;
   for t in select relname, relrowsecurity from pg_class
     where relnamespace = 'public'::regnamespace and relkind = 'r'
   loop
@@ -48,7 +48,7 @@ begin
       raise exception 'FAIL: API role can truncate %', t.relname;
     end if;
   end loop;
-  raise notice 'PASS: grants, API roles, RLS and four policies on all 21 tables';
+  raise notice 'PASS: grants, API roles, RLS and four policies on all 27 tables';
 end $$;
 
 -- =====================================================================
@@ -150,6 +150,32 @@ begin
   perform set_config('caldef_test.custom_log_id', v_custom_log_id::text, true);
 end $$;
 
+-- Training (migration 20261116000001): one row per table owned by A. The
+-- deeper checks — forged parents, the functions, history — are in
+-- supabase/tests/training.sql; this file's job is that no table is left out.
+do $$
+declare
+  a uuid := '11111111-1111-1111-1111-111111111111';
+  v_ex bigint; v_tpl bigint; v_sess bigint; v_se bigint;
+begin
+  insert into public.exercises (user_id, name, muscle_group, equipment, measure)
+    values (a, 'A Private Exercise', 'chest', 'other', 'weight_reps')
+    returning id into v_ex;
+  insert into public.workout_templates (user_id, name) values (a, 'A Private Plan')
+    returning id into v_tpl;
+  insert into public.workout_template_exercises (template_id, exercise_id, position)
+    values (v_tpl, v_ex, 0);
+  insert into public.workout_sessions (user_id, template_id, name, start_token)
+    values (a, v_tpl, 'A Private Plan', gen_random_uuid())
+    returning id into v_sess;
+  insert into public.workout_session_exercises
+    (session_id, exercise_id, exercise_name, measure, muscle_group, equipment, position)
+    values (v_sess, v_ex, 'A Private Exercise', 'weight_reps', 'chest', 'other', 0)
+    returning id into v_se;
+  insert into public.workout_sets (session_exercise_id, position, weight_kg, reps)
+    values (v_se, 0, 60, 8);
+end $$;
+
 -- =====================================================================
 -- 1. READ ISOLATION — as user B, every `seen` must equal `expected`
 -- =====================================================================
@@ -192,6 +218,13 @@ union all select 'meal_types: A custom hidden', count(*), 0
   from public.meal_types where slug = 'pre_workout'
 union all select 'meal_types: builtins reachable', count(*), 4
   from public.meal_types where user_id is null
+union all select 'exercises: A private exercise hidden', count(*), 0
+  from public.exercises where user_id is not null
+union all select 'workout_templates', count(*), 0 from public.workout_templates
+union all select 'workout_template_exercises', count(*), 0 from public.workout_template_exercises
+union all select 'workout_sessions', count(*), 0 from public.workout_sessions
+union all select 'workout_session_exercises', count(*), 0 from public.workout_session_exercises
+union all select 'workout_sets', count(*), 0 from public.workout_sets
 order by 1
 ) loop
   if result.seen <> result.expected then
@@ -219,7 +252,9 @@ begin
     'weekly_checkins','food_logs','recipes','recipe_ingredients','saved_meals',
     'saved_meal_items','favorite_foods','ai_conversations','ai_messages',
     'cut_phases','cut_phase_milestones','foods','food_nutrients',
-    'food_servings','meal_types','food_vocabulary']
+    'food_servings','meal_types','food_vocabulary',
+    'exercises','workout_templates','workout_template_exercises',
+    'workout_sessions','workout_session_exercises','workout_sets']
   loop
     -- Shared cache rows past the freshness window are *meant* to be
     -- writable by any signed-in user (migration 0010: a stale provider row
@@ -252,7 +287,7 @@ begin
   if affected <> 1 then
     raise exception 'FAIL: own profile update affected % rows', affected;
   end if;
-  raise notice 'PASS: update/delete isolation on all 21 tables; own update allowed';
+  raise notice 'PASS: update/delete isolation on all 27 tables; own update allowed';
 end $$;
 
 -- =====================================================================
@@ -354,7 +389,9 @@ begin
     'weekly_checkins','food_logs','recipes','recipe_ingredients','saved_meals',
     'saved_meal_items','favorite_foods','ai_conversations','ai_messages',
     'cut_phases','cut_phase_milestones','foods','food_nutrients',
-    'food_servings','meal_types','food_vocabulary']
+    'food_servings','meal_types','food_vocabulary',
+    'exercises','workout_templates','workout_template_exercises',
+    'workout_sessions','workout_session_exercises','workout_sets']
   loop
     begin
       execute format('select count(*) from public.%I', t) into n;
@@ -363,10 +400,10 @@ begin
       null; -- expected
     end;
   end loop;
-  raise notice 'PASS: anon denied on all 21 tables';
+  raise notice 'PASS: anon denied on all 27 tables';
 end $$;
 
-select 'anon denied on all 21 tables' as result;
+select 'anon denied on all 27 tables' as result;
 
 -- =====================================================================
 -- 5. CUSTOM FOODS — owned by one user, and never rewriting history
