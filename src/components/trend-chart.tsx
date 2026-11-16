@@ -98,7 +98,7 @@ export function TrendChart({
               cx={x(i)}
               cy={y(p.actualKg)}
               r={2.5}
-              className="fill-muted-foreground/40"
+              className="fill-muted-foreground/45"
             />
           ),
         )}
@@ -106,8 +106,8 @@ export function TrendChart({
         <path
           d={trendPath}
           fill="none"
-          className="stroke-foreground"
-          strokeWidth={2}
+          className="stroke-primary"
+          strokeWidth={2.5}
           strokeLinejoin="round"
           strokeLinecap="round"
         />

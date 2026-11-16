@@ -81,3 +81,11 @@ describe("startOfIsoWeek", () => {
     expect(startOfIsoWeek("2026-08-09")).toBe("2026-08-03"); // previous Sunday
   });
 });
+
+describe("formatLongDate", () => {
+  it("reads as a weekday, a day and a month", async () => {
+    const { formatLongDate } = await import("@/lib/dates");
+    expect(formatLongDate("2026-11-16")).toBe("Mon 16 Nov");
+    expect(formatLongDate("2026-01-01")).toBe("Thu 1 Jan");
+  });
+});

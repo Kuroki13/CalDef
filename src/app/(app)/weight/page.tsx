@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { deleteWeighIn } from "@/app/(app)/weight/actions";
 import { WeighInForm } from "@/app/(app)/weight/weigh-in-form";
+import { PageHeader, Stat } from "@/components/page-header";
 import { TrendChart } from "@/components/trend-chart";
 import { PendingButton } from "@/components/pending-button";
 import {
@@ -19,16 +20,6 @@ import { formatMass, kgToDisplay, massUnitLabel } from "@/lib/units";
 import { getRecentWeighIns, getWeightHistory } from "@/lib/weight";
 
 export const metadata: Metadata = { title: "Weight · CalDef" };
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div>
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="text-lg font-medium tabular-nums">{value}</dd>
-      {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
-    </div>
-  );
-}
 
 export default async function WeightPage() {
   const { profile } = await getAccountSetup();
@@ -48,12 +39,10 @@ export default async function WeightPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Weight</h1>
-        <p className="text-muted-foreground text-sm">
-          Weigh in daily if you can. The trend matters, not any single day.
-        </p>
-      </header>
+      <PageHeader
+        title="Weight"
+        description="Weigh in daily if you can. The trend matters, not any single day."
+      />
 
       <Card>
         <CardHeader>

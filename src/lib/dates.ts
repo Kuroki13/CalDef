@@ -70,3 +70,22 @@ export function startOfIsoWeek(date: IsoDate): IsoDate {
   const offset = (dt.getUTCDay() + 6) % 7;
   return addDays(date, -offset);
 }
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+/**
+ * "Mon 16 Nov" — an ISO date as a person reads one.
+ *
+ * Built by hand rather than with `Intl`, so the server and the browser
+ * cannot disagree about it during hydration, and so a calendar date is
+ * never pushed through a time zone on its way to the screen.
+ */
+export function formatLongDate(date: IsoDate): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${weekday} ${d} ${MONTHS[m - 1]}`;
+}

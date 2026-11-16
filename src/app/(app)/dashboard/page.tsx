@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -6,6 +7,7 @@ import {
   MacroRemainder,
   ProteinFloor,
 } from "@/app/(app)/dashboard/macro-budget";
+import { PageHeader, Stat } from "@/components/page-header";
 import { TrendChart } from "@/components/trend-chart";
 import {
   Card,
@@ -14,13 +16,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { todayInTimeZone } from "@/lib/dates";
+import { formatLongDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
 import { describePortion } from "@/lib/nutrition/units";
 import { getActivePhase, phaseCoversDate } from "@/lib/phase";
 import { getPhaseDashboard } from "@/lib/phase-dashboard";
 import { getAccountSetup } from "@/lib/profile";
 import { getOrCreateDailyTarget } from "@/lib/targets";
+import {
+  getActiveSessionSummary,
+  listCompletedSessions,
+} from "@/lib/training/store";
+import { dayOf, summaryLine } from "@/lib/training/view";
 import { formatMass, kgToDisplay, massUnitLabel } from "@/lib/units";
 import { getWeightHistory } from "@/lib/weight";
 
@@ -48,12 +55,19 @@ export default async function DashboardPage() {
   const units = profile.unit_system;
   const today = todayInTimeZone(profile.timezone);
 
-  const [target, day, weight, active] = await Promise.all([
-    getOrCreateDailyTarget(today),
-    getDiaryDay(today),
-    getWeightHistory(profile.timezone),
-    getActivePhase(today),
-  ]);
+  const [target, day, weight, active, runningSession, lastSessions] =
+    await Promise.all([
+      getOrCreateDailyTarget(today),
+      getDiaryDay(today),
+      getWeightHistory(profile.timezone),
+      getActivePhase(today),
+      // Training is shown next to food, never mixed into it: a session does
+      // not change the calorie target, and no "calories burned" figure is
+      // estimated (spec §16.7).
+      getActiveSessionSummary(),
+      listCompletedSessions(1),
+    ]);
+  const lastSession = lastSessions[0] ?? null;
 
   // The phase panel needs the weight history the card below already loaded,
   // so it is built after the fan-out rather than inside it.
@@ -68,12 +82,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {profile.display_name ? `Hi, ${profile.display_name}` : "Today"}
-        </h1>
-        <p className="text-muted-foreground text-sm">{today}</p>
-      </header>
+      <PageHeader
+        eyebrow={formatLongDate(today)}
+        title={profile.display_name ? `Hi, ${profile.display_name}` : "Today"}
+      />
 
       {/*
         The lead. Which régime is governing is named here exactly as the
@@ -81,15 +93,15 @@ export default async function DashboardPage() {
         number is never ambiguous about where it came from.
       */}
       <Card>
-        <CardHeader>
-          <CardTitle>{target ? target.label : "No target yet"}</CardTitle>
-          <CardDescription>
-            {target
-              ? "What is left of today."
-              : "Record a weigh-in and your goal to get a target."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        {target ? null : (
+          <CardHeader>
+            <CardTitle>No target yet</CardTitle>
+            <CardDescription>
+              Record a weigh-in and your goal to get a target.
+            </CardDescription>
+          </CardHeader>
+        )}
+        <CardContent className="space-y-5">
           {target ? (
             <>
               <CalorieBudget
@@ -128,10 +140,10 @@ export default async function DashboardPage() {
               {day.entries.slice(0, 6).map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex items-baseline justify-between gap-3 py-2"
+                  className="flex items-baseline justify-between gap-3 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm">{entry.foodName}</p>
+                    <p className="truncate text-sm font-medium">{entry.foodName}</p>
                     <p className="text-muted-foreground truncate text-xs">
                       {describePortion(
                         entry.amount,
@@ -148,13 +160,44 @@ export default async function DashboardPage() {
             </ul>
           ) : null}
 
-          <Link
-            href="/diary"
-            className="text-sm font-medium underline underline-offset-4"
-          >
+          <Link href="/diary" className={LINK_CLASS}>
             {day.entries.length > 6
               ? `Open the diary — ${day.entries.length - 6} more`
-              : "Open the diary"}
+              : day.entries.length === 0
+                ? "Log your first food"
+                : "Open the diary"}
+            <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Training</CardTitle>
+          <CardDescription>
+            {runningSession
+              ? `${runningSession.name} is in progress.`
+              : lastSession
+                ? `Last: ${lastSession.name} · ${dayOf(lastSession.startedAt, profile.timezone)}`
+                : "No session logged yet."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!runningSession && lastSession ? (
+            <p className="text-muted-foreground text-sm">
+              {summaryLine(lastSession, units)}
+            </p>
+          ) : null}
+          <Link
+            href={runningSession ? "/training/session" : "/training"}
+            className={LINK_CLASS}
+          >
+            {runningSession
+              ? "Resume session"
+              : lastSession
+                ? "Open training"
+                : "Start training"}
+            <ArrowRight className="size-4" aria-hidden />
           </Link>
         </CardContent>
       </Card>
@@ -200,11 +243,9 @@ export default async function DashboardPage() {
               />
             </dl>
             <p className="mt-3">
-              <Link
-                href="/phase"
-                className="text-sm font-medium underline underline-offset-4"
-              >
+              <Link href="/phase" className={LINK_CLASS}>
                 Open the phase
+                <ArrowRight className="size-4" aria-hidden />
               </Link>
             </p>
           </CardContent>
@@ -259,11 +300,6 @@ export default async function DashboardPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="text-lg font-medium tabular-nums">{value}</dd>
-    </div>
-  );
-}
+/** A text link that is still a comfortable thing to tap. */
+const LINK_CLASS =
+  "text-primary -mx-1 inline-flex min-h-10 items-center gap-1 rounded-md px-1 text-sm font-semibold";

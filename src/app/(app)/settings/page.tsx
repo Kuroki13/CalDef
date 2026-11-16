@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";
 
 import { signOut } from "@/app/auth/actions";
@@ -23,9 +24,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-      </header>
+      <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>

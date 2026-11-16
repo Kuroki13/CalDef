@@ -24,9 +24,19 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-dvh">
+      {/*
+        The installed app draws under the status bar, whose text iOS keeps
+        white (`black-translucent`). This strip is exactly as tall as that
+        bar and gives it something dark to be read against; in a browser
+        tab the inset is zero and it is not there.
+      */}
+      <div
+        aria-hidden
+        className="bg-foreground fixed inset-x-0 top-0 z-30 h-[env(safe-area-inset-top)]"
+      />
       <AppSidebar />
-      <main className="flex-1 pb-20 md:pb-0">
-        <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8 md:py-10">
+      <main className="min-w-0 flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <div className="mx-auto w-full max-w-3xl px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-6 md:px-8 md:py-10">
           {children}
         </div>
       </main>

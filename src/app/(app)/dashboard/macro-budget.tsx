@@ -45,17 +45,17 @@ export function CalorieBudget({
   const over = left < 0;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-3xl font-semibold tabular-nums">
+    <div className="space-y-3">
+      <p className="eyebrow">{label}</p>
+      <div className="flex items-end justify-between gap-3">
+        <p className="figure text-5xl leading-none">
           {over ? `${Math.abs(left)} over` : `${left} left`}
         </p>
-        <p className="text-muted-foreground text-sm tabular-nums">
+        <p className="text-muted-foreground pb-0.5 text-sm tabular-nums">
           {Math.round(consumed)} / {Math.round(target)} kcal
         </p>
       </div>
-      <Progress value={pct(consumed, target)} />
-      <p className="text-muted-foreground text-xs">{label}</p>
+      <Progress value={pct(consumed, target)} className="h-2.5" />
     </div>
   );
 }
@@ -72,14 +72,17 @@ export function ProteinFloor({ consumed, target }: MacroFigures) {
   const met = short <= 0;
 
   return (
-    <div className="space-y-2 rounded-lg border p-3">
+    <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-medium">Protein</p>
+        <p className="text-sm font-semibold">Protein</p>
         <p className="text-muted-foreground text-sm tabular-nums">
           {Math.round(consumed)} / {Math.round(target)} g
         </p>
       </div>
-      <Progress value={pct(consumed, target)} />
+      <Progress
+        value={pct(consumed, target)}
+        indicatorClassName="bg-macro-protein"
+      />
       <p
         className={cn(
           "text-sm",
@@ -105,21 +108,24 @@ export function MacroRemainder({
   fat: MacroFigures;
 }) {
   return (
-    <dl className="grid grid-cols-2 gap-3">
+    <dl className="grid grid-cols-2 gap-5">
       {[
-        { name: "Carbs", figures: carbs },
-        { name: "Fat", figures: fat },
-      ].map(({ name, figures }) => {
+        { name: "Carbs", figures: carbs, fill: "bg-macro-carbs" },
+        { name: "Fat", figures: fat, fill: "bg-macro-fat" },
+      ].map(({ name, figures, fill }) => {
         const left = Math.round(figures.target - figures.consumed);
         return (
-          <div key={name} className="space-y-1 rounded-lg border p-3">
+          <div key={name} className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-muted-foreground text-xs">{name}</dt>
+              <dt className="text-sm font-semibold">{name}</dt>
               <dd className="text-xs tabular-nums">
                 {Math.round(figures.consumed)} / {Math.round(figures.target)} g
               </dd>
             </div>
-            <Progress value={pct(figures.consumed, figures.target)} />
+            <Progress
+              value={pct(figures.consumed, figures.target)}
+              indicatorClassName={fill}
+            />
             <p className="text-muted-foreground text-xs tabular-nums">
               {left < 0 ? `${Math.abs(left)} g over` : `${left} g left`}
             </p>

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -105,11 +106,9 @@ export default async function AssistantPage() {
 
 function Header() {
   return (
-    <header>
-      <h1 className="text-2xl font-semibold tracking-tight">Assistant</h1>
-      <p className="text-muted-foreground text-sm">
-        Ask about nutrition, log a meal, or add to your food library.
-      </p>
-    </header>
+    <PageHeader
+      title="Assistant"
+      description="Ask about nutrition, log a meal, or add to your food library."
+    />
   );
 }

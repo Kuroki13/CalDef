@@ -39,6 +39,11 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-macro-protein: var(--macro-protein);
+  --color-macro-carbs: var(--macro-carbs);
+  --color-macro-fat: var(--macro-fat);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,73 +53,94 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * CalDef's own tokens (spec §16). One accent — cobalt — on cool, near-white
+ * paper with ink text. The accent means "this is the action" or "this is
+ * the measured thing"; it is never decoration. Greys carry a trace of the
+ * same hue so the page reads as one material.
+ *
+ * Everything else in the app reads these names, so a colour is changed
+ * here or nowhere. `--success` and `--warning` are states, not themes;
+ * the three macro colours exist so protein, carbs and fat are told apart
+ * the same way on every screen.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.984 0.003 262);
+  --foreground: oklch(0.2 0.022 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0.022 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.2 0.022 265);
+  --primary: oklch(0.5 0.2 264);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.006 262);
+  --secondary-foreground: oklch(0.25 0.022 265);
+  --muted: oklch(0.955 0.006 262);
+  --muted-foreground: oklch(0.49 0.018 262);
+  --accent: oklch(0.948 0.022 264);
+  --accent-foreground: oklch(0.3 0.09 264);
+  --destructive: oklch(0.56 0.22 27);
+  --success: oklch(0.56 0.13 155);
+  --warning: oklch(0.7 0.15 70);
+  --macro-protein: oklch(0.5 0.2 264);
+  --macro-carbs: oklch(0.72 0.15 72);
+  --macro-fat: oklch(0.62 0.11 195);
+  --border: oklch(0.915 0.007 262);
+  --input: oklch(0.88 0.009 262);
+  --ring: oklch(0.5 0.2 264);
+  --chart-1: oklch(0.5 0.2 264);
+  --chart-2: oklch(0.72 0.15 72);
+  --chart-3: oklch(0.62 0.11 195);
+  --chart-4: oklch(0.49 0.018 262);
+  --chart-5: oklch(0.8 0.01 262);
+  --radius: 0.75rem;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.2 0.022 265);
+  --sidebar-primary: oklch(0.5 0.2 264);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.948 0.022 264);
+  --sidebar-accent-foreground: oklch(0.3 0.09 264);
+  --sidebar-border: oklch(0.915 0.007 262);
+  --sidebar-ring: oklch(0.5 0.2 264);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: oklch(0.165 0.014 265);
+  --foreground: oklch(0.96 0.005 262);
+  --card: oklch(0.21 0.016 265);
+  --card-foreground: oklch(0.96 0.005 262);
+  --popover: oklch(0.21 0.016 265);
+  --popover-foreground: oklch(0.96 0.005 262);
+  --primary: oklch(0.7 0.16 264);
+  --primary-foreground: oklch(0.16 0.03 265);
+  --secondary: oklch(0.27 0.016 265);
+  --secondary-foreground: oklch(0.96 0.005 262);
+  --muted: oklch(0.27 0.016 265);
+  --muted-foreground: oklch(0.72 0.015 262);
+  --accent: oklch(0.3 0.05 264);
+  --accent-foreground: oklch(0.9 0.05 264);
+  --destructive: oklch(0.7 0.19 22);
+  --success: oklch(0.72 0.14 155);
+  --warning: oklch(0.8 0.14 75);
+  --macro-protein: oklch(0.7 0.16 264);
+  --macro-carbs: oklch(0.8 0.14 75);
+  --macro-fat: oklch(0.75 0.11 195);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.7 0.16 264);
+  --chart-1: oklch(0.7 0.16 264);
+  --chart-2: oklch(0.8 0.14 75);
+  --chart-3: oklch(0.75 0.11 195);
+  --chart-4: oklch(0.72 0.015 262);
+  --chart-5: oklch(0.4 0.015 262);
+  --sidebar: oklch(0.21 0.016 265);
+  --sidebar-foreground: oklch(0.96 0.005 262);
+  --sidebar-primary: oklch(0.7 0.16 264);
+  --sidebar-primary-foreground: oklch(0.16 0.03 265);
+  --sidebar-accent: oklch(0.3 0.05 264);
+  --sidebar-accent-foreground: oklch(0.9 0.05 264);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.7 0.16 264);
 }
 
 @layer base {
@@ -123,8 +149,32 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* A tap is a tap: no grey flash, no 300 ms double-tap-zoom wait. */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   html {
     @apply font-sans;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+}
+
+@layer utilities {
+  /* The small capital label above a figure or a section. */
+  .eyebrow {
+    @apply text-muted-foreground text-[0.6875rem] font-semibold tracking-[0.08em] uppercase;
+  }
+  /* Figures line up in columns and do not jitter as they change. */
+  .figure {
+    @apply font-semibold tracking-tight tabular-nums;
+  }
+  /* Room for the iPhone's home indicator and notch. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
   }
 }

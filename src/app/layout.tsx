@@ -61,7 +61,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#18181b",
+  themeColor: "#1a1d2b",
   // Extends the app under the notch and the home indicator, which is what
   // `black-translucent` above assumes.
   viewportFit: "cover",

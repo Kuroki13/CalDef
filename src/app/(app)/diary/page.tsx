@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { AddFood } from "@/app/(app)/diary/add-food";
@@ -11,9 +12,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
 import { LinkPending } from "@/components/pending-nav";
 import { Progress } from "@/components/ui/progress";
-import { addDays, isIsoDate, todayInTimeZone } from "@/lib/dates";
+import { addDays, formatLongDate, isIsoDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
 import { getPersonalLibrary } from "@/lib/food/library";
 import { estimatedShare } from "@/lib/nutrition/confidence";
@@ -23,6 +25,9 @@ import { getAccountSetup } from "@/lib/profile";
 import { getOrCreateDailyTarget } from "@/lib/targets";
 
 export const metadata: Metadata = { title: "Diary · CalDef" };
+
+const DAY_NAV_CLASS =
+  "hover:bg-muted flex min-h-10 min-w-10 items-center justify-center rounded-lg border bg-card";
 
 function MacroStat({
   label,
@@ -37,9 +42,9 @@ function MacroStat({
 }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="tabular-nums">
-        <span className="text-lg font-medium">{Math.round(consumed)}</span>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-0.5 tabular-nums">
+        <span className="figure text-xl">{Math.round(consumed)}</span>
         <span className="text-muted-foreground text-sm">
           {" "}
           / {Math.round(target)} {unit}
@@ -93,39 +98,44 @@ export default async function DiaryPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Diary</h1>
-          <p className="text-muted-foreground text-sm">
-            {date === today ? "Today" : date}
-          </p>
-        </div>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link
-            href={`/diary?date=${addDays(date, -1)}`}
-            className="hover:bg-accent rounded-md px-3 py-2"
-            aria-label="Previous day"
-          >
-            <LinkPending>←</LinkPending>
-          </Link>
-          {date !== today ? (
-            <Link href="/diary" className="hover:bg-accent rounded-md px-3 py-2">
-              <LinkPending>Today</LinkPending>
+      <PageHeader
+        eyebrow={date === today ? "Today" : formatLongDate(date)}
+        title="Diary"
+        action={
+          <nav aria-label="Day" className="flex items-center gap-1 text-sm">
+            <Link
+              href={`/diary?date=${addDays(date, -1)}`}
+              className={DAY_NAV_CLASS}
+              aria-label="Previous day"
+            >
+              <LinkPending spinnerClassName="size-5">
+                <ChevronLeft className="size-5" aria-hidden />
+              </LinkPending>
             </Link>
-          ) : null}
-          <Link
-            href={`/diary?date=${addDays(date, 1)}`}
-            className="hover:bg-accent rounded-md px-3 py-2"
-            aria-label="Next day"
-          >
-            <LinkPending>→</LinkPending>
-          </Link>
-        </nav>
-      </header>
+            {date !== today ? (
+              <Link
+                href="/diary"
+                className={`${DAY_NAV_CLASS} px-3 font-semibold`}
+              >
+                <LinkPending>Today</LinkPending>
+              </Link>
+            ) : null}
+            <Link
+              href={`/diary?date=${addDays(date, 1)}`}
+              className={DAY_NAV_CLASS}
+              aria-label="Next day"
+            >
+              <LinkPending spinnerClassName="size-5">
+                <ChevronRight className="size-5" aria-hidden />
+              </LinkPending>
+            </Link>
+          </nav>
+        }
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="figure text-3xl leading-none">
             {remaining && remaining.isOver
               ? `${Math.abs(remaining.kcal).toFixed(0)} kcal over`
               : remaining
@@ -160,7 +170,7 @@ export default async function DiaryPage({
         </CardHeader>
         {target && remaining ? (
           <CardContent className="space-y-4">
-            <Progress value={remaining.kcalProgress * 50} />
+            <Progress value={remaining.kcalProgress * 50} className="h-2.5" />
             <dl className="grid grid-cols-3 gap-4">
               <MacroStat
                 label="Protein"
@@ -198,7 +208,7 @@ export default async function DiaryPage({
             <CardHeader>
               <div className="flex items-baseline justify-between">
                 <CardTitle className="text-base">{meal.name}</CardTitle>
-                <span className="text-muted-foreground text-sm tabular-nums">
+                <span className="text-muted-foreground text-sm font-medium tabular-nums">
                   {Math.round(mealKcal)} kcal
                 </span>
               </div>

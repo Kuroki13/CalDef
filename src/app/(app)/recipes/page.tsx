@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";
 
 import { listVocabulary } from "@/lib/vocabulary";
@@ -69,14 +70,10 @@ export default async function RecipesPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Recipes &amp; meals
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Things you eat often, saved once so logging them takes one action.
-        </p>
-      </header>
+      <PageHeader
+        title="Recipes &amp; foods"
+        description="Things you eat often, saved once so logging them takes one action."
+      />
 
       <Card id="your-foods">
         <CardHeader>

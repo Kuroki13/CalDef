@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";
 
 import { stopPhase } from "@/app/(app)/phase/actions";
@@ -57,13 +58,10 @@ export default async function PhasePage() {
   if (!active) {
     return (
       <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">2-Month Cut</h1>
-          <p className="text-muted-foreground text-sm">
-            A bounded eight-week phase with its own target, adjusted weekly
-            from what you actually eat and weigh.
-          </p>
-        </header>
+        <PageHeader
+          title="2-Month Cut"
+          description="A bounded eight-week phase with its own target, adjusted weekly from what you actually eat and weigh."
+        />
 
         <Card>
           <CardHeader>
@@ -114,7 +112,7 @@ export default async function PhasePage() {
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">
             {active.phase.name}
           </h1>
           <p className="text-muted-foreground text-sm">
