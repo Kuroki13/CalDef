@@ -139,10 +139,12 @@ src/
                        km/mi, clocks) · timer.ts · input.ts (zod) ·
                        save-queue.ts (the live session's saves) ·
                        store.ts (server-only reads) · view.ts ·
+                       alternatives.ts · calendar.ts · today.ts
                        data/exercises.json (built by
                        scripts/build-exercises.mjs from
                        scripts/exercise-catalogue.txt, as is the seed
-                       migration)
+                       migration) · data/exercises-fedb.json (built by
+                       scripts/import-free-exercise-db.mjs)
     llm/               types.ts · food-text.ts · gemini.ts
                        unavailable.ts · index.ts
     nutrition/         units.ts · macros.ts · totals.ts
@@ -388,11 +390,33 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     one that user can see. The three training functions are
     `security invoker`, so RLS decides inside them exactly as outside.
 
-23. **Colour is a token.** `globals.css` defines every colour, radius and
-    state once (light and dark), including `--success`, `--warning` and
-    the three macro colours. Screens use the names; a literal colour in a
-    component is a defect. One accent means "the action" or "the measured
-    thing", never decoration.
+23. **Colour is a token, and volt has rules.** `globals.css` defines every
+    colour, radius and state once (light and dark): paper, card, the ink
+    `--slab` and its text, `--volt`, the state colours. Screens use the
+    names; a literal colour in a component is a defect. Volt is the
+    measured thing on the slab and the one primary action on paper; it
+    carries ink text and is never text on a light surface, where it fails
+    contrast. Figures and titles use the display face (`.figure`,
+    `.display`); `Slab`, `SlabBar`, `SectionTitle`, `Stat` and `EmptyState`
+    in `components/page-header.tsx` are the shared pieces.
+
+24. **What the device keeps is scoped to the account.** A live session's
+    unsent saves and rest timer are stored under
+    `caldef.<user id>.session.<session id>.…`. Anything not belonging to
+    the session on screen is removed on arrival, and signing out clears
+    all of it (`clearTrainingStorage`). The save badge says "kept on this
+    phone" for exactly that data; it is never shown as saved.
+
+25. **A plan is a date, not a rule.** `workout_schedule` is one row per
+    workout per day (unique), so planning twice plans once. It cascades
+    with its workout and is otherwise independent of it. Nothing reads a
+    plan except the screens that show it.
+
+26. **The exercise list is paged and light.** PostgREST stops at 1 000
+    rows and the catalogue is about that, so `listExercises` reads in
+    pages; it omits instructions, because the whole list goes to the
+    browser for offline search. Lists render forty rows and more on
+    request.
 
 ## 6. Adaptive TDEE model
 

@@ -59,6 +59,8 @@ Tables (Postgres, created only via `supabase/migrations/`):
     workout_sessions      a session performed, or in progress
     workout_session_exercises   a session's exercises, snapshotted
     workout_sets          one set: weight, reps, time, distance
+    workout_programs      a named group of workouts (§16.9)
+    workout_schedule      a workout planned for a date (§16.9)
 
 Every table requires: primary key, correct foreign keys with sensible
 `on delete` behavior, indexes on lookup columns, `created_at` /
@@ -730,6 +732,20 @@ around every line. Icons from the library already installed. Charts drawn
 from real data only. Motion only where it explains something. No
 decorative gradients, no pervasive glass, no generic dashboard.
 
+**The direction is "Scoreboard"** (owner's brief of 2026-11-17, chosen
+from three directions tried on the Today screen with the same data):
+
+- An **ink slab** at the top of a screen carries the numbers that matter
+  now — what is left today, the session clock — in a condensed display
+  face, as large as a phone allows. One slab per screen.
+- **Paper** underneath carries lists, on hairlines, and white cards for
+  things that have an action.
+- **Volt** is the only accent. On the slab it is the measured thing; on
+  paper it is the one primary action of the screen. It always carries ink
+  text, and is never a text colour on a light surface.
+- A state is never said by colour alone: a done set is tinted *and* its
+  tick is a filled disc; the active tab is a filled pill *and* heavier.
+
 Colours, radii, type and interactive states are **tokens**, defined once
 (`globals.css`) and read everywhere; a colour is never written into a
 screen. Controls are large enough for a thumb, the layout respects the
@@ -741,9 +757,14 @@ catalogue and media are never copied.
 
 ### 16.2 Navigation
 
-Training is a first-class destination. On a phone the tab bar holds the
-daily loop — Today, Diary, Training, Weight — and the rest sits behind
-"More". The home screen shows the session in progress, or the last one.
+Four destinations: **Today, Nutrition, Training, Progress**. On a phone
+they are the tab bar; recipes, the cut phase, the assistant and settings
+open from the menu in the top bar, not a fifth tab. On desktop a sidebar
+holds all of them and screens use two columns rather than a centred phone.
+
+A session in progress stays one tap away on every screen, with its clock.
+Today answers three questions in order: where am I, what do I do next, is
+there a session.
 
 ### 16.3 Exercise library
 
@@ -830,4 +851,46 @@ the shared catalogue is readable under an explicit policy and writable
 by no user; **knowing an identifier is never enough to attach data to
 someone else's workout or session**, nor to use someone else's exercise;
 every input is validated on the server.
+
+### 16.9 Programmes, planning, alternatives and corrections
+
+Added on the owner's brief of 2026-11-17.
+
+- **Programme** — a named group of workouts (Push / Pull / Legs). It only
+  organises the list; deleting it releases its workouts.
+- **Planning** — a workout can be planned for a date, moved, or cancelled,
+  without changing the workout. One row is one date: no recurrence engine.
+  A plan starts nothing and changes no target. A plan carried out is no
+  longer offered.
+- **Calendar** — history as a month: days done, days planned, today.
+- **Find an alternative** — by stated rules only: same primary muscle
+  group, same kind of set, the equipment chosen; then closest movement
+  first. It suggests, the user picks, and the alternative keeps its own
+  history.
+- **Correcting** — a set of a finished session can be corrected. The
+  figures change; when it was done does not; half a set cannot be saved.
+- **Summary** — finishing shows duration, sets, volume and the records the
+  session set. A first time is not a record.
+- **Load conventions** — the weight field says what it means where that
+  is not obvious: one dumbbell, total on the bar, assistance (less is
+  harder), added weight only.
+
+### 16.10 Catalogue sources
+
+Two, and only two:
+
+    written for CalDef      179   scripts/exercise-catalogue.txt
+    free-exercise-db        817   public domain (The Unlicense), data only
+
+An entry of the second whose name the first already had is left out.
+**No media from either**: the second source states no licence for its
+images, and an invented animation could show a movement wrongly. An
+exercise's page is text. The count shown to the user is the real one.
+
+ProFit (VGFIT) is a functional reference only. What its public store page
+documents — an exercise library, descriptions, muscles involved, preset
+and custom workouts, a journal of sets, reps and weights, a timer, a
+calendar, history with graphs, "Find Alternative" — informed the feature
+list. Its screens were not examined (the store's screenshots carry no
+text), and none of its media, text or catalogue is used.
 

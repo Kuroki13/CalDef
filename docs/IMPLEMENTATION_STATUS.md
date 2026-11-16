@@ -7,7 +7,7 @@ true.
 A feature belongs under DONE only if it was **tested and verified**, not
 merely written. "It compiles" is not done.
 
-Last updated: 2026-11-16
+Last updated: 2026-11-17
 
 ---
 
@@ -29,7 +29,7 @@ Last updated: 2026-11-16
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
 | 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13K live; restaurants (13L/13M) next |
-| 16 | Strength training and visual identity (spec §16) | DONE in code and deployed 2026-11-16 — **not yet seen in a real browser or on the iPhone**; see TODO |
+| 16 | Strength training and visual identity (spec §16) | DONE — second pass 2026-11-17: "Scoreboard" redesign and the full training module, **seen in a real browser** at 360/390/430/1280 px on development. iPhone checks still open; see TODO |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 
 ---
@@ -571,9 +571,88 @@ app, whose text iOS keeps white. The interface language is unchanged
 production (19 migrations on production). Six tables, RLS with four
 policies each, three `security invoker` functions.
 
+### Spec §16, second pass — "Scoreboard" and the full training module (2026-11-17)
+
+Owner's brief of 2026-11-17: the first redesign was not liked; redo it as
+an art director, looking at the real app, and complete the training
+module. This time every screen was opened in a browser (see TEST RESULTS).
+
+**Audit, from what was seen** (screenshots in `docs/design/2026-11-17/`):
+the diary's entry rows were broken — the food name had gone and the
+calories overlapped a badge, a regression from the first pass; "Add food"
+filled the screen before the first meal; Today was four identical cards;
+each workout listed all its exercises and three actions, Delete among
+them; in the session a prefilled figure and a suggestion were told apart
+only by a shade of grey; Weight was twenty-one "Remove" buttons; desktop
+was a phone column in an empty page.
+
+**Direction.** Three were built on Today with the same data — Scoreboard
+(ink slab, condensed figures, volt), Rings (light, round, centred) and
+Logbook (no cards, hairlines, serif). Scoreboard was kept: the most
+recognisable, the day's figure readable at a glance, and its slab also
+heads the session screen, which ties food and training together. Logbook's
+hairline lists were borrowed for dense content.
+
+**System** (`globals.css`, `components/page-header.tsx`): paper / card /
+slab / volt tokens with their rules, a dark set composed rather than
+inverted, Barlow Condensed for figures and titles with Geist for text
+(Geist had never actually been applied — `--font-sans` pointed at itself),
+visible focus on every surface, reduced-motion honoured, 40 px controls.
+
+**Shell**: four tabs — Today, Nutrition, Training, Progress — with an ink
+top bar and a menu for the rest; an ink sidebar and two-column screens on
+desktop; a session bar on every screen while a session runs.
+
+**Screens redone**: Today (slab, one next action, training, weight trend);
+Nutrition (slab with day navigation, meals as hairline lists, one "Add
+food" button that opens the adding tool in place, entry rows as one line
+with actions beneath); Progress (weight trend slab, weigh-in, chart with
+the history folded away, sessions per week, progress by exercise,
+expenditure); Training home, session, exercise, history and summary
+(below). Recipes & foods, Cut phase, Assistant and Settings take the new
+system through the shared components and were not recomposed.
+
+**Training, added to the first pass:**
+
+- **Catalogue: 996 exercises** — 179 written for CalDef, 817 from
+  free-exercise-db (public domain, data only, no media), 57 duplicates by
+  name left out. Push/pull and compound/isolation on 941 of them. Lists
+  show forty at a time.
+- **Training home**: the week on the slab (done / planned / today),
+  planned workouts with start, move and cancel, workouts grouped by
+  programme with Start on the row and the rest in a menu, Free session,
+  Create workout, recent history, the library.
+- **Programmes** and **planning for a date** (move, cancel), from the
+  workout's menu.
+- **Session**: slab with clock, sets done and save state; per exercise a
+  Set / Previous / figures / Done table where a planned row is grey with an
+  empty ring and a done row is tinted with a filled disc; tapping Previous
+  copies last time's figures in as a plan; load conventions said in words;
+  rest timer with pause, ±15 s and skip; notes and rest folded away;
+  storage scoped to the account and cleared on sign-out.
+- **Exercise page**: cue, what a set records, source, add to the session
+  in progress or to a workout, **find an alternative** by stated rules,
+  progress, records, sessions.
+- **History**: month calendar and list; **summary** on finish with the
+  records the session set; **correct a set** of a finished session.
+
+**Database**: migrations `20261117000001_training_planning`,
+`…02_exercise_catalogue_fedb`, `…03_exercise_movement`; 29 tables.
+
 ## TODO
 
-**Spec §16 — what is still unverified.** The interactive screens have
+**Still not built** (spec §16): supersets; exercise illustrations (no
+licensed media exists); a recurrence engine for plans; a per-meal "add
+here" shortcut (the adding tool's own file carries the uncommitted
+restaurant work and was deliberately not edited — it is wrapped, not
+changed); drag-and-drop reordering (the up/down buttons are the accessible
+control and the only one). Recipes & foods, Cut phase, Assistant and
+Settings were restyled by the system but not recomposed. There is still no
+theme switch, so the dark set is unseen. The interface is English only;
+there are no translations and no RTL layout to check — Arabic is handled
+as food text, not as an interface language.
+
+**Spec §16 — what is still unverified on a real phone.** The interactive screens have
 **not been seen in a browser**: no automated browser is installed here and
 installing one on the fly was refused. So the redesign's actual appearance
 on a phone and a desktop, the live session's typing, ticking and timer,
@@ -1028,6 +1107,42 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Spec §16, second pass, 2026-11-17 (Claude Code)
+
+**Seen in a browser.** Chromium (agent-browser) against the production
+build on development, signed in as a fixture account filled with three
+weeks of weigh-ins, a day of food, three workouts and four sessions; the
+account's data was removed afterwards. Screens looked at: Today, Nutrition,
+Training, session, exercise, history, summary, Progress, library, picker,
+workout editor, Recipes & foods, Settings — at 390 px, with Today,
+Nutrition and the session also at 360, 430 and 1280. Also seen: a long
+workout name (wraps), the library of 996 (was 57 000 px tall on first
+sight — now forty rows and "show more"), the empty training home, an
+accent-free search ("developpe couche" finds Barbell Bench Press), two
+sets ticked in a live session, and the session **offline**: the badge read
+"Not saved yet — kept on this phone. Retry", and returned to "Everything
+saved" by itself when the connection came back.
+
+Not seen: the on-screen keyboard (a desktop browser has none), the dark
+set, a real iPhone.
+
+**Unit:** 1036 tests in the working tree, typecheck, lint and build clean.
+New: alternatives, calendar and weekly frequency, records set by a
+session, load conventions, rest pause, and the programme, planning and
+correction actions.
+
+**SQL:** `training.sql` and `rls_isolation.sql` (29 tables) pass on
+development after a rolled-back dry run with both migrations; programmes
+and plans are invisible to another user, a foreign id files and plans
+nothing, a plan is planned once per day and moves alone, a programme
+releases its workouts, a workout takes its plans with it.
+
+**Journey (`training-e2e.mjs`, 38 checks, all pass):** as before, plus a
+corrected set, a programme, a plan (planned once, hidden once done, listed
+as Tomorrow when moved), alternatives on the exercise page, and training
+frequency on Progress. It found one real inconsistency before it shipped:
+Today still offered a workout that had already been done that day.
 
 ### Spec §16 — training and visual identity, 2026-11-16 (Claude Code)
 
