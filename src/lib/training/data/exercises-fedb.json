@@ -847,20 +847,6 @@
   "instructions": "Sit upright on the floor with your partner behind you. Place your hands behind your hand, and push your elbows back as far as you can. Your partner should hold your elbows. This will be your starting position. Gently attempt to pull your elbows forward with your hands still behind your head for 10 or more seconds. Your partner should prevent your elbows from moving. Now, relax your muscles and have your partner gently pull the elbows back as far as it comfortable for you. Be sure to let your partner know when the stretch is adequate to prevent overstretching or injury."
  },
  {
-  "slug": "fx-bench-dips",
-  "name": "Bench Dips",
-  "muscle_group": "triceps",
-  "secondary_muscles": [
-   "chest",
-   "shoulders"
-  ],
-  "equipment": "bodyweight",
-  "measure": "reps",
-  "force": "push",
-  "mechanic": "compound",
-  "instructions": "For this exercise you will need to place a bench behind your back. With the bench perpendicular to your body, and while looking away from it, hold on to the bench on its edge with the hands fully extended, separated at shoulder width. The legs will be extended forward, bent at the waist and perpendicular to your torso. This will be your starting position. Slowly lower your body as you inhale by bending at the elbows until you lower yourself far enough to where there is an angle slightly smaller than 90 degrees between the upper arm and the forearm. Tip: Keep the elbows as close as possible throughout the movement. Forearms should always be pointing down. Using your triceps to bring your torso up again, lift yourself back to the starting position. Repeat for the recommended amount of repetitions."
- },
- {
   "slug": "fx-bench-jump",
   "name": "Bench Jump",
   "muscle_group": "quads",
@@ -2232,19 +2218,6 @@
   "instructions": "With the weight loaded, take a zurcher hold on the end of the implement. Place the bar in the crook of the elbow and hold onto your wrist. Try to keep the weight off of the forearms. Begin by lifting the weight from the ground. Keep a tight, upright posture as you being to walk, taking short, fast steps. Look up and away as you turn in a circle. Do not hold your breath during the event. Continue walking until you complete one or more complete turns."
  },
  {
-  "slug": "fx-concentration-curls",
-  "name": "Concentration Curls",
-  "muscle_group": "biceps",
-  "secondary_muscles": [
-   "forearms"
-  ],
-  "equipment": "dumbbell",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "isolation",
-  "instructions": "Sit down on a flat bench with one dumbbell in front of you between your legs. Your legs should be spread with your knees bent and feet on the floor. Use your right arm to pick the dumbbell up. Place the back of your right upper arm on the top of your inner right thigh. Rotate the palm of your hand until it is facing forward away from your thigh. Tip: Your arm should be extended and the dumbbell should be above the floor. This will be your starting position. While holding the upper arm stationary, curl the weights forward while contracting the biceps as you breathe out. Only the forearms should move. Continue the movement until your biceps are fully contracted and the dumbbells are at shoulder level. Tip: At the top of the movement make sure that the little finger of your arm is higher than your thumb. This guarantees a good contraction. Hold the contracted position for a second as you squeeze the biceps. Slowly begin to bring the dumbbells back to starting position as your breathe in."
- },
- {
   "slug": "fx-cross-body-crunch",
   "name": "Cross-Body Crunch",
   "muscle_group": "core",
@@ -2817,21 +2790,6 @@
   "instructions": "Lie down on a flat bench with a dumbbell on each hand resting on top of your thighs. The palms of your hand will be facing each other. Then using your thighs to help raise the dumbbells, lift the dumbbells one at a time so you can hold them in front of you at shoulder width with the palms of your hands facing each other. Raise the dumbbells up like you're pressing them, but stop and hold just before you lock out. This will be your starting position. With a slight bend on your elbows in order to prevent stress at the biceps tendon, lower your arms out at both sides in a wide arc until you feel a stretch on your chest. Breathe in as you perform this portion of the movement. Tip: Keep in mind that throughout the movement, the arms should remain stationary; the movement should only occur at the shoulder joint. Return your arms back to the starting position as you squeeze your chest muscles and breathe out. Tip: Make sure to use the same arc of motion used to lower the weights."
  },
  {
-  "slug": "fx-dumbbell-incline-row",
-  "name": "Dumbbell Incline Row",
-  "muscle_group": "back",
-  "secondary_muscles": [
-   "biceps",
-   "forearms",
-   "shoulders"
-  ],
-  "equipment": "dumbbell",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "compound",
-  "instructions": "Using a neutral grip, lean into an incline bench. Take a dumbbell in each hand with a neutral grip, beginning with the arms straight. This will be your starting position. Retract the shoulder blades and flex the elbows to row the dumbbells to your side. Pause at the top of the motion, and then return to the starting position."
- },
- {
   "slug": "fx-dumbbell-incline-shoulder-raise",
   "name": "Dumbbell Incline Shoulder Raise",
   "muscle_group": "shoulders",
@@ -2843,21 +2801,6 @@
   "force": "push",
   "mechanic": "isolation",
   "instructions": "Sit on an Incline Bench while holding a dumbbell on each hand on top of your thighs. Lift your legs up to kick the weights to your shoulders and lean back. Position the dumbbells above your shoulders with your arms extended. The arms should be perpendicular to the floor with your palms facing forward and knuckles pointing towards the ceiling. This will be your starting position. While keeping the arms straight and locked, lift the dumbbells by raising the shoulders from the bench as you breathe out. Bring back the dumbbells to the starting position as you breathe in. Repeat for the recommended amount of repetitions."
- },
- {
-  "slug": "fx-dumbbell-lunges",
-  "name": "Dumbbell Lunges",
-  "muscle_group": "quads",
-  "secondary_muscles": [
-   "calves",
-   "glutes",
-   "hamstrings"
-  ],
-  "equipment": "dumbbell",
-  "measure": "weight_reps",
-  "force": "push",
-  "mechanic": "compound",
-  "instructions": "Stand with your torso upright holding two dumbbells in your hands by your sides. This will be your starting position. Step forward with your right leg around 2 feet or so from the foot being left stationary behind and lower your upper body down, while keeping the torso upright and maintaining balance. Inhale as you go down. Note: As in the other exercises, do not allow your knee to go forward beyond your toes as you come down, as this will put undue stress on the knee joint. Make sure that you keep your front shin perpendicular to the ground. Using mainly the heel of your foot, push up and go back to the starting position as you exhale. Repeat the movement for the recommended amount of repetitions and then perform with the left leg."
  },
  {
   "slug": "fx-dumbbell-lying-one-arm-rear-lateral-raise",
@@ -3574,17 +3517,6 @@
   "instructions": "Set up a row of cones or other small barriers, placing them a few feet apart. Stand in front of the first cone with your feet shoulder width apart. This will be your starting position. Begin by jumping with both feet over the first cone, swinging both arms as you jump. Absorb the impact of landing by bending the knees, rebounding out of the first leap by jumping over the next cone. Continue until you have jumped over all of the cones."
  },
  {
-  "slug": "fx-front-dumbbell-raise",
-  "name": "Front Dumbbell Raise",
-  "muscle_group": "shoulders",
-  "secondary_muscles": [],
-  "equipment": "dumbbell",
-  "measure": "weight_reps",
-  "force": "push",
-  "mechanic": "isolation",
-  "instructions": "Pick a couple of dumbbells and stand with a straight torso and the dumbbells on front of your thighs at arms length with the palms of the hand facing your thighs. This will be your starting position. While maintaining the torso stationary (no swinging), lift the left dumbbell to the front with a slight bend on the elbow and the palms of the hands always facing down. Continue to go up until you arm is slightly above parallel to the floor. Exhale as you execute this portion of the movement and pause for a second at the top. Inhale after the second pause. Now lower the dumbbell back down slowly to the starting position as you simultaneously lift the right dumbbell. Continue alternating in this fashion until all of the recommended amount of repetitions have been performed for each arm."
- },
- {
   "slug": "fx-front-incline-dumbbell-raise",
   "name": "Front Incline Dumbbell Raise",
   "muscle_group": "shoulders",
@@ -3749,17 +3681,6 @@
   "force": "pull",
   "mechanic": "compound",
   "instructions": "Begin in a pushup position on the floor. This will be your starting position. Using both legs, jump forward landing with your feet next to your hands. Keep your head up as you do so. Return to the starting position and immediately repeat the movement, continuing for 10-20 repetitions."
- },
- {
-  "slug": "fx-hammer-curls",
-  "name": "Hammer Curls",
-  "muscle_group": "biceps",
-  "secondary_muscles": [],
-  "equipment": "dumbbell",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "isolation",
-  "instructions": "Stand up with your torso upright and a dumbbell on each hand being held at arms length. The elbows should be close to the torso. The palms of the hands should be facing your torso. This will be your starting position. Now, while holding your upper arm stationary, exhale and curl the weight forward while contracting the biceps. Continue to raise the weight until the biceps are fully contracted and the dumbbell is at shoulder level. Hold the contracted position for a brief moment as you squeeze the biceps. Tip: Focus on keeping the elbow stationary and only moving your forearm. After the brief pause, inhale and slowly begin the lower the dumbbells back down to the starting position. Repeat for the recommended amount of repetitions."
  },
  {
   "slug": "fx-hammer-grip-incline-db-bench-press",
@@ -5115,17 +5036,6 @@
   "instructions": "Lie flat on your back, bend one knee, and put that foot flat on the floor to stabilize your spine. Extend the other leg in the air. If you're tight, you wont be able to straighten it. That's okay. Extend the knee so that the sole of the lifted foot faces the ceiling (or as close as you can get it). Slowly straighten the legs as much as possible and then pull the leg toward your nose. Switch sides."
  },
  {
-  "slug": "fx-leg-extensions",
-  "name": "Leg Extensions",
-  "muscle_group": "quads",
-  "secondary_muscles": [],
-  "equipment": "machine",
-  "measure": "weight_reps",
-  "force": "push",
-  "mechanic": "isolation",
-  "instructions": "For this exercise you will need to use a leg extension machine. First choose your weight and sit on the machine with your legs under the pad (feet pointed forward) and the hands holding the side bars. This will be your starting position. Tip: You will need to adjust the pad so that it falls on top of your lower leg (just above your feet). Also, make sure that your legs form a 90-degree angle between the lower and upper leg. If the angle is less than 90-degrees then that means the knee is over the toes which in turn creates undue stress at the knee joint. If the machine is designed that way, either look for another machine or just make sure that when you start executing the exercise you stop going down once you hit the 90-degree angle. Using your quadriceps, extend your legs to the maximum as you exhale. Ensure that the rest of the body remains stationary on the seat. Pause a second on the contracted position."
- },
- {
   "slug": "fx-leg-lift",
   "name": "Leg Lift",
   "muscle_group": "glutes",
@@ -5586,17 +5496,6 @@
   "instructions": "Lie face forward on a tall flat bench while holding a barbell with a supinated grip (palms facing up). Tip: If you are holding a barbell grab it using a shoulder-width grip and if you are using an E-Z Bar grab it on the inner handles. Your upper body should be positioned in a way that the upper chest is over the end of the bench and the barbell is hanging in front of you with the arms extended and perpendicular to the floor. This will be your starting position. While keeping the elbows in and the upper arms stationary, curl the weight up in a semi-circular motion as you contract the biceps and exhale. Hold at the top of the movement for a second. As you inhale, slowly go back to the starting position. Tip: Maintain full control of the weight at all times and avoid any swinging. Remember, only the forearms should move throughout the movement. Repeat for the recommended amount of repetitions."
  },
  {
-  "slug": "fx-lying-leg-curls",
-  "name": "Lying Leg Curls",
-  "muscle_group": "hamstrings",
-  "secondary_muscles": [],
-  "equipment": "machine",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "isolation",
-  "instructions": "Adjust the machine lever to fit your height and lie face down on the leg curl machine with the pad of the lever on the back of your legs (just a few inches under the calves). Tip: Preferably use a leg curl machine that is angled as opposed to flat since an angled position is more favorable for hamstrings recruitment. Keeping the torso flat on the bench, ensure your legs are fully stretched and grab the side handles of the machine. Position your toes straight (or you can also use any of the other two stances described on the foot positioning section). This will be your starting position. As you exhale, curl your legs up as far as possible without lifting the upper legs from the pad. Once you hit the fully contracted position, hold it for a second. As you inhale, bring the legs back to the initial position. Repeat for the recommended amount of repetitions."
- },
- {
   "slug": "fx-lying-machine-squat",
   "name": "Lying Machine Squat",
   "muscle_group": "quads",
@@ -5694,28 +5593,6 @@
   "instructions": "Sit down on the Chest Press Machine and select the weight. Step on the lever provided by the machine since it will help you to bring the handles forward so that you can grab the handles and fully extend the arms. Grab the handles with a palms-down grip and lift your elbows so that your upper arms are parallel to the floor to the sides of your torso. Tip: Your forearms will be pointing forward since you are grabbing the handles. Once you bring the handles forward and extend the arms you will be at the starting position. Now bring the handles back towards you as you breathe in. Push the handles away from you as you flex your pecs and you breathe out. Hold the contraction for a second before going back to the starting position. Repeat for the recommended amount of reps. When finished step on the lever again and slowly get the handles back to their original place."
  },
  {
-  "slug": "fx-machine-bicep-curl",
-  "name": "Machine Bicep Curl",
-  "muscle_group": "biceps",
-  "secondary_muscles": [],
-  "equipment": "machine",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "isolation",
-  "instructions": "Adjust the seat to the appropriate height and make your weight selection. Place your upper arms against the pads and grasp the handles. This will be your starting position. Perform the movement by flexing the elbow, pulling your lower arm towards your upper arm. Pause at the top of the movement, and then slowly return the weight to the starting position. Avoid returning the weight all the way to the stops until the set is complete to keep tension on the muscles being worked."
- },
- {
-  "slug": "fx-machine-preacher-curls",
-  "name": "Machine Preacher Curls",
-  "muscle_group": "biceps",
-  "secondary_muscles": [],
-  "equipment": "machine",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "isolation",
-  "instructions": "Sit down on the Preacher Curl Machine and select the weight. Place the back of your upper arms (your triceps) on the preacher pad provided and grab the handles using an underhand grip (palms facing up). Tip: Make sure that when you place the arms on the pad you keep the elbows in. This will be your starting position. Now lift the handles as you exhale and you contract the biceps. At the top of the position make sure that you hold the contraction for a second. Tip: Only the forearms should move. The upper arms should remain stationary and on the pad at all times. Lower the handles slowly back to the starting position as you inhale. Repeat for the recommended amount of repetitions."
- },
- {
   "slug": "fx-machine-shoulder-military-press",
   "name": "Machine Shoulder (Military) Press",
   "muscle_group": "shoulders",
@@ -5806,21 +5683,6 @@
   "force": "pull",
   "mechanic": "compound",
   "instructions": "Using a spacing that is just about 1 inch wider than shoulder width, grab a pull-up bar with the palms of one hand facing forward and the palms of the other hand facing towards you. This will be your starting position. Now start to pull yourself up as you exhale. Tip: With the arm that has the palms facing up concentrate on using the back muscles in order to perform the movement. The elbow of that arm should remain close to the torso. With the other arm that has the palms facing forward, the elbows will be away but in line with the torso. You will concentrate on using the lats to pull your body up. After a second contraction at the top, start to slowly come down as you inhale. Repeat for the recommended amount of repetitions. On the following set, switch grips; so if you had the right hand with the palms facing you and the left one with the palms facing forward, on the next set you will have the palms facing forward for the right hand and facing you for the left."
- },
- {
-  "slug": "fx-mountain-climbers",
-  "name": "Mountain Climbers",
-  "muscle_group": "quads",
-  "secondary_muscles": [
-   "chest",
-   "hamstrings",
-   "shoulders"
-  ],
-  "equipment": "bodyweight",
-  "measure": "reps",
-  "force": "pull",
-  "mechanic": "compound",
-  "instructions": "Begin in a pushup position, with your weight supported by your hands and toes. Flexing the knee and hip, bring one leg until the knee is approximately under the hip. This will be your starting position. Explosively reverse the positions of your legs, extending the bent leg until the leg is straight and supported by the toe, and bringing the other foot up with the hip and knee flexed. Repeat in an alternating fashion for 20-30 seconds."
  },
  {
   "slug": "fx-moving-claw-series",
@@ -6966,19 +6828,6 @@
   "instructions": "Place your sled on an appropriate surface, loaded to a suitable weight. The sled should provide enough resistance to require effort, but not so heavy that you are significantly slowed down. You may use the upright or the low handles for this exercise. Place your hands on the handles with your arms extended, leaning into the implement. With good posture, drive through the ground with alternating, short steps. Move as fast as you can for a short distance."
  },
  {
-  "slug": "fx-pullups",
-  "name": "Pullups",
-  "muscle_group": "back",
-  "secondary_muscles": [
-   "biceps"
-  ],
-  "equipment": "bodyweight",
-  "measure": "reps",
-  "force": "pull",
-  "mechanic": "compound",
-  "instructions": "Grab the pull-up bar with the palms facing forward using the prescribed grip. Note on grips: For a wide grip, your hands need to be spaced out at a distance wider than your shoulder width. For a medium grip, your hands need to be spaced out at a distance equal to your shoulder width and for a close grip at a distance smaller than your shoulder width. As you have both arms extended in front of you holding the bar at the chosen grip width, bring your torso back around 30 degrees or so while creating a curvature on your lower back and sticking your chest out. This is your starting position. Pull your torso up until the bar touches your upper chest by drawing the shoulders and the upper arms down and back. Exhale as you perform this portion of the movement. Tip: Concentrate on squeezing the back muscles once you reach the full contracted position. The upper torso should remain stationary as it moves through space and only the arms should move."
- },
- {
   "slug": "fx-push-up-wide",
   "name": "Push-Up Wide",
   "muscle_group": "chest",
@@ -7064,20 +6913,6 @@
   "force": "push",
   "mechanic": "compound",
   "instructions": "Get into pushup position on the toes with your hands just outside of shoulder width. Perform a pushup by allowing the elbows to flex. As you descend, keep your body straight. Do one pushup and as you come up, shift your weight on the left side of the body, twist to the side while bringing the right arm up towards the ceiling in a side plank. Lower the arm back to the floor for another pushup and then twist to the other side. Repeat the series, alternating each side, for 10 or more reps."
- },
- {
-  "slug": "fx-pushups",
-  "name": "Pushups",
-  "muscle_group": "chest",
-  "secondary_muscles": [
-   "shoulders",
-   "triceps"
-  ],
-  "equipment": "bodyweight",
-  "measure": "reps",
-  "force": "push",
-  "mechanic": "compound",
-  "instructions": "Lie on the floor face down and place your hands about 36 inches apart while holding your torso up at arms length. Next, lower yourself downward until your chest almost touches the floor as you inhale. Now breathe out and press your upper body back up to the starting position while squeezing your chest. After a brief pause at the top contracted position, you can begin to lower yourself downward again for as many repetitions as needed."
  },
  {
   "slug": "fx-pushups-close-and-wide-hand-positions",
@@ -7171,21 +7006,6 @@
   "force": "pull",
   "mechanic": "compound",
   "instructions": "Set up in a power rack with the bar on the pins. The pins should be set to the desired point; just below the knees, just above, or in the mid thigh position. Attach bands to the base of the rack, or secure them with dumbbells. Attach the other end to the bar. You may need to choke the bands to provide tension. Position yourself against the bar in proper deadlifting position. Your feet should be under your hips, your grip shoulder width, back arched, and hips back to engage the hamstrings. Since the weight is typically heavy, you may use a mixed grip, a hook grip, or use straps to aid in holding the weight. With your head looking forward, extend through the hips and knees, pulling the weight up and back until lockout. Be sure to pull your shoulders back as you complete the movement. Return the weight to the pins and repeat."
- },
- {
-  "slug": "fx-rack-pulls",
-  "name": "Rack Pulls",
-  "muscle_group": "back",
-  "secondary_muscles": [
-   "forearms",
-   "glutes",
-   "hamstrings"
-  ],
-  "equipment": "barbell",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "compound",
-  "instructions": "Set up in a power rack with the bar on the pins. The pins should be set to the desired point; just below the knees, just above, or in the mid thigh position. Position yourself against the bar in proper deadlifting position. Your feet should be under your hips, your grip shoulder width, back arched, and hips back to engage the hamstrings. Since the weight is typically heavy, you may use a mixed grip, a hook grip, or use straps to aid in holding the weight. With your head looking forward, extend through the hips and knees, pulling the weight up and back until lockout. Be sure to pull your shoulders back as you complete the movement. Return the weight to the pins and repeat."
  },
  {
   "slug": "fx-rear-leg-raises",
@@ -7822,20 +7642,6 @@
   "force": "static",
   "mechanic": "isolation",
   "instructions": "Sit on the floor with your knees bent and your partner standing behind you. Extend your arms straight behind you with your palms facing each other. Your partner will hold your wrists for you. This will be the starting position. Attempt to flex your elbows, while your partner prevents any actual movement. After 10-20 seconds, relax your arms while your partner gently pulls your wrists up to stretch your biceps. Be sure to let your partner know when the stretch is appropriate to prevent injury or overstretching."
- },
- {
-  "slug": "fx-seated-cable-rows",
-  "name": "Seated Cable Rows",
-  "muscle_group": "back",
-  "secondary_muscles": [
-   "biceps",
-   "shoulders"
-  ],
-  "equipment": "cable",
-  "measure": "weight_reps",
-  "force": "pull",
-  "mechanic": "compound",
-  "instructions": "For this exercise you will need access to a low pulley row machine with a V-bar. Note: The V-bar will enable you to have a neutral grip where the palms of your hands face each other. To get into the starting position, first sit down on the machine and place your feet on the front platform or crossbar provided making sure that your knees are slightly bent and not locked. Lean over as you keep the natural alignment of your back and grab the V-bar handles. With your arms extended pull back until your torso is at a 90-degree angle from your legs. Your back should be slightly arched and your chest should be sticking out. You should be feeling a nice stretch on your lats as you hold the bar in front of you. This is the starting position of the exercise. Keeping the torso stationary, pull the handles back towards your torso while keeping the arms close to it until you touch the abdominals. Breathe out as you perform that movement. At that point you should be squeezing your back muscles hard."
  },
  {
   "slug": "fx-seated-cable-shoulder-press",
@@ -9398,17 +9204,6 @@
   "force": "pull",
   "mechanic": "compound",
   "instructions": "Connect a standard handle to a tower, and move the cable to the highest pulley position. With your side to the cable, grab the handle with one hand and step away from the tower. You should be approximately arm's length away from the pulley, with the tension of the weight on the cable. Your outstretched arm should be aligned with the cable. With your feet positioned shoulder width apart, reach upward with your other hand and grab the handle with both hands. Your arms should still be fully extended. In one motion, pull the handle down and across your body to your front knee while rotating your torso. Keep your back and arms straight and core tight while you pivot your back foot and bend your knees to get a full range of motion. Maintain your stance and straight arms. Return to the neutral position in a slow and controlled manner. Repeat to failure. Then, reposition and repeat the same series of movements on the opposite side."
- },
- {
-  "slug": "fx-standing-calf-raises",
-  "name": "Standing Calf Raises",
-  "muscle_group": "calves",
-  "secondary_muscles": [],
-  "equipment": "machine",
-  "measure": "weight_reps",
-  "force": "push",
-  "mechanic": "isolation",
-  "instructions": "Adjust the padded lever of the calf raise machine to fit your height. Place your shoulders under the pads provided and position your toes facing forward (or using any of the two other positions described at the beginning of the chapter). The balls of your feet should be secured on top of the calf block with the heels extending off it. Push the lever up by extending your hips and knees until your torso is standing erect. The knees should be kept with a slight bend; never locked. Toes should be facing forward, outwards or inwards as described at the beginning of the chapter. This will be your starting position. Raise your heels as you breathe out by extending your ankles as high as possible and flexing your calf. Ensure that the knee is kept stationary at all times. There should be no bending at any time. Hold the contracted position by a second before you start to go back down."
  },
  {
   "slug": "fx-standing-concentration-curl",

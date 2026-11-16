@@ -7,7 +7,7 @@
 # A slug is permanent: logged sessions point at it. Add rows; never rename a slug.
 
 # ---- chest
-barbell-bench-press | Barbell Bench Press | bench press,flat bench,développé couché | chest | triceps,shoulders | barbell | wr | Lower the bar to mid-chest with shoulder blades pinched, then press until the elbows are straight.
+barbell-bench-press | Barbell Bench Press | bench,bench press,flat bench,développé couché | chest | triceps,shoulders | barbell | wr | Lower the bar to mid-chest with shoulder blades pinched, then press until the elbows are straight.
 incline-barbell-bench-press | Incline Barbell Bench Press | incline bench,développé incliné | chest | shoulders,triceps | barbell | wr | On a 30–45° bench, lower the bar to the upper chest and press up.
 decline-barbell-bench-press | Decline Barbell Bench Press | decline bench,développé décliné | chest | triceps | barbell | wr | On a decline bench, lower the bar to the lower chest and press up.
 dumbbell-bench-press | Dumbbell Bench Press | db bench,développé haltères | chest | triceps,shoulders | dumbbell | wr | Press both dumbbells up from chest level, letting them travel slightly inward at the top.

@@ -50,9 +50,23 @@ const EQUIPMENT = {
   "medicine ball": "other", "exercise ball": "other", "foam roll": "other", other: "other",
 };
 
+/**
+ * The same movement under a slightly different name: "Bench Dips" for
+ * "Bench Dip", "Front Dumbbell Raise" for "Dumbbell Front Raise". Words are
+ * singularised and sorted; digits are kept, so "3/4 Sit-Up" is not "Sit-Up".
+ * Two entries for one movement would split its history in two.
+ */
+const sameMovement = (s) =>
+  fold(s).split(" ").map((w) => (w.length > 3 ? w.replace(/s$/, "") : w)).sort().join(" ");
+
 const own = JSON.parse(readFileSync("src/lib/training/data/exercises.json", "utf8"));
 const ownByName = new Map();
-for (const e of own) for (const n of [e.name, ...e.aliases]) ownByName.set(fold(n), e.slug);
+for (const e of own) {
+  for (const n of [e.name, ...e.aliases]) {
+    ownByName.set(fold(n), e.slug);
+    ownByName.set(sameMovement(n), e.slug);
+  }
+}
 
 function cue(steps) {
   const text = steps.join(" ").replace(/\s+/g, " ").trim();
@@ -68,7 +82,7 @@ const seen = new Set();
 for (const e of JSON.parse(readFileSync(sourcePath, "utf8"))) {
   const name = e.name.replace(/\s+/g, " ").trim();
   const key = fold(name);
-  const twin = ownByName.get(key);
+  const twin = ownByName.get(key) ?? ownByName.get(sameMovement(name));
   if (twin) {
     if (e.force || e.mechanic) enrich.push({ slug: twin, force: e.force ?? null, mechanic: e.mechanic ?? null });
     continue;
