@@ -614,9 +614,9 @@ system through the shared components and were not recomposed.
 
 **Training, added to the first pass:**
 
-- **Catalogue: 996 exercises** — 179 written for CalDef, 817 from
-  free-exercise-db (public domain, data only, no media), 57 duplicates by
-  name left out. Push/pull and compound/isolation on 941 of them. Lists
+- **Catalogue: 980 exercises listed** — 179 written for CalDef, 801 from
+  free-exercise-db (public domain, data only, no media); 73 duplicates by
+  name left out or retired. Push/pull and compound/isolation on 941 of them. Lists
   show forty at a time.
 - **Training home**: the week on the slab (done / planned / today),
   planned workouts with start, move and cancel, workouts grouped by
@@ -1114,6 +1114,56 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Audit and fixes, 2026-11-17 (Claude Code)
+
+**Audit.** Every route at 390 and 1280 px (22 routes, automated: no
+horizontal overflow, no console error, every control labelled), then by
+hand in a browser: building a workout, a whole session, the diary,
+weigh-ins, imperial units. Twenty-two findings, plus one the owner
+reported that the audit had missed.
+
+**The one that was missed: the exercise picker.** Its sheet took the
+height of the whole list rather than 92% of the screen — the sheet
+component's own `data-[side=bottom]:h-auto` beat our height — so the
+search field and the filters were above the top of the screen and could
+not be reached. The earlier checks filled the search field by script and
+filtered to two results, which fits; opened as a person opens it, with
+the full list, it did not. Fixed, and re-checked with real keystrokes and
+real clicks: the sheet is 776 px on an 844 px screen, the search field is
+visible, typing "bench" letter by letter lists Barbell Bench Press first.
+A scripted fill is not evidence that a field can be reached.
+
+**Fixed, each re-checked on screen:** the diary's amount editor closes
+after saving (twice running); "Log dinner" opens on Dinner; another day
+reads "that day"; a future date is read as today and "next" is not a
+link; one "Add food" heading; the food search field has its own row at
+390 px; an exercise added mid-session shows its Previous sets; a
+suggestion is pale, a typed figure ink, a done set tinted; Previous wraps
+instead of being cut; a set ticked on a phone whose clock runs fast is
+kept and dated now; a plan made after today's session is listed, one
+made before it and carried out is not; one sidebar item lit; titles
+"Recipes & foods", "Cut phase", the exercise's and the session's name;
+"kg to goal"; pounds to one decimal; a visible focus outline on ink
+buttons; 44 px tabs, a larger switch target, 44 px checkbox rows; forms
+held to a readable width on desktop; a warning before leaving an unsaved
+workout; history lists read four figures per set instead of whole
+sessions, and an exercise page reads one muscle group instead of the
+catalogue.
+
+**Catalogue:** 16 duplicates retired (archived, not deleted); 980 listed
+— 179 written for CalDef, 801 imported. Migrations
+`20261118000001_retire_duplicate_exercises` and
+`20261118000002_exercise_aliases`, on development and production (24).
+
+**Checks:** 1041 unit tests in the working tree, 1029 on a clean checkout
+of the commit; typecheck and lint clean; `training.sql` passes on both
+databases; the journey passes 41 checks.
+
+**Not covered by the audit:** the barcode scanner, the AI features
+(Describe a meal, In words, the assistant), a running cut phase, recipes,
+saved meals, custom foods, Quick Add, signup and login errors, the dark
+set, a real iPhone, production signed in.
 
 ### Spec §16, second pass, 2026-11-17 (Claude Code)
 

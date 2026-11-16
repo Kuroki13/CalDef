@@ -860,8 +860,9 @@ Added on the owner's brief of 2026-11-17.
   organises the list; deleting it releases its workouts.
 - **Planning** — a workout can be planned for a date, moved, or cancelled,
   without changing the workout. One row is one date: no recurrence engine.
-  A plan starts nothing and changes no target. A plan carried out is no
-  longer offered.
+  A plan starts nothing and changes no target. A plan is fulfilled, and
+  no longer offered, by a session of that workout, on that day, started
+  after the plan was made.
 - **Calendar** — history as a month: days done, days planned, today.
 - **Find an alternative** — by stated rules only: same primary muscle
   group, same kind of set, the equipment chosen; then closest movement
@@ -880,9 +881,11 @@ Added on the owner's brief of 2026-11-17.
 Two, and only two:
 
     written for CalDef      179   scripts/exercise-catalogue.txt
-    free-exercise-db        817   public domain (The Unlicense), data only
+    free-exercise-db        801   public domain (The Unlicense), data only
 
-An entry of the second whose name the first already had is left out.
+An entry of the second that names a movement the first already has — the
+same words, singular or plural, in any order — is left out, so one
+movement never has two histories.
 **No media from either**: the second source states no licence for its
 images, and an invented animation could show a movement wrongly. An
 exercise's page is text. The count shown to the user is the real one.
