@@ -49,19 +49,19 @@ export function AddFoodPanel({
   }
 
   return (
-    <div ref={panel} className="scroll-mt-16 space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <h2 className="display text-2xl">Add food</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Close add food"
-          onClick={() => setOpen(false)}
-        >
-          <X />
-        </Button>
-      </div>
+    // The tool names itself ("Add food"); this only adds the way out, in
+    // its top corner, so the title is not said twice.
+    <div ref={panel} className="relative scroll-mt-16">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Close add food"
+        className="absolute top-2 right-2 z-10"
+        onClick={() => setOpen(false)}
+      >
+        <X />
+      </Button>
       {children}
     </div>
   );

@@ -20,7 +20,8 @@ describe("units", () => {
     expect(weightToDisplay(100, "metric")).toBe(100);
     expect(weightToDisplay(100, "imperial")).toBe(220.46);
     expect(formatWeight(82.5, "metric")).toBe("82.5 kg");
-    expect(formatWeight(100, "imperial")).toBe("220.46 lb");
+    expect(formatWeight(100, "imperial")).toBe("220.5 lb");
+    expect(formatWeight(1.25, "metric")).toBe("1.25 kg");
   });
 
   it("round-trips a typed plate weight without drifting", () => {

@@ -11,7 +11,7 @@ export default async function ExercisesPage() {
   const own = exercises.filter((exercise) => exercise.custom).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:max-w-3xl">
       <PageHeader
         eyebrow="Training"
         title="Exercises"

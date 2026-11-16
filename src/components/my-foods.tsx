@@ -121,13 +121,13 @@ export function MyFoods({
       <div
         role="group"
         aria-label="Show"
-        className="flex flex-wrap gap-1"
+        className="flex flex-wrap gap-2"
       >
         {views.map((option) => (
           <Button
             key={option}
             type="button"
-            size="sm"
+            className="rounded-full px-4"
             variant={option === current ? "secondary" : "ghost"}
             aria-pressed={option === current}
             onClick={() => {

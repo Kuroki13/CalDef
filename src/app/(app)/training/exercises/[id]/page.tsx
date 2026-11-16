@@ -27,7 +27,7 @@ import {
   getActiveSessionSummary,
   getExercise,
   getExerciseHistory,
-  listExercises,
+  listExercisesByMuscle,
   listTemplates,
 } from "@/lib/training/store";
 import { loadConvention } from "@/lib/training/metrics";
@@ -41,7 +41,16 @@ import {
 import { dayOf } from "@/lib/training/view";
 import type { UnitSystem } from "@/lib/units";
 
-export const metadata: Metadata = { title: "Exercise · CalDef" };
+/** The tab is named after the exercise, not "Exercise". */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const id = Number((await params).id);
+  const exercise = Number.isInteger(id) && id > 0 ? await getExercise(id) : null;
+  return { title: `${exercise?.name ?? "Exercise"} · CalDef` };
+}
 
 const RECORD_LABEL: Record<PersonalRecord["kind"], string> = {
   heaviest: "Heaviest set",
@@ -113,7 +122,9 @@ export default async function ExercisePage({
 
   const [history, all, templates, activeSession] = await Promise.all([
     getExerciseHistory(id),
-    listExercises(),
+    // Alternatives share the muscle group by rule, so only that group is
+    // read — not the whole catalogue on every exercise page.
+    listExercisesByMuscle(exercise.muscleGroup),
     listTemplates(),
     getActiveSessionSummary(),
   ]);

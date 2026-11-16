@@ -39,6 +39,16 @@ export function EntryRow({
     {},
   );
 
+  // A saved amount closes its editor. Tracked during render, not in an
+  // effect, so the form is never painted once more with the new value.
+  // Compared by identity: every submission returns a new state object, so
+  // the second successful save closes the editor as the first did.
+  const [seenState, setSeenState] = useState(state);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state.ok) setEditing(false);
+  }
+
   const [open, setOpen] = useState(false);
   const uncertain = entry.confidence === "estimated" || entry.confidence === "rough";
   const actionClass = "min-h-10 rounded-full px-3.5";

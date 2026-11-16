@@ -439,7 +439,11 @@ export function ExercisePickerSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex h-[92dvh] flex-col gap-0 rounded-t-2xl"
+        // The height has to be set with the same `data-[side=bottom]`
+        // variant the sheet uses for its own `h-auto`, or that wins and
+        // the sheet grows as tall as the whole list — pushing the search
+        // field and the filters off the top of the screen, out of reach.
+        className="flex flex-col gap-0 rounded-t-2xl data-[side=bottom]:h-[92dvh] data-[side=bottom]:max-h-[92dvh] lg:data-[side=bottom]:mx-auto lg:data-[side=bottom]:max-w-2xl"
       >
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
@@ -449,7 +453,7 @@ export function ExercisePickerSheet({
               : "Tick the ones you want, then add them."}
           </SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
           <ExerciseList
             exercises={exercises}
             selected={selected.map((e) => e.id)}

@@ -191,9 +191,17 @@
   h1, h2, h3 {
     text-wrap: balance;
   }
-  /* Keyboard focus is always visible, on every surface. */
+  /*
+   * Keyboard focus is always visible, on every surface. The colour is a
+   * variable so that a surface can change it: ink on paper, volt on the
+   * slab. It sits OUTSIDE the control (offset), which is what makes it show
+   * around an ink button, where a ring of the button's own colour did not.
+   */
+  :root {
+    --focus: var(--ring);
+  }
   :focus-visible {
-    outline: 2px solid var(--ring);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
 }
@@ -220,8 +228,8 @@
   .on-slab .eyebrow {
     color: var(--slab-muted);
   }
-  .on-slab :focus-visible {
-    outline-color: var(--volt);
+  .on-slab {
+    --focus: var(--volt);
   }
   /* Room for the iPhone's home indicator and notch. */
   .pb-safe {

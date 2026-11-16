@@ -20,13 +20,21 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { saveTemplateAction } from "@/app/(app)/training/actions";
 import { PendingButton } from "@/components/pending-button";
 import { ExercisePickerSheet } from "@/components/training/exercise-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,6 +151,24 @@ export function TemplateEditor({
   const [picker, setPicker] = useState<{ replaceKey: string | null } | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+
+  // What the editor looked like when it opened. Anything different is
+  // unsaved work, and leaving with it is confirmed — by the browser when
+  // the tab is closed or reloaded, and by Cancel here.
+  // (Row keys are React's, not the workout's, so they are left out.)
+  const snapshot = () =>
+    JSON.stringify({ name, notes, rows: rows.map((row) => ({ ...row, key: "" })) });
+  const [opened] = useState(snapshot);
+  const dirty = !saved && opened !== snapshot();
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const patch = (key: string, change: Partial<Row>) =>
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
@@ -244,6 +270,7 @@ export function TemplateEditor({
         setError(result.error);
         return;
       }
+      setSaved(true);
       router.push("/training");
       router.refresh();
     } catch {
@@ -255,7 +282,7 @@ export function TemplateEditor({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-4 rounded-2xl border bg-card p-4">
+      <div className="bg-card space-y-4 rounded-2xl p-4">
         <div className="space-y-1.5">
           <Label htmlFor="template-name">Name</Label>
           <Input
@@ -292,7 +319,7 @@ export function TemplateEditor({
             const measure = row.exercise.measure;
             const usesReps = measure === "weight_reps" || measure === "reps";
             return (
-              <li key={row.key} className="space-y-3 rounded-2xl border bg-card p-4">
+              <li key={row.key} className="bg-card space-y-3 rounded-2xl p-4">
                 <div className="flex items-start gap-2">
                   <span className="bg-accent text-accent-foreground flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums">
                     {index + 1}
@@ -443,7 +470,7 @@ export function TemplateEditor({
           variant="ghost"
           size="lg"
           className="flex-1"
-          onClick={() => router.push("/training")}
+          onClick={() => (dirty ? setConfirmLeave(true) : router.push("/training"))}
         >
           Cancel
         </Button>
@@ -459,6 +486,32 @@ export function TemplateEditor({
           Save workout
         </PendingButton>
       </div>
+
+      <Dialog open={confirmLeave} onOpenChange={setConfirmLeave}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Leave without saving?</DialogTitle>
+            <DialogDescription>
+              The changes you made to this workout have not been saved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setConfirmLeave(false)}>
+              Keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setSaved(true);
+                router.push("/training");
+              }}
+            >
+              Discard changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ExercisePickerSheet
         open={picker !== null}

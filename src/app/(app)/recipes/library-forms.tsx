@@ -67,12 +67,12 @@ function EntryPicker({ entries }: { entries: EntryOption[] }) {
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">Include today&rsquo;s entries</legend>
       {entries.map((entry) => (
-        <label key={entry.id} className="flex items-center gap-2 text-sm">
+        <label key={entry.id} className="flex min-h-11 items-center gap-3 text-sm">
           <input
             type="checkbox"
             name="entryId"
             value={entry.id}
-            className="size-4"
+            className="size-5 shrink-0"
           />
           {entry.label}
         </label>
@@ -296,12 +296,12 @@ export function RecipeSettingsForm({
       <Feedback state={state} />
       <input type="hidden" name="recipeId" value={recipeId} />
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-11 items-center gap-3 text-sm">
           <input
             type="checkbox"
             name="isFamily"
             defaultChecked={isFamily}
-            className="size-4"
+            className="size-5 shrink-0"
           />
           Family food
         </label>
@@ -425,7 +425,7 @@ function TemplateForm({
                       return next;
                     })
                   }
-                  className="size-4"
+                  className="size-5 shrink-0"
                 />
                 <Label htmlFor={id} className="min-w-0 flex-1 truncate text-sm font-normal">
                   {item.foodName}
@@ -528,7 +528,7 @@ export function AddIngredientsForm({
               type="checkbox"
               name="entryId"
               value={entry.id}
-              className="size-4"
+              className="size-5 shrink-0"
             />
             {entry.label}
           </label>

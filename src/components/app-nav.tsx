@@ -78,7 +78,10 @@ export function AppSidebar() {
       className="on-slab hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-60 lg:shrink-0 lg:flex-col lg:gap-1 lg:p-4"
     >
       <Wordmark className="px-3 pt-2 pb-6 text-2xl" />
-      {PRIMARY_NAV.map((entry) => item(entry, isActiveItem(pathname, entry)))}
+      {/* The sidebar lists every destination, so each lights only for its
+          own path. (The phone's four tabs have to stand in for the rest:
+          there, Nutrition also covers Recipes, Progress also the phase.) */}
+      {PRIMARY_NAV.map((entry) => item(entry, isActivePath(pathname, entry.href)))}
       <span className="eyebrow px-3 pt-6 pb-1">More</span>
       {SECONDARY_NAV.map((entry) =>
         item(entry, isActivePath(pathname, entry.href)),

@@ -37,6 +37,11 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ from: (table: string) => builder(table), rpc }),
 }));
 
+const getPreviousPerformance = vi.fn(async () => ({}));
+vi.mock("@/lib/training/store", () => ({
+  getPreviousPerformance: (...args: unknown[]) => getPreviousPerformance(...(args as [])),
+}));
+
 const actions = await import("@/app/(app)/training/actions");
 
 const op = (call: Call, name: string) => call.ops.find(([n]) => n === name)?.[1];
@@ -160,7 +165,6 @@ describe("saveSetAction", () => {
       set({ setId: 0 }),
       set({ weightKg: "80" }),
       set({ completedAt: "yesterday" }),
-      set({ completedAt: new Date(Date.now() + 3600_000).toISOString() }),
     ];
     for (const input of bad) {
       const result = await actions.saveSetAction(input);
@@ -186,6 +190,15 @@ describe("saveSetAction", () => {
   it("throws on a database failure, so the browser keeps the save and retries", async () => {
     answers.push(inProgress, { error: { message: "connection reset" } });
     await expect(actions.saveSetAction(set())).rejects.toThrow("connection reset");
+  });
+
+  it("keeps a set ticked on a phone whose clock runs fast, dated now instead", async () => {
+    answers.push(inProgress, { error: null });
+    const ahead = new Date(Date.now() + 3600_000).toISOString();
+    expect(await actions.saveSetAction(set({ completedAt: ahead }))).toEqual({ ok: true });
+    const stored = (op(calls[1], "update")?.[0] as { completed_at: string }).completed_at;
+    expect(Date.parse(stored)).toBeLessThanOrEqual(Date.now());
+    expect(Date.parse(stored)).toBeGreaterThan(Date.now() - 5000);
   });
 
   it("can un-complete a set", async () => {
@@ -317,6 +330,10 @@ describe("the session's own exercises", () => {
     ]);
     expect(calls.map((c) => c.table)).not.toContain("workout_templates");
     expect(calls.map((c) => c.table)).not.toContain("workout_template_exercises");
+
+    // And it brings last time's figures with it, for the "Previous" column.
+    expect(getPreviousPerformance).toHaveBeenCalledWith([5], 7);
+    expect(result).toHaveProperty("previous");
   });
 
   it("does not add to a finished session", async () => {

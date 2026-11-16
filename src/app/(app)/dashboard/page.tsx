@@ -210,7 +210,7 @@ export default async function DashboardPage() {
                 : `${weight.changeKgPerWeek > 0 ? "+" : ""}${kgToDisplay(weight.changeKgPerWeek, units).toFixed(2)} ${massUnitLabel(units)}/wk`}
               {toGoKg === null
                 ? ""
-                : ` · ${kgToDisplay(Math.abs(toGoKg), units).toFixed(1)} to goal`}
+                : ` · ${kgToDisplay(Math.abs(toGoKg), units).toFixed(1)} ${massUnitLabel(units)} to goal`}
             </p>
           </div>
           <Sparkline

@@ -329,12 +329,13 @@ export function AddFood({
                 }}
               />
             ) : (
-              <form onSubmit={runSearch} className="flex gap-2">
+              <form onSubmit={runSearch} className="flex flex-wrap gap-2">
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search foods, e.g. chicken breast"
                   aria-label="Search foods"
+                  className="basis-full sm:basis-0 sm:flex-1"
                 />
                 <PendingButton
                   type="submit"

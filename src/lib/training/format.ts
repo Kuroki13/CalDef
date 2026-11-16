@@ -39,8 +39,14 @@ export function distanceFromDisplay(value: number, units: UnitSystem): number {
   return Number((value * (units === "imperial" ? METRES_PER_MILE : 1000)).toFixed(1));
 }
 
+/**
+ * A weight as it is read. Kilograms keep their quarter-kilo plates
+ * ("82.5 kg", "1.25 kg"); pounds are shown to one decimal, because a
+ * converted "181.88 lb" claims a precision nobody loaded onto a bar. The
+ * input fields keep full precision — this is only for reading.
+ */
 export function formatWeight(kg: number, units: UnitSystem): string {
-  return `${trim(weightToDisplay(kg, units), 2)} ${weightUnit(units)}`;
+  return `${trim(weightToDisplay(kg, units), units === "imperial" ? 1 : 2)} ${weightUnit(units)}`;
 }
 
 export function formatDistance(metres: number, units: UnitSystem): string {

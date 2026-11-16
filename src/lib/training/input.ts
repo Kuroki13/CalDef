@@ -58,9 +58,6 @@ export const templateSchema = z.object({
 });
 export type TemplateInput = z.infer<typeof templateSchema>;
 
-/** The latest a "completed at" may claim to be, relative to the server. */
-const CLOCK_SKEW_MS = 5 * 60 * 1000;
-
 export const setSchema = z.object({
   setId: id,
   weightKg: nullable(weightKg),
@@ -69,17 +66,20 @@ export const setSchema = z.object({
   distanceM: nullable(distanceM),
   /**
    * When the set was ticked, by the phone's clock — the phone may have been
-   * offline at the time, and that moment is the true one. Refused if it
-   * claims to be in the future.
+   * offline at the time, and that moment is the true one. A phone whose
+   * clock runs fast would claim a moment that has not happened; that is
+   * not a reason to lose the set, so the server stores "now" instead
+   * (`clampCompletedAt`). The set is never refused over its timestamp.
    */
-  completedAt: nullable(
-    z.iso.datetime({ offset: true }).refine(
-      (value) => Date.parse(value) <= Date.now() + CLOCK_SKEW_MS,
-      { message: "A set cannot be completed in the future." },
-    ),
-  ),
+  completedAt: nullable(z.iso.datetime({ offset: true })),
 });
 export type SetInput = z.infer<typeof setSchema>;
+
+/** A completion time no later than the server's now. */
+export function clampCompletedAt(value: string | null, now: number = Date.now()): string | null {
+  if (value === null) return null;
+  return Date.parse(value) > now ? new Date(now).toISOString() : value;
+}
 
 export const startSchema = z.object({
   token: z.uuid(),

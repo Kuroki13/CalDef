@@ -39,8 +39,11 @@ export function CalorieBudget({
   target,
   label,
   compact = false,
+  day = "today",
 }: MacroFigures & {
   label: string;
+  /** Which day the figure is about; the diary shows other days too. */
+  day?: "today" | "that day";
   /** A smaller figure, where the screen has a list to get to. */
   compact?: boolean;
 }) {
@@ -63,7 +66,7 @@ export function CalorieBudget({
         <span className="text-slab-muted pb-1 text-sm leading-tight">
           {over ? "kcal over" : "kcal left"}
           <br />
-          today
+          {day}
         </span>
       </p>
       <SlabBar

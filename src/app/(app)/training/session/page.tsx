@@ -10,7 +10,7 @@ import {
   listExercises,
 } from "@/lib/training/store";
 
-export const metadata: Metadata = { title: "Session · CalDef" };
+export const metadata: Metadata = { title: "Session in progress · CalDef" };
 
 /**
  * The session in progress. There is at most one, so the address needs no

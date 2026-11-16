@@ -156,4 +156,6 @@ export type ScheduledWorkout = {
   templateId: number;
   name: string;
   exerciseCount: number;
+  /** When the plan was made (ISO). A session before this does not fulfil it. */
+  createdAt: string;
 };

@@ -13,7 +13,7 @@ export default async function NewTemplatePage() {
   const exercises = await listExercises();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:max-w-3xl">
       <PageHeader
         eyebrow="Training"
         title="New workout"

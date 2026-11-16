@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient, requireUserId } from "@/lib/supabase/server";
 import {
+  clampCompletedAt,
   customExerciseSchema,
   firstIssue,
   notesSchema,
@@ -25,7 +26,8 @@ import {
   startSchema,
   templateSchema,
 } from "@/lib/training/input";
-import { isCompletable } from "@/lib/training/metrics";
+import { isCompletable, type ExerciseSessionRecord } from "@/lib/training/metrics";
+import { getPreviousPerformance } from "@/lib/training/store";
 import { isMeasure, type SessionExercise, type WorkoutSet } from "@/lib/training/types";
 import { z } from "zod";
 
@@ -316,7 +318,7 @@ export async function saveSetAction(input: unknown): Promise<SaveSetResult> {
       reps: parsed.data.reps,
       duration_s: parsed.data.durationS,
       distance_m: parsed.data.distanceM,
-      completed_at: parsed.data.completedAt,
+      completed_at: clampCompletedAt(parsed.data.completedAt),
     })
     .eq("id", parsed.data.setId);
   // A database failure is worth another attempt: throwing makes the queue
@@ -407,7 +409,13 @@ const DEFAULT_SETS = 3;
  */
 export async function addSessionExercisesAction(
   input: unknown,
-): Promise<ActionResult<{ exercises: SessionExercise[] }>> {
+): Promise<
+  ActionResult<{
+    exercises: SessionExercise[];
+    /** Last time's sets of each added exercise, so "Previous" is not blank. */
+    previous: Record<number, ExerciseSessionRecord>;
+  }>
+> {
   const parsed = addExercisesSchema.safeParse(input);
   if (!parsed.success) return fail("Those exercises could not be added.");
 
@@ -469,8 +477,16 @@ export async function addSessionExercisesAction(
   // be added by hand, so this is reported as a success with what exists.
   const setRows = setsError || !sets ? [] : sets;
 
+  // Shown beside the new rows straight away. If it cannot be read the
+  // exercises are still added; "Previous" is then empty until a reload.
+  const previous = await getPreviousPerformance(
+    chosen.map((exercise) => exercise.id),
+    parsed.data.sessionId,
+  ).catch(() => ({}));
+
   return {
     ok: true,
+    previous,
     exercises: added
       .sort((a, b) => a.position - b.position)
       .map((row) => ({
@@ -507,7 +523,12 @@ const replaceSchema = z.object({
  */
 export async function replaceSessionExerciseAction(
   input: unknown,
-): Promise<ActionResult<{ exercise: SessionExercise }>> {
+): Promise<
+  ActionResult<{
+    exercise: SessionExercise;
+    previous: Record<number, ExerciseSessionRecord>;
+  }>
+> {
   const parsed = replaceSchema.safeParse(input);
   if (!parsed.success) return fail("That exercise could not be replaced.");
 
@@ -516,7 +537,7 @@ export async function replaceSessionExerciseAction(
   const [{ data: current }, { data: next }] = await Promise.all([
     supabase
       .from("workout_session_exercises")
-      .select("*, workout_sets(*), workout_sessions!inner(status)")
+      .select("*, workout_sets(*), workout_sessions!inner(id, status)")
       .eq("id", parsed.data.sessionExerciseId)
       .maybeSingle(),
     supabase.from("exercises").select("*").eq("id", parsed.data.exerciseId).maybeSingle(),
@@ -552,8 +573,14 @@ export async function replaceSessionExerciseAction(
     .eq("session_exercise_id", current.id)
     .select("*");
 
+  const previous = await getPreviousPerformance(
+    [next.id],
+    current.workout_sessions.id,
+  ).catch(() => ({}));
+
   return {
     ok: true,
+    previous,
     exercise: {
       id: current.id,
       exerciseId: next.id,

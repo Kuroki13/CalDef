@@ -21,7 +21,7 @@ import { buildPhaseSeries, dayIndexFor } from "@/lib/tdee/phase-series";
 import { formatMass, kgToDisplay, massUnitLabel } from "@/lib/units";
 import { getWeightHistory } from "@/lib/weight";
 
-export const metadata: Metadata = { title: "Phase · CalDef" };
+export const metadata: Metadata = { title: "Cut phase · CalDef" };
 
 function Stat({
   label,

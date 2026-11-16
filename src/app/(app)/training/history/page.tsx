@@ -13,11 +13,11 @@ import {
   shiftMonth,
 } from "@/lib/training/calendar";
 import {
-  listCompletedSessions,
   listSchedule,
   listSessionStarts,
+  listSessionSummaries,
 } from "@/lib/training/store";
-import { dayOf, summaryLine } from "@/lib/training/view";
+import { dayOf, summaryLineOf } from "@/lib/training/view";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Training history · CalDef" };
@@ -48,7 +48,7 @@ export default async function HistoryPage({
   const gridStart = `${shiftMonth(month, -1)}-20`;
   const gridEnd = `${shiftMonth(month, 1)}-10`;
   const [sessions, starts, plans] = await Promise.all([
-    listCompletedSessions(LIMIT),
+    listSessionSummaries(LIMIT),
     listSessionStarts(`${gridStart}T00:00:00Z`),
     listSchedule(gridStart, gridEnd),
   ]);
@@ -181,7 +181,7 @@ export default async function HistoryPage({
                         <span className="block truncate font-semibold">{session.name}</span>
                         <span className="text-muted-foreground block truncate text-sm">
                           {dayOf(session.startedAt, profile.timezone)} ·{" "}
-                          {summaryLine(session, profile.unit_system)}
+                          {summaryLineOf(session, profile.unit_system)}
                         </span>
                       </span>
                       <ArrowRight className="text-muted-foreground size-4 shrink-0" aria-hidden />

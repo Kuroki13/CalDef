@@ -11,6 +11,7 @@ import {
   getScheduledFor,
   listCompletedSessions,
 } from "@/lib/training/store";
+import { openPlans } from "@/lib/training/plans";
 import type { WorkoutSession } from "@/lib/training/types";
 
 export type TrainingToday = {
@@ -28,14 +29,17 @@ export async function getTrainingToday(
     getScheduledFor(today),
     listCompletedSessions(5),
   ]);
-  // A plan that has been carried out is no longer a plan: if the workout
-  // was done today, Today stops offering to start it.
-  const doneToday = new Set(
-    last
-      .filter((session) => todayInTimeZone(timeZone, new Date(session.startedAt)) === today)
-      .map((session) => session.templateId),
-  );
-  const first = scheduled.find((plan) => !doneToday.has(plan.templateId)) ?? null;
+  // A plan that has been carried out is no longer a plan
+  // (`lib/training/plans.ts`): Today stops offering to start it.
+  const first =
+    openPlans(
+      scheduled,
+      last.map((session) => ({
+        templateId: session.templateId,
+        startedAt: session.startedAt,
+        date: todayInTimeZone(timeZone, new Date(session.startedAt)),
+      })),
+    )[0] ?? null;
   return {
     running,
     planned: first

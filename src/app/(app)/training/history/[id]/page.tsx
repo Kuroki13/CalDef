@@ -25,7 +25,16 @@ import {
 import { dayOf, sessionSeconds } from "@/lib/training/view";
 import type { UnitSystem } from "@/lib/units";
 
-export const metadata: Metadata = { title: "Session · CalDef" };
+/** The tab is named after the session, not "Session". */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const id = Number((await params).id);
+  const session = Number.isInteger(id) && id > 0 ? await getSession(id) : null;
+  return { title: `${session?.name ?? "Session"} · CalDef` };
+}
 
 const RECORD_WORDS: Record<PersonalRecord["kind"], string> = {
   heaviest: "heaviest set",

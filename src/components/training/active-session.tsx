@@ -79,7 +79,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   describeRepTarget,
-  describeSet,
   distanceUnit,
   formatClock,
   formatWeight,
@@ -198,7 +197,10 @@ export function ActiveSession(props: Props) {
   return <ActiveSessionLive {...props} />;
 }
 
-function ActiveSessionLive({ session, previous, exercises: catalogue, units, resumed, userId }: Props) {
+function ActiveSessionLive({ session, previous: initialPrevious, exercises: catalogue, units, resumed, userId }: Props) {
+  // Grows as exercises are added or swapped in: each arrives with last
+  // time's sets, so its "Previous" column is filled without a reload.
+  const [previous, setPrevious] = useState(initialPrevious);
   const router = useRouter();
   const now = useNow(500);
   const storagePrefix = `${STORAGE_ROOT}${userId}.session.${session.id}.`;
@@ -426,6 +428,7 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
         return setError(result.error);
       }
       queue.discard(result.exercise.sets.map((s) => `set:${s.id}`));
+      setPrevious((current) => ({ ...current, ...result.previous }));
       setItems((current) =>
         current.map((e) =>
           e.id === replaceId
@@ -442,6 +445,7 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
         setPicker(null);
         return setError(result.error);
       }
+      setPrevious((current) => ({ ...current, ...result.previous }));
       setItems((current) => [
         ...current,
         ...result.exercises
@@ -862,13 +866,26 @@ function columnsFor(measure: Measure, units: UnitSystem): Column[] {
   }
 }
 
-/** Last time's set, as short as it can be said: "80 × 7", "12", "1:15". */
+/**
+ * Last time's set, as short as it can be said: "80 × 7", "12", "1:15",
+ * "5 km 27:10". Short enough for a narrow column, and allowed to wrap onto
+ * a second line there rather than being cut to "5 km in 2…".
+ */
 function shortSet(measure: Measure, set: SetValues, units: UnitSystem): string {
-  if (measure === "weight_reps") {
-    if (set.weightKg === null || set.reps === null) return "—";
-    return `${valuesToText(set, units).weight} × ${set.reps}`;
+  const text = valuesToText(set, units);
+  switch (measure) {
+    case "weight_reps":
+      if (set.weightKg === null || set.reps === null) return "—";
+      return `${text.weight} × ${set.reps}`;
+    case "reps":
+      return set.reps === null ? "—" : String(set.reps);
+    case "duration":
+      return text.duration || "—";
+    case "distance_duration":
+      return [text.distance ? `${text.distance} ${distanceUnit(units)}` : null, text.duration || null]
+        .filter(Boolean)
+        .join(" ") || "—";
   }
-  return describeSet(measure, set, units).replace(/ reps?$/, "");
 }
 
 /**
@@ -910,7 +927,7 @@ function SetTable({
     <div className="px-2 pt-3" role="group" aria-label={`Sets of ${exercise.name}`}>
       <div className="eyebrow flex items-center gap-2 px-2 pb-1.5">
         <span className="w-6 text-center">Set</span>
-        <span className="w-[4.5rem]">Previous</span>
+        <span className="w-[4.5rem] lg:w-28">Previous</span>
         {columns.map((column) => (
           <span key={column.field} className="flex-1 text-center">{column.label}</span>
         ))}
@@ -937,12 +954,12 @@ function SetTable({
                   disabled={done}
                   onClick={() => onChange({ ...set, ...valuesToText(before, units) })}
                   aria-label={`Set ${index + 1}: use last time's ${shortSet(measure, before, units)}`}
-                  className="text-muted-foreground w-[4.5rem] truncate py-2 text-left text-sm tabular-nums underline decoration-dotted underline-offset-4 disabled:no-underline"
+                  className="text-muted-foreground w-[4.5rem] py-2 text-left text-sm leading-tight tabular-nums underline decoration-dotted underline-offset-4 disabled:no-underline lg:w-28"
                 >
                   {shortSet(measure, before, units)}
                 </button>
               ) : (
-                <span className="text-muted-foreground w-[4.5rem] text-sm">—</span>
+                <span className="text-muted-foreground w-[4.5rem] text-sm lg:w-28">—</span>
               )}
               {columns.map((column) => (
                 <Input
@@ -957,10 +974,13 @@ function SetTable({
                   onChange={(event) => onChange({ ...set, [column.field]: event.target.value })}
                   onFocus={(event) => event.target.select()}
                   className={cn(
+                    // Three things that must not look alike: an empty
+                    // field showing a SUGGESTION (pale, lighter weight), a
+                    // figure that is IN the field but not ticked (ink), and
+                    // a DONE set (ink, on the tinted row, no field border).
                     "figure h-12 min-w-0 flex-1 px-1 text-center text-2xl md:text-2xl",
-                    done
-                      ? "text-foreground border-transparent bg-transparent"
-                      : "text-muted-foreground",
+                    "placeholder:text-muted-foreground/45 placeholder:font-medium",
+                    done ? "border-transparent bg-transparent" : "",
                   )}
                 />
               ))}

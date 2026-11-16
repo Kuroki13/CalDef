@@ -24,7 +24,7 @@ export default async function EditTemplatePage({
   if (!template) notFound();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:max-w-3xl">
       <PageHeader
         eyebrow="Training"
         title="Edit workout"

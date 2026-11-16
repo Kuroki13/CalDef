@@ -41,7 +41,7 @@ import { listRecipes } from "@/lib/recipes";
 import { listSavedMeals } from "@/lib/saved-meals";
 import { per100Label } from "@/lib/food/basis";
 
-export const metadata: Metadata = { title: "Recipes & meals · CalDef" };
+export const metadata: Metadata = { title: "Recipes & foods · CalDef" };
 
 export default async function RecipesPage() {
   const { profile } = await getAccountSetup();
@@ -69,7 +69,7 @@ export default async function RecipesPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:max-w-3xl">
       <PageHeader
         title="Recipes &amp; foods"
         description="Things you eat often, saved once so logging them takes one action."

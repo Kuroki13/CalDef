@@ -135,6 +135,25 @@ export async function listExercises(): Promise<Exercise[]> {
   return rows;
 }
 
+/**
+ * The exercises that target one muscle group — all "find an alternative"
+ * needs. A hundred rows instead of the thousand of the whole catalogue.
+ */
+export async function listExercisesByMuscle(muscleGroup: string): Promise<Exercise[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("exercises")
+    .select(
+      "id, user_id, slug, name, aliases, muscle_group, secondary_muscles, equipment, measure, force, mechanic, source, archived_at, created_at, updated_at",
+    )
+    .eq("muscle_group", muscleGroup)
+    .is("archived_at", null)
+    .order("name")
+    .limit(PAGE);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => toExercise({ ...row, instructions: null }));
+}
+
 /** One exercise the user can see — including a retired one, for its history. */
 export async function getExercise(
   id: number,
@@ -249,7 +268,61 @@ export async function getSession(id: number): Promise<WorkoutSession | null> {
   return data ? toSession(data as SessionRow) : null;
 }
 
-/** Completed sessions, newest first. */
+export type SessionListItem = {
+  id: number;
+  name: string;
+  startedAt: string;
+  endedAt: string | null;
+  exercises: number;
+  sets: number;
+  volumeKg: number;
+};
+
+/**
+ * Completed sessions for a LIST: one line each, newest first.
+ *
+ * Reads only the four numbers a set contributes to a summary line, not the
+ * whole session, so a long history stays a small request. A finished
+ * session holds only completed sets (`finish_workout` drops the rest), so
+ * every set returned counts.
+ */
+export async function listSessionSummaries(limit = 60): Promise<SessionListItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select(
+      "id, name, started_at, ended_at, workout_session_exercises(measure, workout_sets(weight_kg, reps))",
+    )
+    .eq("status", "completed")
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => {
+    let sets = 0;
+    let volumeKg = 0;
+    let exercises = 0;
+    for (const exercise of row.workout_session_exercises) {
+      if (exercise.workout_sets.length > 0) exercises += 1;
+      sets += exercise.workout_sets.length;
+      if (exercise.measure === "weight_reps") {
+        for (const set of exercise.workout_sets) {
+          if (set.weight_kg !== null && set.reps !== null) volumeKg += Number(set.weight_kg) * set.reps;
+        }
+      }
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      exercises,
+      sets,
+      volumeKg,
+    };
+  });
+}
+
+/** Completed sessions in full, newest first. For a handful, not a list. */
 export async function listCompletedSessions(limit = 50): Promise<WorkoutSession[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -360,6 +433,7 @@ export async function listPrograms(): Promise<WorkoutProgram[]> {
 
 type ScheduleRow = {
   id: number;
+  created_at: string;
   scheduled_on: string;
   template_id: number;
   workout_templates: { name: string; workout_template_exercises: { id: number }[] } | null;
@@ -372,11 +446,12 @@ function toScheduled(row: ScheduleRow): ScheduledWorkout {
     templateId: row.template_id,
     name: row.workout_templates?.name ?? "Workout",
     exerciseCount: row.workout_templates?.workout_template_exercises.length ?? 0,
+    createdAt: row.created_at,
   };
 }
 
 const SCHEDULE_SELECT =
-  "id, scheduled_on, template_id, workout_templates(name, workout_template_exercises(id))";
+  "id, created_at, scheduled_on, template_id, workout_templates(name, workout_template_exercises(id))";
 
 /** Workouts planned between two dates, inclusive, earliest first. */
 export async function listSchedule(from: string, to: string): Promise<ScheduledWorkout[]> {
@@ -403,14 +478,19 @@ export async function getScheduledFor(date: string): Promise<ScheduledWorkout[]>
  */
 export async function listSessionStarts(
   sinceIso: string,
-): Promise<{ id: number; name: string; startedAt: string }[]> {
+): Promise<{ id: number; name: string; startedAt: string; templateId: number | null }[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("workout_sessions")
-    .select("id, name, started_at")
+    .select("id, name, started_at, template_id")
     .eq("status", "completed")
     .gte("started_at", sinceIso)
     .order("started_at");
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => ({ id: row.id, name: row.name, startedAt: row.started_at }));
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    startedAt: row.started_at,
+    templateId: row.template_id,
+  }));
 }

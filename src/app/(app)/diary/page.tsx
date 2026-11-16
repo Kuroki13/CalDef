@@ -38,7 +38,11 @@ export default async function DiaryPage({
   const today = todayInTimeZone(profile.timezone);
   const query = await searchParams;
   const requested = query.date;
-  const date = requested && isIsoDate(requested) ? requested : today;
+  // A day that has not happened cannot be logged: a food dated tomorrow
+  // would count towards an intake the expenditure model then reads as
+  // real. A future date in the address is read as today.
+  const date =
+    requested && isIsoDate(requested) && requested <= today ? requested : today;
 
   const [day, previousDay, target, library] = await Promise.all([
     getDiaryDay(date),
@@ -59,6 +63,19 @@ export default async function DiaryPage({
   const uncertainShare = estimatedShare(day.entries);
 
   const consumed = day.totals.totals;
+
+  // Every adding form starts on the first meal it is given. So the meal
+  // that was asked for — "Log dinner" on Today sends `?add=<its id>` — or
+  // otherwise the first meal of the day with nothing in it, is handed over
+  // first. Nothing is logged to breakfast by default at eight in the
+  // evening.
+  const askedMeal = day.mealTypes.find((meal) => String(meal.id) === query.add);
+  const nextMeal =
+    askedMeal ??
+    day.mealTypes.find((meal) => !day.entries.some((e) => e.meal_type_id === meal.id));
+  const mealsForAdding = nextMeal
+    ? [nextMeal, ...day.mealTypes.filter((meal) => meal.id !== nextMeal.id)]
+    : day.mealTypes;
 
   const entriesByMeal = new Map(
     day.mealTypes.map((meal) => [
@@ -96,15 +113,26 @@ export default async function DiaryPage({
                   <ChevronLeft className="size-5" aria-hidden />
                 </LinkPending>
               </Link>
-              <Link
-                href={`/diary?date=${addDays(date, 1)}`}
-                className={DAY_NAV_CLASS}
-                aria-label="Next day"
-              >
-                <LinkPending spinnerClassName="size-5">
-                  <ChevronRight className="size-5" aria-hidden />
-                </LinkPending>
-              </Link>
+              {date < today ? (
+                <Link
+                  href={`/diary?date=${addDays(date, 1)}`}
+                  className={DAY_NAV_CLASS}
+                  aria-label="Next day"
+                >
+                  <LinkPending spinnerClassName="size-5">
+                    <ChevronRight className="size-5" aria-hidden />
+                  </LinkPending>
+                </Link>
+              ) : (
+                // Today is the last day there is: shown, so the two arrows
+                // do not jump, and plainly not a control.
+                <span
+                  aria-hidden
+                  className="flex size-10 items-center justify-center rounded-full opacity-30"
+                >
+                  <ChevronRight className="size-5" />
+                </span>
+              )}
             </nav>
           </div>
 
@@ -115,6 +143,7 @@ export default async function DiaryPage({
                   consumed={consumed.kcal}
                   target={target.macros.kcal}
                   label={target.label}
+                  day={date === today ? "today" : "that day"}
                   compact
                 />
               </div>
@@ -157,7 +186,7 @@ export default async function DiaryPage({
         <AddFoodPanel defaultOpen={query.add !== undefined}>
           <AddFood
             logDate={date}
-            mealTypes={day.mealTypes}
+            mealTypes={mealsForAdding}
             aiReady={aiReady}
             library={library}
           />

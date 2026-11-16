@@ -11,16 +11,17 @@ import { Button } from "@/components/ui/button";
 import { addDays, formatLongDate, startOfIsoWeek, todayInTimeZone } from "@/lib/dates";
 import { getAccountSetup } from "@/lib/profile";
 import { weekOf } from "@/lib/training/calendar";
+import { openPlans } from "@/lib/training/plans";
 import {
   getActiveSessionSummary,
-  listCompletedSessions,
   listPrograms,
   listSchedule,
   listSessionStarts,
+  listSessionSummaries,
   listTemplates,
 } from "@/lib/training/store";
 import type { WorkoutTemplate } from "@/lib/training/types";
-import { dayOf, summaryLine } from "@/lib/training/view";
+import { dayOf, summaryLineOf } from "@/lib/training/view";
 
 export const metadata: Metadata = { title: "Training · CalDef" };
 
@@ -46,7 +47,7 @@ export default async function TrainingPage() {
     getActiveSessionSummary(),
     listTemplates(),
     listPrograms(),
-    listCompletedSessions(3),
+    listSessionSummaries(3),
     listSchedule(monday, addDays(today, 28)),
     // A day either side, because a UTC day is not the user's day.
     listSessionStarts(new Date(Date.parse(`${monday}T00:00:00Z`) - 86_400_000).toISOString()),
@@ -55,14 +56,16 @@ export default async function TrainingPage() {
   const done = starts.map((s) => ({
     id: s.id,
     name: s.name,
+    templateId: s.templateId,
+    startedAt: s.startedAt,
     date: todayInTimeZone(profile.timezone, new Date(s.startedAt)),
   }));
   const week = weekOf(today, today, { done, planned: plans });
   const sessionsThisWeek = week.reduce((n, day) => n + day.done.length, 0);
-  // A plan carried out is no longer a plan. Matched by day and name: the
-  // session keeps the workout's name from when it started.
-  const upcoming = plans.filter(
-    (plan) => plan.date >= today && !done.some((d) => d.date === plan.date && d.name === plan.name),
+  // A plan carried out is no longer a plan (`lib/training/plans.ts`).
+  const upcoming = openPlans(
+    plans.filter((plan) => plan.date >= today),
+    done,
   );
 
   const when = (date: string) =>
@@ -201,7 +204,7 @@ export default async function TrainingPage() {
                       <span className="block truncate font-semibold">{session.name}</span>
                       <span className="text-muted-foreground block truncate text-sm">
                         {dayOf(session.startedAt, profile.timezone)} ·{" "}
-                        {summaryLine(session, profile.unit_system)}
+                        {summaryLineOf(session, profile.unit_system)}
                       </span>
                     </span>
                     <ArrowRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
