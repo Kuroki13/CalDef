@@ -661,23 +661,30 @@ all unchecked by eye. The owner's first use is that check. On the iPhone
 specifically:
 
 1. Install: Safari → Share → Add to Home Screen; opens frameless; the
-   status bar text is readable over the dark strip; the tab bar clears
+   clock and battery are readable on the ink top bar; the tab bar clears
    the home indicator.
-2. Tabs: Today, Diary, Training, Weight, More; More opens a sheet with
-   Recipes & foods, Phase, Assistant, Settings.
-3. Create "Push A" (search "bench", "developpe couche", filter chips),
-   set sets/reps/rest, save.
-4. Start; type a weight and reps with the numeric keyboard open — the
-   field stays visible and the page does not zoom; tick the set.
-5. Rest timer appears; lock the phone 30 s; unlock — the remaining time
-   is right. (No sound or notification while locked: expected.)
-6. Turn on airplane mode, change a set: "Not saved · Retry" appears.
-   Close the app, reopen in airplane mode: the value is still shown.
-   Turn the network back on: it reads "Saved" on its own.
-7. Refresh mid-session: nothing lost. Finish: lands on the saved session.
-8. History shows it; start "Push A" again: "Last time" shows the sets.
-9. Safari console (Mac → Develop): no CSP violation on `/training/session`.
-10. Diary: log a food as before; barcode scanner still opens.
+2. Tabs: Today, Nutrition, Training, Progress. The menu (top right) opens
+   Recipes & foods, Cut phase, Assistant, Settings.
+3. Nutrition: tap a food row — its actions open beneath; "Add food" opens
+   the tool in place; search, scan and "Describe a meal" work as before.
+4. Create "Push A": search "bench" and "developpe couche", tick several,
+   "Add N exercises"; set sets, reps and rest; save.
+5. Start. With the numeric keyboard open the field being typed stays
+   visible and the page does not zoom; a comma works as a decimal.
+6. Tick a set: the row tints and the disc fills. Untick it. Tap a
+   "Previous" figure: it is copied in, still not done.
+7. Rest timer: pause, +15, −15, skip. Lock the phone 30 s; unlock — the
+   time left is right. (No sound or notification while locked: expected.)
+8. Airplane mode, change a set: "Not saved yet — kept on this phone."
+   Close and reopen in airplane mode: the value is still there. Network
+   back: "Everything saved" on its own.
+9. Leave the session for another tab: the session bar follows, with its
+   clock; tap it to return. Replace an exercise from its menu.
+10. Finish: the summary shows duration, sets and any record. Correct a set
+    from the pencil. Start "Push A" again: "Previous" shows last time.
+11. Exercise page: "Find an alternative", filter by equipment.
+12. Safari console (Mac → Develop): no CSP violation on
+    `/training/session`.
 
 Not built, on purpose (spec §16.4): a programme/calendar planner; exercise
 illustrations; supersets; editing a completed session's sets.
