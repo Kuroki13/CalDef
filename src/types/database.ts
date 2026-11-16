@@ -233,13 +233,16 @@ export type Database = {
           archived_at: string | null
           created_at: string
           equipment: string
+          force: string | null
           id: number
           instructions: string | null
           measure: string
+          mechanic: string | null
           muscle_group: string
           name: string
           secondary_muscles: string[]
           slug: string | null
+          source: string | null
           updated_at: string
           user_id: string | null
         }
@@ -248,13 +251,16 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           equipment: string
+          force?: string | null
           id?: never
           instructions?: string | null
           measure: string
+          mechanic?: string | null
           muscle_group: string
           name: string
           secondary_muscles?: string[]
           slug?: string | null
+          source?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -263,13 +269,16 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           equipment?: string
+          force?: string | null
           id?: never
           instructions?: string | null
           measure?: string
+          mechanic?: string | null
           muscle_group?: string
           name?: string
           secondary_muscles?: string[]
           slug?: string | null
+          source?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1040,6 +1049,65 @@ export type Database = {
         }
         Relationships: []
       }
+      workout_programs: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workout_schedule: {
+        Row: {
+          created_at: string
+          id: number
+          scheduled_on: string
+          template_id: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          scheduled_on: string
+          template_id: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          scheduled_on?: string
+          template_id?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_schedule_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workout_session_exercises: {
         Row: {
           created_at: string
@@ -1275,6 +1343,7 @@ export type Database = {
           id: number
           name: string
           notes: string | null
+          program_id: number | null
           updated_at: string
           user_id: string
         }
@@ -1283,6 +1352,7 @@ export type Database = {
           id?: never
           name: string
           notes?: string | null
+          program_id?: number | null
           updated_at?: string
           user_id: string
         }
@@ -1291,10 +1361,19 @@ export type Database = {
           id?: never
           name?: string
           notes?: string | null
+          program_id?: number | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workout_templates_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "workout_programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

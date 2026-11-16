@@ -181,13 +181,34 @@ begin
   perform set_config('caldef_test.se', v_se::text, true);
 end $$;
 
--- A template for B to aim at.
+-- A template for B to aim at, filed in a programme and planned twice.
 do $$
-declare v_tpl bigint;
+declare v_tpl bigint; v_prog bigint; v_count int;
 begin
   v_tpl := public.save_workout_template(null, 'A private plan', null, jsonb_build_array(
     jsonb_build_object('exercise_id', current_setting('caldef_test.bench')::bigint)));
+  insert into public.workout_programs (user_id, name)
+  values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Push / Pull / Legs') returning id into v_prog;
+  update public.workout_templates set program_id = v_prog where id = v_tpl;
+
+  insert into public.workout_schedule (user_id, template_id, scheduled_on)
+  values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_tpl, current_date + 1)
+  on conflict (user_id, template_id, scheduled_on) do nothing;
+  insert into public.workout_schedule (user_id, template_id, scheduled_on)
+  values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', v_tpl, current_date + 1)
+  on conflict (user_id, template_id, scheduled_on) do nothing;
+  select count(*) into v_count from public.workout_schedule;
+  if v_count <> 1 then raise exception 'FAIL: planning twice made % plans', v_count; end if;
+
+  -- Moving an occurrence changes the plan and nothing else.
+  update public.workout_schedule set scheduled_on = current_date + 3;
+  if (select name from public.workout_templates where id = v_tpl) <> 'A private plan' then
+    raise exception 'FAIL: moving a plan changed the workout';
+  end if;
+  raise notice 'PASS: a plan is one date, planned once, and moves on its own';
+
   perform set_config('caldef_test.tpl', v_tpl::text, true);
+  perform set_config('caldef_test.prog', v_prog::text, true);
 end $$;
 
 -- ------------------------------------------------------------------ user B
@@ -319,6 +340,31 @@ begin
   if public.finish_workout(v_sess2) <> 'not_found' then
     raise exception 'FAIL: B finished A''s session';
   end if;
+  -- Programmes and plans: invisible, and not usable through a known id.
+  if exists (select 1 from public.workout_programs)
+     or exists (select 1 from public.workout_schedule) then
+    raise exception 'FAIL: B can read A''s programmes or plans';
+  end if;
+  delete from public.workout_schedule;
+  get diagnostics v_count = row_count;
+  if v_count <> 0 then raise exception 'FAIL: B cancelled A''s plan'; end if;
+
+  v_raised := false;
+  begin
+    insert into public.workout_schedule (user_id, template_id, scheduled_on)
+    values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', v_tpl, current_date);
+  exception when insufficient_privilege then v_raised := true;
+  end;
+  if not v_raised then raise exception 'FAIL: B planned A''s workout'; end if;
+
+  v_raised := false;
+  begin
+    insert into public.workout_templates (user_id, name, program_id)
+    values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'B plan', current_setting('caldef_test.prog')::bigint);
+  exception when insufficient_privilege then v_raised := true;
+  end;
+  if not v_raised then raise exception 'FAIL: B filed a workout under A''s programme'; end if;
+
   raise notice 'PASS: a foreign id attaches nothing and starts nothing';
 
   -- B's own start works, and B's session in progress is B's alone — A
@@ -329,6 +375,22 @@ begin
   select count(*) into v_count from public.workout_sessions;
   if v_count <> 1 then raise exception 'FAIL: B sees % sessions', v_count; end if;
   raise notice 'PASS: each user has their own session in progress';
+end $$;
+
+-- ------------------------------------------------- user A again: deletions
+set local request.jwt.claims = '{"sub":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","role":"authenticated"}';
+
+do $$
+declare v_tpl bigint := current_setting('caldef_test.tpl')::bigint; v_count int;
+begin
+  delete from public.workout_programs where id = current_setting('caldef_test.prog')::bigint;
+  if not exists (select 1 from public.workout_templates where id = v_tpl and program_id is null) then
+    raise exception 'FAIL: deleting a programme did not just release its workout';
+  end if;
+  delete from public.workout_templates where id = v_tpl;
+  select count(*) into v_count from public.workout_schedule;
+  if v_count <> 0 then raise exception 'FAIL: a deleted workout left a plan behind'; end if;
+  raise notice 'PASS: a programme releases its workouts; a workout takes its plans with it';
 end $$;
 
 -- -------------------------------------------------------------------- anon
