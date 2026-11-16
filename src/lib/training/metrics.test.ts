@@ -4,6 +4,8 @@ import {
   bestSet,
   estimatedOneRepMaxKg,
   isCompletable,
+  loadConvention,
+  newRecords,
   personalRecords,
   progressSeries,
   sessionSummary,
@@ -173,5 +175,40 @@ describe("sessionSummary", () => {
         { measure: "weight_reps", sets: [set(4, planned(50, 10))] },
       ]),
     ).toEqual({ exercises: 2, sets: 2, volumeKg: 640 });
+  });
+});
+
+describe("newRecords", () => {
+  const first = record(1, "2026-10-01T10:00:00Z", [done(100, 5)]);
+
+  it("is empty the first time an exercise is logged — nothing was beaten", () => {
+    expect(newRecords("weight_reps", [first], 1)).toEqual([]);
+  });
+
+  it("names what this session beat", () => {
+    const second = record(2, "2026-10-08T10:00:00Z", [done(105, 5)]);
+    const kinds = newRecords("weight_reps", [first, second], 2).map((r) => r.kind);
+    expect(kinds).toEqual(["heaviest", "estimated_1rm", "best_volume"]);
+  });
+
+  it("does not count a tie, or a session that did less", () => {
+    expect(newRecords("weight_reps", [first, record(2, "2026-10-08T10:00:00Z", [done(100, 5)])], 2)).toEqual([]);
+    expect(newRecords("weight_reps", [first, record(2, "2026-10-08T10:00:00Z", [done(90, 5)])], 2)).toEqual([]);
+  });
+
+  it("only compares with what came before, not with later sessions", () => {
+    const later = record(3, "2026-10-15T10:00:00Z", [done(120, 5)]);
+    const second = record(2, "2026-10-08T10:00:00Z", [done(105, 5)]);
+    expect(newRecords("weight_reps", [first, second, later], 2).map((r) => r.kind)).toContain("heaviest");
+  });
+});
+
+describe("loadConvention", () => {
+  it("says what the weight field means where it is not obvious", () => {
+    expect(loadConvention({ name: "Dumbbell Bench Press", equipment: "dumbbell" })).toMatch(/one dumbbell/);
+    expect(loadConvention({ name: "Back Squat", equipment: "barbell" })).toMatch(/bar included/);
+    expect(loadConvention({ name: "Assisted Pull-Up", equipment: "machine" })).toMatch(/less is harder/);
+    expect(loadConvention({ name: "Weighted Dip", equipment: "other", slug: "weighted-dip" })).toMatch(/Added weight only/);
+    expect(loadConvention({ name: "Leg Press", equipment: "machine" })).toBeNull();
   });
 });

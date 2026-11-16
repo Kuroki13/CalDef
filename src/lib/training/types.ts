@@ -70,7 +70,16 @@ export type Exercise = {
   instructions: string | null;
   /** True for one the user created. */
   custom: boolean;
+  /** Push, pull or a hold — where known. Never guessed. */
+  force: Force | null;
+  /** Several joints or one — where known. */
+  mechanic: Mechanic | null;
+  /** Where a catalogue entry came from; null = written for CalDef. */
+  source: string | null;
 };
+
+export type Force = "push" | "pull" | "static";
+export type Mechanic = "compound" | "isolation";
 
 /** One set as stored: kilograms, metres, seconds. */
 export type SetValues = {
@@ -130,5 +139,21 @@ export type WorkoutTemplate = {
   name: string;
   notes: string | null;
   updatedAt: string;
+  /** The programme it is filed under, if any. */
+  programId: number | null;
+  /** Primary muscle groups of its exercises, most used first. */
+  muscles: MuscleGroup[];
   items: (TemplateItem & { exerciseName: string; measure: Measure })[];
+};
+
+export type WorkoutProgram = { id: number; name: string };
+
+/** A workout planned for a date. */
+export type ScheduledWorkout = {
+  id: number;
+  /** ISO date, in the user's own calendar. */
+  date: string;
+  templateId: number;
+  name: string;
+  exerciseCount: number;
 };

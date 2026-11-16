@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
 
-import { AppSidebar, AppTabBar } from "@/components/app-nav";
+import {
+  AppSidebar,
+  AppTabBar,
+  AppTopBar,
+  SessionBar,
+} from "@/components/app-nav";
 import { ensureAccountExists } from "@/lib/account-status";
 import { getAccountSetup } from "@/lib/profile";
 import { getUserId } from "@/lib/supabase/server";
+import { getActiveSessionSummary } from "@/lib/training/store";
 
 export default async function AppLayout({
   children,
@@ -22,24 +28,30 @@ export default async function AppLayout({
   ensureAccountExists({ userId, profile: setup.profile });
   if (!setup.isComplete) redirect("/onboarding");
 
+  // Shown on every screen while a session runs. A failure to read it must
+  // not take the whole app down with it: no bar is the safe fallback.
+  const session = await getActiveSessionSummary().catch(() => null);
+
   return (
     <div className="flex min-h-dvh">
-      {/*
-        The installed app draws under the status bar, whose text iOS keeps
-        white (`black-translucent`). This strip is exactly as tall as that
-        bar and gives it something dark to be read against; in a browser
-        tab the inset is zero and it is not there.
-      */}
-      <div
-        aria-hidden
-        className="bg-foreground fixed inset-x-0 top-0 z-30 h-[env(safe-area-inset-top)]"
-      />
       <AppSidebar />
-      <main className="min-w-0 flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
-        <div className="mx-auto w-full max-w-3xl px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-6 md:px-8 md:py-10">
-          {children}
-        </div>
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AppTopBar />
+        <main
+          className={
+            // Room for the tab bar, and for the session bar above it when
+            // there is one, so neither ever covers the last row.
+            session
+              ? "flex-1 pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-28"
+              : "flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10"
+          }
+        >
+          <div className="mx-auto w-full max-w-xl px-4 lg:max-w-5xl lg:px-10">
+            {children}
+          </div>
+        </main>
+      </div>
+      <SessionBar session={session} />
       <AppTabBar />
     </div>
   );

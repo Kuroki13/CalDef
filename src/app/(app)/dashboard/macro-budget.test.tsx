@@ -13,7 +13,8 @@ describe("CalorieBudget — a ceiling, counted down", () => {
       <CalorieBudget consumed={1200} target={2000} label="Daily target" />,
     );
 
-    expect(screen.getByText("800 left")).toBeInTheDocument();
+    expect(screen.getByText("800")).toBeInTheDocument();
+    expect(screen.getByText(/kcal left/)).toBeInTheDocument();
     expect(screen.getByText(/1200 \/ 2000 kcal/)).toBeInTheDocument();
   });
 
@@ -24,7 +25,8 @@ describe("CalorieBudget — a ceiling, counted down", () => {
       <CalorieBudget consumed={2300} target={2200} label="Daily target" />,
     );
 
-    expect(screen.getByText("100 over")).toBeInTheDocument();
+    expect(screen.getByText("100")).toBeInTheDocument();
+    expect(screen.getByText(/kcal over/)).toBeInTheDocument();
   });
 
   it("names which régime set the number", () => {

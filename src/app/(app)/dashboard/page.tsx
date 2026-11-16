@@ -1,5 +1,5 @@
+import { ArrowRight, Plus, Scale } from "lucide-react";
 import type { Metadata } from "next";
-import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -7,45 +7,33 @@ import {
   MacroRemainder,
   ProteinFloor,
 } from "@/app/(app)/dashboard/macro-budget";
-import { PageHeader, Stat } from "@/components/page-header";
-import { TrendChart } from "@/components/trend-chart";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Slab } from "@/components/page-header";
+import { Sparkline } from "@/components/sparkline";
+import { StartWorkoutButton } from "@/components/training/start-button";
+import { Button } from "@/components/ui/button";
 import { formatLongDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
-import { describePortion } from "@/lib/nutrition/units";
 import { getActivePhase, phaseCoversDate } from "@/lib/phase";
 import { getPhaseDashboard } from "@/lib/phase-dashboard";
 import { getAccountSetup } from "@/lib/profile";
 import { getOrCreateDailyTarget } from "@/lib/targets";
-import {
-  getActiveSessionSummary,
-  listCompletedSessions,
-} from "@/lib/training/store";
+import { getTrainingToday } from "@/lib/training/today";
 import { dayOf, summaryLine } from "@/lib/training/view";
 import { formatMass, kgToDisplay, massUnitLabel } from "@/lib/units";
 import { getWeightHistory } from "@/lib/weight";
 
-export const metadata: Metadata = { title: "Dashboard · CalDef" };
+export const metadata: Metadata = { title: "Today · CalDef" };
 
 /**
- * The screen worth opening.
+ * The screen worth opening. It answers three questions, in this order:
  *
- * It used to lead with the weigh-in and the profile figures — true, static,
- * and not what anyone opens an app to find out. The question at eleven in
- * the morning is "what is left of today", so that is what is at the top,
- * and everything else is ordered by how often it changes the next decision:
- * what has been eaten, where the weight is going, and — when one is running
- * — where the phase stands.
+ *   Where am I today?        the slab: what is left, and the macros
+ *   What do I do next?       one volt action — the next meal to log
+ *   Is there a session?      in progress, planned today, or the last one
  *
- * Height, age and activity have gone. They are settings, they change twice
- * a year, and they were taking the third of the screen a phone shows first.
- * Settings still holds them.
+ * It does not repeat the other screens. The diary's list of foods, the
+ * weigh-in history and the phase's roadmap each live where they are worked
+ * on; here they are a figure and a way in.
  */
 export default async function DashboardPage() {
   const { profile, goal, latestWeightKg } = await getAccountSetup();
@@ -55,22 +43,17 @@ export default async function DashboardPage() {
   const units = profile.unit_system;
   const today = todayInTimeZone(profile.timezone);
 
-  const [target, day, weight, active, runningSession, lastSessions] =
-    await Promise.all([
-      getOrCreateDailyTarget(today),
-      getDiaryDay(today),
-      getWeightHistory(profile.timezone),
-      getActivePhase(today),
-      // Training is shown next to food, never mixed into it: a session does
-      // not change the calorie target, and no "calories burned" figure is
-      // estimated (spec §16.7).
-      getActiveSessionSummary(),
-      listCompletedSessions(1),
-    ]);
-  const lastSession = lastSessions[0] ?? null;
+  const [target, day, weight, active, training] = await Promise.all([
+    getOrCreateDailyTarget(today),
+    getDiaryDay(today),
+    getWeightHistory(profile.timezone),
+    getActivePhase(today),
+    // Training is shown next to food, never mixed into it: a session does
+    // not change the calorie target, and no "calories burned" figure is
+    // estimated (spec §16.7).
+    getTrainingToday(today, profile.timezone),
+  ]);
 
-  // The phase panel needs the weight history the card below already loaded,
-  // so it is built after the fan-out rather than inside it.
   const phase =
     active && phaseCoversDate(active.phase, today)
       ? await getPhaseDashboard(active, weight, today)
@@ -80,226 +63,185 @@ export default async function DashboardPage() {
   const goalWeightKg = goal.final_goal_weight_kg;
   const toGoKg = goalWeightKg === null ? null : latestWeightKg - goalWeightKg;
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow={formatLongDate(today)}
-        title={profile.display_name ? `Hi, ${profile.display_name}` : "Today"}
-      />
+  // The next action: the first meal of the day with nothing in it.
+  const emptyMeal = day.mealTypes.find(
+    (meal) => !day.entries.some((entry) => entry.meal_type_id === meal.id),
+  );
+  const weighedToday = weight.entries.at(-1)?.entry_date === today;
 
-      {/*
-        The lead. Which régime is governing is named here exactly as the
-        diary names it — "2-Month Cut target" or "Daily target" — so the
-        number is never ambiguous about where it came from.
-      */}
-      <Card>
-        {target ? null : (
-          <CardHeader>
-            <CardTitle>No target yet</CardTitle>
-            <CardDescription>
-              Record a weigh-in and your goal to get a target.
-            </CardDescription>
-          </CardHeader>
-        )}
-        <CardContent className="space-y-5">
-          {target ? (
-            <>
+  return (
+    <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
+      <Slab className="lg:col-span-7">
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="eyebrow">
+            {formatLongDate(today)}
+            {profile.display_name ? ` · ${profile.display_name}` : ""}
+          </h1>
+        </div>
+        {target ? (
+          <>
+            <div className="mt-4">
               <CalorieBudget
                 consumed={consumed.kcal}
                 target={target.macros.kcal}
-                label={`${target.label} · ${Math.round(target.macros.kcal)} kcal`}
+                label={target.label}
               />
+            </div>
+            <dl className="border-slab-line mt-6 grid grid-cols-3 gap-4 border-t pt-5">
               <ProteinFloor
                 consumed={consumed.protein_g}
                 target={target.macros.protein_g}
               />
               <MacroRemainder
-                carbs={{
-                  consumed: consumed.carbs_g,
-                  target: target.macros.carbs_g,
-                }}
+                carbs={{ consumed: consumed.carbs_g, target: target.macros.carbs_g }}
                 fat={{ consumed: consumed.fat_g, target: target.macros.fat_g }}
               />
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Today&rsquo;s food</CardTitle>
-          <CardDescription>
-            {day.entries.length === 0
-              ? "Nothing logged yet."
-              : `${day.entries.length} ${day.entries.length === 1 ? "entry" : "entries"} · ${Math.round(consumed.kcal)} kcal`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {day.entries.length > 0 ? (
-            <ul className="divide-y">
-              {day.entries.slice(0, 6).map((entry) => (
-                <li
-                  key={entry.id}
-                  className="flex items-baseline justify-between gap-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{entry.foodName}</p>
-                    <p className="text-muted-foreground truncate text-xs">
-                      {describePortion(
-                        entry.amount,
-                        entry.unit,
-                        entry.servingLabel,
-                      )}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm tabular-nums">
-                    {Math.round(entry.kcal)} kcal
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          <Link href="/diary" className={LINK_CLASS}>
-            {day.entries.length > 6
-              ? `Open the diary — ${day.entries.length - 6} more`
-              : day.entries.length === 0
-                ? "Log your first food"
-                : "Open the diary"}
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Training</CardTitle>
-          <CardDescription>
-            {runningSession
-              ? `${runningSession.name} is in progress.`
-              : lastSession
-                ? `Last: ${lastSession.name} · ${dayOf(lastSession.startedAt, profile.timezone)}`
-                : "No session logged yet."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {!runningSession && lastSession ? (
-            <p className="text-muted-foreground text-sm">
-              {summaryLine(lastSession, units)}
-            </p>
-          ) : null}
-          <Link
-            href={runningSession ? "/training/session" : "/training"}
-            className={LINK_CLASS}
-          >
-            {runningSession
-              ? "Resume session"
-              : lastSession
-                ? "Open training"
-                : "Start training"}
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        </CardContent>
-      </Card>
-
-      {/* Only while a phase is running: outside one it is noise. */}
-      {phase ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Day {phase.dayNumber} of {phase.totalDays}
-            </CardTitle>
-            <CardDescription>{phase.projectionNote}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Stat
-                label="Trend now"
-                value={
-                  phase.currentTrendKg === null
-                    ? "—"
-                    : formatMass(phase.currentTrendKg, units)
-                }
-              />
-              <Stat
-                label="Projected"
-                value={
-                  phase.projectedEndWeightKg === null
-                    ? "—"
-                    : formatMass(phase.projectedEndWeightKg, units)
-                }
-              />
-              <Stat
-                label="Recommended"
-                value={
-                  phase.recommendedLowKg === null ||
-                  phase.recommendedHighKg === null
-                    ? "—"
-                    : `${kgToDisplay(phase.recommendedLowKg, units).toFixed(1)}–${kgToDisplay(
-                        phase.recommendedHighKg,
-                        units,
-                      ).toFixed(1)} ${massUnitLabel(units)}`
-                }
-              />
             </dl>
-            <p className="mt-3">
-              <Link href="/phase" className={LINK_CLASS}>
-                Open the phase
-                <ArrowRight className="size-4" aria-hidden />
-              </Link>
+          </>
+        ) : (
+          <div className="mt-4 space-y-1">
+            <p className="display text-4xl">No target yet</p>
+            <p className="text-slab-muted text-sm">
+              Record a weigh-in and your goal to get a daily target.
             </p>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        )}
+      </Slab>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Weight</CardTitle>
-          <CardDescription>
-            {weight.latestKg === null
-              ? "No weigh-in recorded yet."
-              : `${formatMass(weight.latestKg, units)} latest · trend ${
-                  weight.latestTrendKg === null
-                    ? "—"
-                    : formatMass(weight.latestTrendKg, units)
-                }`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <TrendChart
-            points={weight.trend}
-            unitLabel={massUnitLabel(units)}
-            toDisplay={(kg) => kgToDisplay(kg, units)}
-            height={140}
-          />
-          <dl className="grid grid-cols-3 gap-4">
-            <Stat label="Current" value={formatMass(latestWeightKg, units)} />
-            <Stat
-              label="Final goal"
-              value={
-                goalWeightKg === null ? "Not set" : formatMass(goalWeightKg, units)
-              }
-            />
-            <Stat
-              label="To go"
-              value={
-                toGoKg === null
+      <div className="mt-4 space-y-3 lg:col-span-5 lg:mt-10">
+        {/* The one volt action of the screen. */}
+        <Link
+          href={emptyMeal ? `/diary?add=${emptyMeal.id}` : "/diary?add=1"}
+          className="bg-volt text-volt-foreground flex min-h-[4.5rem] items-center gap-3 rounded-2xl px-5"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-lg leading-tight font-bold">
+              {emptyMeal ? `Log ${emptyMeal.name.toLowerCase()}` : "Add food"}
+            </span>
+            <span className="block text-sm opacity-75">
+              {day.entries.length === 0
+                ? "Nothing logged today yet"
+                : emptyMeal
+                  ? `${day.entries.length} ${day.entries.length === 1 ? "entry" : "entries"} so far today`
+                  : "Every meal has something in it"}
+            </span>
+          </span>
+          <Plus className="size-6 shrink-0" aria-hidden />
+        </Link>
+
+        {weighedToday ? null : (
+          <Link
+            href="/weight"
+            className="bg-card flex min-h-14 items-center gap-3 rounded-2xl px-5"
+          >
+            <Scale className="text-muted-foreground size-5 shrink-0" aria-hidden />
+            <span className="flex-1 text-sm font-semibold">Weigh in today</span>
+            <ArrowRight className="text-muted-foreground size-4" aria-hidden />
+          </Link>
+        )}
+
+        <section aria-labelledby="today-training" className="bg-card rounded-2xl p-5">
+          <h2 id="today-training" className="eyebrow">
+            {training.running
+              ? "Training · in progress"
+              : training.planned
+                ? "Training · planned today"
+                : "Training"}
+          </h2>
+          {training.running ? (
+            // The session bar at the bottom of every screen is the way
+            // back in; saying it twice here would be two buttons for one
+            // thing.
+            <p className="display mt-2 truncate text-3xl">{training.running.name}</p>
+          ) : training.planned ? (
+            <div className="mt-2 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="display truncate text-3xl">{training.planned.name}</p>
+                <p className="text-muted-foreground text-sm">{training.planned.detail}</p>
+              </div>
+              <StartWorkoutButton
+                templateId={training.planned.templateId}
+                className="rounded-full px-5"
+              >
+                Start
+              </StartWorkoutButton>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-center gap-3">
+              <p className="min-w-0 flex-1 text-sm">
+                {training.last
+                  ? "Nothing planned today."
+                  : "No session logged yet."}
+              </p>
+              <Button asChild variant="outline" className="rounded-full px-5">
+                <Link href="/training">
+                  {training.last ? "Choose a workout" : "Start training"}
+                </Link>
+              </Button>
+            </div>
+          )}
+          {training.last ? (
+            <p className="text-muted-foreground mt-4 border-t pt-3 text-sm">
+              Last · {training.last.name},{" "}
+              {dayOf(training.last.startedAt, profile.timezone)} ·{" "}
+              {summaryLine(training.last, units)}
+            </p>
+          ) : null}
+        </section>
+
+        <Link
+          href="/weight"
+          aria-label="Weight trend — open progress"
+          className="bg-card grid grid-cols-[auto_1fr] items-center gap-5 rounded-2xl p-5"
+        >
+          <div>
+            <p className="eyebrow">Weight trend</p>
+            <p className="mt-1">
+              <span className="figure text-5xl">
+                {weight.latestTrendKg === null
                   ? "—"
-                  : `${kgToDisplay(Math.abs(toGoKg), units).toFixed(1)} ${massUnitLabel(units)}`
-              }
-            />
-          </dl>
-        </CardContent>
-      </Card>
+                  : kgToDisplay(weight.latestTrendKg, units).toFixed(1)}
+              </span>
+              <span className="text-muted-foreground text-sm"> {massUnitLabel(units)}</span>
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm tabular-nums">
+              {weight.changeKgPerWeek === null
+                ? "Rate after more weigh-ins"
+                : `${weight.changeKgPerWeek > 0 ? "+" : ""}${kgToDisplay(weight.changeKgPerWeek, units).toFixed(2)} ${massUnitLabel(units)}/wk`}
+              {toGoKg === null
+                ? ""
+                : ` · ${kgToDisplay(Math.abs(toGoKg), units).toFixed(1)} to goal`}
+            </p>
+          </div>
+          <Sparkline
+            values={weight.trend.map((point) => point.trendKg)}
+            label="Weight trend over time"
+          />
+        </Link>
 
-      <p className="text-muted-foreground text-xs">
-        CalDef provides estimates for personal tracking. It is not medical or
-        dietary advice.
-      </p>
+        {/* Only while a phase is running: outside one it is noise. */}
+        {phase ? (
+          <Link href="/phase" className="bg-card block rounded-2xl p-5">
+            <p className="eyebrow">
+              Cut phase · day {phase.dayNumber} of {phase.totalDays}
+            </p>
+            <p className="mt-1 text-sm">{phase.projectionNote}</p>
+            <p className="text-muted-foreground mt-2 text-sm tabular-nums">
+              Trend{" "}
+              {phase.currentTrendKg === null ? "—" : formatMass(phase.currentTrendKg, units)}
+              {" · "}projected{" "}
+              {phase.projectedEndWeightKg === null
+                ? "—"
+                : formatMass(phase.projectedEndWeightKg, units)}
+            </p>
+          </Link>
+        ) : null}
+
+        <p className="text-muted-foreground px-1 pt-2 text-xs">
+          CalDef provides estimates for personal tracking. It is not medical or
+          dietary advice.
+        </p>
+      </div>
     </div>
   );
 }
-
-/** A text link that is still a comfortable thing to tap. */
-const LINK_CLASS =
-  "text-primary -mx-1 inline-flex min-h-10 items-center gap-1 rounded-md px-1 text-sm font-semibold";

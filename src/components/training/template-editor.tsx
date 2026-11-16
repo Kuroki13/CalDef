@@ -120,6 +120,9 @@ export function TemplateEditor({
         measure: item.measure,
         instructions: null,
         custom: true,
+        force: null,
+        mechanic: null,
+        source: null,
       };
       return {
         key: newKey(),

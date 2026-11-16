@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, MessageCircle, Pencil, Repeat, Star, Trash2 } from "lucide-react";
 import { useActionState, useState } from "react";
 
 import {
@@ -38,15 +39,29 @@ export function EntryRow({
     {},
   );
 
+  const [open, setOpen] = useState(false);
+  const uncertain = entry.confidence === "estimated" || entry.confidence === "rough";
+  const actionClass = "min-h-10 rounded-full px-3.5";
+
   return (
-    <li className="py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium">{entry.foodName}</span>
-            <ConfidenceBadge level={entry.confidence} />
-          </p>
-          <p className="text-muted-foreground truncate text-xs">
+    <li className="py-1">
+      {/*
+        One line to read, one tap to act. The row is the food, its portion
+        and its calories; everything that can be done to it opens beneath,
+        so a meal of five foods is five lines and not twenty-five buttons.
+      */}
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label={`Actions for ${entry.foodName}`}
+        className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[0.9375rem] font-medium">
+            {entry.foodName}
+          </span>
+          <span className="text-muted-foreground block truncate text-xs">
             {entry.isEstimate ? (
               // Never dressed as a portion of a food: it is not one.
               <span className="text-foreground font-medium">Your estimate</span>
@@ -60,117 +75,126 @@ export function EntryRow({
             {" · "}
             {Math.round(entry.protein_g)}P {Math.round(entry.carbs_g)}C{" "}
             {Math.round(entry.fat_g)}F
-          </p>
-          {state.error ? (
-            <p className="text-destructive text-xs">{state.error}</p>
-          ) : null}
-        </div>
+          </span>
+        </span>
+        {/* Shown in the row only when the figure is uncertain; a reliable
+            one says so once the row is opened, where there is room. */}
+        {uncertain ? <ConfidenceBadge level={entry.confidence} /> : null}
+        <span className="shrink-0 text-right whitespace-nowrap">
+          <span className="figure text-2xl">{Math.round(entry.kcal)}</span>
+          <span className="text-muted-foreground font-sans text-xs"> kcal</span>
+        </span>
+        <ChevronDown
+          aria-hidden
+          className={`text-muted-foreground size-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {state.error ? (
+        <p className="text-destructive pb-2 text-xs">{state.error}</p>
+      ) : null}
 
-        {editing ? (
-          <form action={formAction} className="flex items-center gap-2">
-            <input type="hidden" name="entryId" value={entry.id} />
-            <Input
-              name="amount"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0.01"
-              defaultValue={entry.amount}
-              className="w-24"
-              aria-label={`Amount for ${entry.foodName}`}
-            />
-            <PendingButton type="submit" size="sm" pendingLabel="Saving…">
-              Save
-            </PendingButton>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => setEditing(false)}
-            >
-              Cancel
-            </Button>
-          </form>
-        ) : (
-          <div className="flex items-center gap-1">
-            <span className="text-sm tabular-nums">
-              {Math.round(entry.kcal)} kcal
-            </span>
-            {/* A recipe entry has no single food, so there is nothing to star. */}
-            {entry.foodId !== null ? (
-              <form action={toggleFavoriteAction}>
-                <input type="hidden" name="foodId" value={entry.foodId} />
-                <input
-                  type="hidden"
-                  name="favorite"
-                  value={String(entry.isFavorite)}
-                />
+      {open ? (
+        <div className="space-y-2.5 pb-3">
+          {uncertain ? null : (
+            <p className="text-muted-foreground flex items-center gap-2 text-xs">
+              <ConfidenceBadge level={entry.confidence} />
+              How far this figure can be trusted.
+            </p>
+          )}
+          {editing ? (
+            <form action={formAction} className="flex items-center gap-2">
+              <input type="hidden" name="entryId" value={entry.id} />
+              <Input
+                name="amount"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min="0.01"
+                defaultValue={entry.amount}
+                className="w-28"
+                aria-label={`Amount for ${entry.foodName}`}
+              />
+              <span className="text-muted-foreground text-sm">{entry.unit}</span>
+              <PendingButton type="submit" pendingLabel="Saving…" className="ml-auto">
+                Save
+              </PendingButton>
+              <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            </form>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* An estimate has no food to recompute a new amount from;
+                  remove it and add it again instead. */}
+              {entry.isEstimate ? null : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={actionClass}
+                  onClick={() => setEditing(true)}
+                  aria-label={`Edit ${entry.foodName}`}
+                >
+                  <Pencil aria-hidden /> Amount
+                </Button>
+              )}
+              {today && mealTypes.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={actionClass}
+                  onClick={() => setAgain((value) => !value)}
+                  aria-label={`Repeat ${entry.foodName}`}
+                  aria-expanded={again}
+                >
+                  <Repeat aria-hidden /> Again
+                </Button>
+              ) : null}
+              {aiEnabled && entry.foodId !== null ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={actionClass}
+                  onClick={() => setAmending((value) => !value)}
+                  aria-label={`Amend ${entry.foodName} in words`}
+                  aria-expanded={amending}
+                >
+                  <MessageCircle aria-hidden /> In words
+                </Button>
+              ) : null}
+              {/* A recipe entry has no single food, so there is nothing to star. */}
+              {entry.foodId !== null ? (
+                <form action={toggleFavoriteAction}>
+                  <input type="hidden" name="foodId" value={entry.foodId} />
+                  <input type="hidden" name="favorite" value={String(entry.isFavorite)} />
+                  <PendingButton
+                    type="submit"
+                    variant="secondary"
+                    className={actionClass}
+                    aria-label={
+                      entry.isFavorite ? `Unstar ${entry.foodName}` : `Star ${entry.foodName}`
+                    }
+                    aria-pressed={entry.isFavorite}
+                  >
+                    <Star aria-hidden className={entry.isFavorite ? "fill-current" : ""} />
+                    {entry.isFavorite ? "Starred" : "Star"}
+                  </PendingButton>
+                </form>
+              ) : null}
+              <form action={deleteEntry} className="ml-auto">
+                <input type="hidden" name="entryId" value={entry.id} />
                 <PendingButton
                   type="submit"
-                  size="sm"
                   variant="ghost"
-                  aria-label={
-                    entry.isFavorite
-                      ? `Unstar ${entry.foodName}`
-                      : `Star ${entry.foodName}`
-                  }
-                  aria-pressed={entry.isFavorite}
+                  className={`${actionClass} text-destructive`}
+                  aria-label={`Remove ${entry.foodName}`}
                 >
-                  {entry.isFavorite ? "★" : "☆"}
+                  <Trash2 aria-hidden /> Remove
                 </PendingButton>
               </form>
-            ) : null}
-            {aiEnabled && entry.foodId !== null ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setAmending((open) => !open)}
-                aria-label={`Amend ${entry.foodName} in words`}
-                aria-expanded={amending}
-              >
-                Amend
-              </Button>
-            ) : null}
-            {today && mealTypes.length > 0 ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setAgain((open) => !open)}
-                aria-label={`Repeat ${entry.foodName}`}
-                aria-expanded={again}
-              >
-                Again
-              </Button>
-            ) : null}
-            {/* An estimate has no food to recompute a new amount from;
-                remove it and add it again instead. */}
-            {entry.isEstimate ? null : (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setEditing(true)}
-                aria-label={`Edit ${entry.foodName}`}
-              >
-                Edit
-              </Button>
-            )}
-            <form action={deleteEntry}>
-              <input type="hidden" name="entryId" value={entry.id} />
-              <PendingButton
-                type="submit"
-                size="sm"
-                variant="ghost"
-                aria-label={`Remove ${entry.foodName}`}
-              >
-                Remove
-              </PendingButton>
-            </form>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {amending ? (
         <AmendInWords entry={entry} onDone={() => setAmending(false)} />

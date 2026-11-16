@@ -106,7 +106,7 @@ export function TrendChart({
         <path
           d={trendPath}
           fill="none"
-          className="stroke-primary"
+          className="stroke-foreground"
           strokeWidth={2.5}
           strokeLinejoin="round"
           strokeLinecap="round"

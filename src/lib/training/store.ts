@@ -18,6 +18,8 @@ import {
   type Exercise,
   type Measure,
   type SessionExercise,
+  type ScheduledWorkout,
+  type WorkoutProgram,
   type WorkoutSession,
   type WorkoutSet,
   type WorkoutTemplate,
@@ -39,6 +41,9 @@ function toExercise(row: Tables<"exercises">): Exercise {
     measure: isMeasure(row.measure) ? row.measure : "weight_reps",
     instructions: row.instructions,
     custom: row.user_id !== null,
+    force: row.force === "push" || row.force === "pull" || row.force === "static" ? row.force : null,
+    mechanic: row.mechanic === "compound" || row.mechanic === "isolation" ? row.mechanic : null,
+    source: row.source,
   };
 }
 
@@ -99,16 +104,35 @@ function toSession(row: SessionRow): WorkoutSession {
 
 const SESSION_SELECT = "*, workout_session_exercises(*, workout_sets(*))";
 
-/** The catalogue and the user's own exercises, without retired ones. */
+/** PostgREST returns at most this many rows per request. */
+const PAGE = 1000;
+
+/**
+ * The catalogue and the user's own exercises, without retired ones.
+ *
+ * Read in pages, because the catalogue alone is about a thousand rows and
+ * one request stops at a thousand. Instructions are left out: the list is
+ * sent whole to the picker so that search works with no connection, and
+ * the cues — most of the bytes — are only needed on an exercise's own page.
+ */
 export async function listExercises(): Promise<Exercise[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("exercises")
-    .select("*")
-    .is("archived_at", null)
-    .order("name");
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(toExercise);
+  const rows: Exercise[] = [];
+  for (let from = 0; from < 10 * PAGE; from += PAGE) {
+    const { data, error } = await supabase
+      .from("exercises")
+      .select(
+        "id, user_id, slug, name, aliases, muscle_group, secondary_muscles, equipment, measure, force, mechanic, source, archived_at, created_at, updated_at",
+      )
+      .is("archived_at", null)
+      .order("name")
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) rows.push(toExercise({ ...row, instructions: null }));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows;
 }
 
 /** One exercise the user can see — including a retired one, for its history. */
@@ -127,16 +151,26 @@ export async function getExercise(
 
 type TemplateRow = Tables<"workout_templates"> & {
   workout_template_exercises: (Tables<"workout_template_exercises"> & {
-    exercises: Pick<Tables<"exercises">, "name" | "measure"> | null;
+    exercises: Pick<Tables<"exercises">, "name" | "measure" | "muscle_group"> | null;
   })[];
 };
 
 function toTemplate(row: TemplateRow): WorkoutTemplate {
+  const counts = new Map<string, number>();
+  for (const item of row.workout_template_exercises) {
+    const group = item.exercises?.muscle_group;
+    if (group) counts.set(group, (counts.get(group) ?? 0) + 1);
+  }
   return {
     id: row.id,
     name: row.name,
     notes: row.notes,
     updatedAt: row.updated_at,
+    programId: row.program_id,
+    muscles: [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([group]) => group)
+      .filter(isMuscleGroup),
     items: [...row.workout_template_exercises]
       .sort((a, b) => a.position - b.position)
       .map((item) => ({
@@ -154,7 +188,8 @@ function toTemplate(row: TemplateRow): WorkoutTemplate {
   };
 }
 
-const TEMPLATE_SELECT = "*, workout_template_exercises(*, exercises(name, measure))";
+const TEMPLATE_SELECT =
+  "*, workout_template_exercises(*, exercises(name, measure, muscle_group))";
 
 export async function listTemplates(): Promise<WorkoutTemplate[]> {
   const supabase = await createClient();
@@ -311,4 +346,71 @@ function collectHistory(rows: readonly HistoryRow[]): Map<number, ExerciseSessio
     );
   }
   return out;
+}
+
+export async function listPrograms(): Promise<WorkoutProgram[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_programs")
+    .select("id, name")
+    .order("name");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+type ScheduleRow = {
+  id: number;
+  scheduled_on: string;
+  template_id: number;
+  workout_templates: { name: string; workout_template_exercises: { id: number }[] } | null;
+};
+
+function toScheduled(row: ScheduleRow): ScheduledWorkout {
+  return {
+    id: row.id,
+    date: row.scheduled_on,
+    templateId: row.template_id,
+    name: row.workout_templates?.name ?? "Workout",
+    exerciseCount: row.workout_templates?.workout_template_exercises.length ?? 0,
+  };
+}
+
+const SCHEDULE_SELECT =
+  "id, scheduled_on, template_id, workout_templates(name, workout_template_exercises(id))";
+
+/** Workouts planned between two dates, inclusive, earliest first. */
+export async function listSchedule(from: string, to: string): Promise<ScheduledWorkout[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_schedule")
+    .select(SCHEDULE_SELECT)
+    .gte("scheduled_on", from)
+    .lte("scheduled_on", to)
+    .order("scheduled_on")
+    .order("id");
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as ScheduleRow[]).map(toScheduled);
+}
+
+/** What is planned for one day. */
+export async function getScheduledFor(date: string): Promise<ScheduledWorkout[]> {
+  return listSchedule(date, date);
+}
+
+/**
+ * Start times of completed sessions since a date — for the calendar and
+ * the frequency chart. Only the moments: no sets are loaded.
+ */
+export async function listSessionStarts(
+  sinceIso: string,
+): Promise<{ id: number; name: string; startedAt: string }[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select("id, name, started_at")
+    .eq("status", "completed")
+    .gte("started_at", sinceIso)
+    .order("started_at");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name, startedAt: row.started_at }));
 }

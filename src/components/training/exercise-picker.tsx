@@ -42,6 +42,8 @@ import {
 } from "@/lib/training/types";
 import { cn } from "@/lib/utils";
 
+const PICKER_PAGE = 40;
+
 const SELECT_CLASS =
   "border-input bg-card h-10 w-full rounded-lg border px-3 text-base md:text-sm";
 
@@ -76,7 +78,7 @@ function Chips<T extends string>({
             className={cn(
               "min-h-9 shrink-0 rounded-full border px-3 text-sm font-medium transition-colors",
               active
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-foreground bg-foreground text-background"
                 : "bg-card text-muted-foreground hover:text-foreground",
             )}
           >
@@ -107,6 +109,14 @@ export function ExerciseList({
   const [muscle, setMuscle] = useState<MuscleGroup | null>(null);
   const [equipment, setEquipment] = useState<Equipment | null>(null);
   const [creating, setCreating] = useState(false);
+  // Show a screenful; the rest on request. A new search starts at the top.
+  const [shown, setShown] = useState(PICKER_PAGE);
+  const filterKey = `${query}|${muscle}|${equipment}`;
+  const [lastKey, setLastKey] = useState(filterKey);
+  if (filterKey !== lastKey) {
+    setLastKey(filterKey);
+    setShown(PICKER_PAGE);
+  }
 
   const results = useMemo(
     () => searchExercises(exercises, { query, muscleGroup: muscle, equipment }),
@@ -153,7 +163,7 @@ export function ExerciseList({
 
       {results.length > 0 ? (
         <ul className="divide-y rounded-xl border bg-card">
-          {results.map((exercise) => {
+          {results.slice(0, shown).map((exercise) => {
             const ticked = selected.includes(exercise.id);
             return (
               <li key={exercise.id}>
@@ -168,7 +178,7 @@ export function ExerciseList({
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full border",
                       ticked
-                        ? "border-primary bg-primary text-primary-foreground"
+                        ? "border-foreground bg-foreground text-volt"
                         : "border-input",
                     )}
                   >
@@ -194,6 +204,17 @@ export function ExerciseList({
           Nothing matches. You can create it below.
         </p>
       )}
+
+      {results.length > shown ? (
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full rounded-full"
+          onClick={() => setShown((n) => n + PICKER_PAGE)}
+        >
+          Show {Math.min(PICKER_PAGE, results.length - shown)} more of {results.length - shown}
+        </Button>
+      ) : null}
 
       {creating ? (
         <CreateExerciseForm
@@ -265,6 +286,9 @@ export function CreateExerciseForm({
         measure,
         instructions: instructions.trim() || null,
         custom: true,
+        force: null,
+        mechanic: null,
+        source: null,
       });
     } catch {
       setError("No connection. The exercise was not created.");

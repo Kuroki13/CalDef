@@ -336,3 +336,76 @@ describe("the session's own exercises", () => {
     expect(calls).toHaveLength(2);
   });
 });
+
+describe("programmes and plans", () => {
+  it("creates a programme owned by the signed-in user", async () => {
+    answers.push({ data: { id: 3 } });
+    expect(await actions.createProgramAction(" Push / Pull / Legs ")).toEqual({ ok: true, id: 3 });
+    expect(op(calls[0], "insert")?.[0]).toEqual({ user_id: "user-a", name: "Push / Pull / Legs" });
+    expect((await actions.createProgramAction("  ")).ok).toBe(false);
+  });
+
+  it("says so when a workout is filed under someone else's programme", async () => {
+    answers.push({ error: { code: "42501" } });
+    expect(await actions.assignProgramAction({ templateId: 11, programId: 99 })).toEqual({
+      ok: false, error: "That programme is not available.",
+    });
+  });
+
+  it("plans a workout once per day, however often it is asked", async () => {
+    answers.push({ error: null });
+    expect((await actions.scheduleWorkoutAction({ templateId: 11, date: "2026-11-20" })).ok).toBe(true);
+    expect(op(calls[0], "upsert")).toEqual([
+      { user_id: "user-a", template_id: 11, scheduled_on: "2026-11-20" },
+      { onConflict: "user_id,template_id,scheduled_on", ignoreDuplicates: true },
+    ]);
+  });
+
+  it("refuses a date that is not one", async () => {
+    expect((await actions.scheduleWorkoutAction({ templateId: 11, date: "next friday" })).ok).toBe(false);
+    expect((await actions.moveScheduledAction({ id: 4, date: "2026-02-31" })).ok).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("moves or cancels an occurrence without touching the workout", async () => {
+    answers.push({ error: null }, { error: null });
+    await actions.moveScheduledAction({ id: 4, date: "2026-11-22" });
+    await actions.cancelScheduledAction(4);
+    expect(calls.map((c) => c.table)).toEqual(["workout_schedule", "workout_schedule"]);
+    expect(op(calls[0], "update")?.[0]).toEqual({ scheduled_on: "2026-11-22" });
+  });
+});
+
+describe("correctSetAction — fixing a finished session", () => {
+  const owner = (status: string, measure = "weight_reps") => ({
+    data: { id: 21, workout_session_exercises: { measure, session_id: 7, workout_sessions: { status } } },
+  });
+  const fix = (over = {}) => ({ setId: 21, weightKg: 82.5, reps: 8, durationS: null, distanceM: null, ...over });
+
+  it("corrects the figures and leaves when the set was done alone", async () => {
+    answers.push(owner("completed"), { error: null });
+    expect((await actions.correctSetAction(fix())).ok).toBe(true);
+    const update = op(calls[1], "update")?.[0] as Record<string, unknown>;
+    expect(update).toEqual({ weight_kg: 82.5, reps: 8, duration_s: null, distance_m: null });
+    expect(update).not.toHaveProperty("completed_at");
+  });
+
+  it("is not a back door into a session in progress", async () => {
+    answers.push(owner("in_progress"));
+    expect((await actions.correctSetAction(fix())).ok).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("will not leave half a set in history", async () => {
+    answers.push(owner("completed"));
+    expect((await actions.correctSetAction(fix({ reps: null }))).ok).toBe(false);
+    answers.push(owner("completed", "duration"));
+    expect((await actions.correctSetAction(fix({ weightKg: null, reps: null }))).ok).toBe(false);
+  });
+
+  it("refuses impossible figures and sets that are not there", async () => {
+    expect((await actions.correctSetAction(fix({ weightKg: -1 }))).ok).toBe(false);
+    answers.push({ data: null });
+    expect((await actions.correctSetAction(fix())).ok).toBe(false);
+  });
+});

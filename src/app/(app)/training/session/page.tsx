@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ActiveSession } from "@/components/training/active-session";
 import { getAccountSetup } from "@/lib/profile";
+import { requireUserId } from "@/lib/supabase/server";
 import {
   getActiveSession,
   getPreviousPerformance,
@@ -22,6 +23,7 @@ export default async function SessionPage({
 }) {
   const { profile } = await getAccountSetup();
   if (!profile) return null;
+  const userId = await requireUserId();
 
   const session = await getActiveSession();
   if (!session) redirect("/training");
@@ -42,6 +44,7 @@ export default async function SessionPage({
       previous={previous}
       exercises={exercises}
       units={profile.unit_system}
+      userId={userId}
       resumed={(await searchParams).resumed === "1"}
     />
   );

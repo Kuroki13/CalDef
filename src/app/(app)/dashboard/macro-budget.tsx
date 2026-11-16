@@ -1,27 +1,24 @@
 /**
- * What is left of today, which is the question the dashboard exists to
- * answer.
+ * What is left of today — the figures the slab carries.
  *
  * Calories and protein are not the same kind of number and are deliberately
- * not shown as though they were. On a cut, calories are a **ceiling** you
+ * not worded as though they were. On a cut, calories are a **ceiling** you
  * stay under — "left" is headroom, and running out is the normal end of a
- * good day. Protein is a **floor** you have to reach — "left" is a
- * shortfall, and ending the day with some remaining is the failure.
- * Rendering both as identical progress bars invites reading a protein
- * shortfall as spare room.
- *
- * So protein leads, is stated as a target to reach rather than a budget to
- * spend, and says plainly when it has been met. Carbs and fat sit under
- * them as the supporting figures they are: worth seeing, rarely the
- * decision.
+ * good day. Protein is a **floor** you have to reach — what remains is a
+ * shortfall, and ending the day with some remaining is the failure. So
+ * calories count down ("left"), protein counts up ("to go", then "Target
+ * met"), and protein alone gets the volt bar: it is the one macro a day on
+ * a cut is judged by.
  *
  * Going over is stated, not shouted. A day at 2 300 against 2 200 is a fact
  * about a day, not an emergency, and colouring it like an error trains
  * someone to stop reading the screen.
+ *
+ * These are written to sit on the slab (`Slab` in page-header.tsx): light
+ * text on ink.
  */
 
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { SlabBar } from "@/components/page-header";
 
 export type MacroFigures = {
   consumed: number;
@@ -34,68 +31,105 @@ function pct(consumed: number, target: number): number {
 }
 
 /**
- * The headline: calories as a budget, with what is left of it.
+ * The headline: one number, as large as the screen allows, and the words
+ * that say what it is.
  */
 export function CalorieBudget({
   consumed,
   target,
   label,
-}: MacroFigures & { label: string }) {
+  compact = false,
+}: MacroFigures & {
+  label: string;
+  /** A smaller figure, where the screen has a list to get to. */
+  compact?: boolean;
+}) {
   const left = Math.round(target - consumed);
   const over = left < 0;
 
   return (
-    <div className="space-y-3">
+    <div>
       <p className="eyebrow">{label}</p>
-      <div className="flex items-end justify-between gap-3">
-        <p className="figure text-5xl leading-none">
-          {over ? `${Math.abs(left)} over` : `${left} left`}
+      <p className="mt-3 flex items-end gap-3">
+        <span
+          className={
+            compact
+              ? "figure text-7xl leading-[0.8]"
+              : "figure text-[6.75rem] leading-[0.8] lg:text-[9rem]"
+          }
+        >
+          {Math.abs(left)}
+        </span>
+        <span className="text-slab-muted pb-1 text-sm leading-tight">
+          {over ? "kcal over" : "kcal left"}
+          <br />
+          today
+        </span>
+      </p>
+      <SlabBar
+        value={pct(consumed, target)}
+        tone="volt"
+        className="mt-5 h-2"
+        label="Calories eaten against the target"
+      />
+      <p className="text-slab-muted mt-2 flex justify-between text-xs tabular-nums">
+        <span>{Math.round(consumed)} / {Math.round(target)} kcal</span>
+        <span>{Math.round(pct(consumed, target))}%</span>
+      </p>
+    </div>
+  );
+}
+
+function MacroCell({
+  name,
+  figures,
+  tone,
+  status,
+}: {
+  name: string;
+  figures: MacroFigures;
+  tone: "volt" | "plain";
+  status: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="eyebrow">{name}</dt>
+      <dd>
+        <p className="mt-1 whitespace-nowrap">
+          <span className="figure text-3xl">{Math.round(figures.consumed)}</span>
+          <span className="text-slab-muted text-xs"> / {Math.round(figures.target)} g</span>
         </p>
-        <p className="text-muted-foreground pb-0.5 text-sm tabular-nums">
-          {Math.round(consumed)} / {Math.round(target)} kcal
-        </p>
-      </div>
-      <Progress value={pct(consumed, target)} className="h-2.5" />
+        <SlabBar
+          value={pct(figures.consumed, figures.target)}
+          tone={tone}
+          className="mt-2 h-1"
+          label={`${name} eaten against the target`}
+        />
+        <p className="text-slab-muted mt-1.5 text-xs tabular-nums">{status}</p>
+      </dd>
     </div>
   );
 }
 
 /**
- * Protein, as a floor rather than a ceiling.
- *
- * Given its own row above the other macros and its own sentence, because it
- * is the one number on a cut that a day can be judged by and the one most
- * easily missed by twenty grams without noticing.
+ * Protein, as a floor rather than a ceiling: counted up, and said plainly
+ * when it has been reached.
  */
 export function ProteinFloor({ consumed, target }: MacroFigures) {
   const short = Math.round(target - consumed);
   const met = short <= 0;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold">Protein</p>
-        <p className="text-muted-foreground text-sm tabular-nums">
-          {Math.round(consumed)} / {Math.round(target)} g
-        </p>
-      </div>
-      <Progress
-        value={pct(consumed, target)}
-        indicatorClassName="bg-macro-protein"
-      />
-      <p
-        className={cn(
-          "text-sm",
-          // Met is worth saying warmly; short is worth saying plainly.
-          // Neither is worth an alarm.
-          met ? "text-foreground font-medium" : "text-muted-foreground",
-        )}
-      >
-        {met
+    <MacroCell
+      name="Protein"
+      figures={{ consumed, target }}
+      tone="volt"
+      status={
+        met
           ? `Target met${short < 0 ? ` — ${Math.abs(short)} g over` : ""}.`
-          : `${short} g to go.`}
-      </p>
-    </div>
+          : `${short} g to go.`
+      }
+    />
   );
 }
 
@@ -108,30 +142,22 @@ export function MacroRemainder({
   fat: MacroFigures;
 }) {
   return (
-    <dl className="grid grid-cols-2 gap-5">
+    <>
       {[
-        { name: "Carbs", figures: carbs, fill: "bg-macro-carbs" },
-        { name: "Fat", figures: fat, fill: "bg-macro-fat" },
-      ].map(({ name, figures, fill }) => {
+        { name: "Carbs", figures: carbs },
+        { name: "Fat", figures: fat },
+      ].map(({ name, figures }) => {
         const left = Math.round(figures.target - figures.consumed);
         return (
-          <div key={name} className="space-y-1.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-sm font-semibold">{name}</dt>
-              <dd className="text-xs tabular-nums">
-                {Math.round(figures.consumed)} / {Math.round(figures.target)} g
-              </dd>
-            </div>
-            <Progress
-              value={pct(figures.consumed, figures.target)}
-              indicatorClassName={fill}
-            />
-            <p className="text-muted-foreground text-xs tabular-nums">
-              {left < 0 ? `${Math.abs(left)} g over` : `${left} g left`}
-            </p>
-          </div>
+          <MacroCell
+            key={name}
+            name={name}
+            figures={figures}
+            tone="plain"
+            status={left < 0 ? `${Math.abs(left)} g over` : `${left} g left`}
+          />
         );
       })}
-    </dl>
+    </>
   );
 }

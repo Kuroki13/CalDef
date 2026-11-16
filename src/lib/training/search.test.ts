@@ -20,6 +20,9 @@ const exercises: Exercise[] = catalogue.map((row, i) => ({
   measure: row.measure as Exercise["measure"],
   instructions: row.instructions,
   custom: false,
+  force: null,
+  mechanic: null,
+  source: null,
 }));
 
 const names = (query: string, extra = {}) =>

@@ -243,3 +243,54 @@ export function sessionSummary(
   }
   return { exercises: withWork, sets, volumeKg: volume };
 }
+
+/**
+ * Records that THIS session set, for the summary shown when it ends.
+ *
+ * A record needs something to beat: an exercise logged for the first time
+ * has a first result, not a record, and is left out. Ties are not records
+ * either — the earlier session keeps it.
+ */
+export function newRecords(
+  measure: Measure,
+  history: readonly ExerciseSessionRecord[],
+  sessionId: number,
+): PersonalRecord[] {
+  if (!history.some((record) => record.sessionId !== sessionId && record.sets.some(isDone))) {
+    return [];
+  }
+  const current = history.find((record) => record.sessionId === sessionId);
+  if (!current) return [];
+  const before = history.filter((record) => record.date < current.date);
+  if (before.length === 0) return [];
+  const previous = new Map(personalRecords(measure, before).map((r) => [r.kind, r.value]));
+  return personalRecords(measure, [current]).filter((record) => {
+    const old = previous.get(record.kind);
+    return old !== undefined && record.value > old;
+  });
+}
+
+/**
+ * What the number in the weight field means for this exercise.
+ *
+ * People load a dumbbell press as "28" (each hand) and a barbell as the
+ * total; an assisted machine's number is help, where less is harder. The
+ * app stores what was typed and says which convention it is, so the same
+ * exercise is always logged — and compared — the same way. Null when the
+ * plain meaning (the load moved) needs no note.
+ */
+export function loadConvention(exercise: {
+  name: string;
+  equipment: string;
+  slug?: string | null;
+}): string | null {
+  const name = exercise.name.toLowerCase();
+  if (name.includes("assisted")) return "Assistance weight — less is harder.";
+  if (exercise.slug?.startsWith("weighted-") || name.startsWith("weighted ")) {
+    return "Added weight only, not your bodyweight.";
+  }
+  if (exercise.equipment === "dumbbell") return "Weight of one dumbbell.";
+  if (exercise.equipment === "kettlebell") return "Weight of one kettlebell.";
+  if (exercise.equipment === "barbell") return "Total on the bar, bar included.";
+  return null;
+}

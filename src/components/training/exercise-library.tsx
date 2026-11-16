@@ -24,6 +24,8 @@ import {
   type MuscleGroup,
 } from "@/lib/training/types";
 
+const PAGE = 40;
+
 const SELECT_CLASS =
   "border-input bg-card h-10 w-full min-w-0 rounded-lg border px-3 text-base md:text-sm";
 
@@ -33,6 +35,15 @@ export function ExerciseLibrary({ exercises }: { exercises: Exercise[] }) {
   const [muscle, setMuscle] = useState<MuscleGroup | "">("");
   const [equipment, setEquipment] = useState<Equipment | "">("");
   const [creating, setCreating] = useState(false);
+  // A thousand rows is a list nobody scrolls: show a screenful, and more
+  // on request. Changing the search starts again from the top.
+  const [shown, setShown] = useState(PAGE);
+  const filterKey = `${query}|${muscle}|${equipment}`;
+  const [lastKey, setLastKey] = useState(filterKey);
+  if (filterKey !== lastKey) {
+    setLastKey(filterKey);
+    setShown(PAGE);
+  }
 
   const results = useMemo(
     () =>
@@ -87,7 +98,9 @@ export function ExerciseLibrary({ exercises }: { exercises: Exercise[] }) {
       </div>
 
       <p className="text-muted-foreground text-xs" aria-live="polite">
-        {results.length} of {exercises.length} exercises
+        {results.length === exercises.length
+          ? `${exercises.length} exercises`
+          : `${results.length} of ${exercises.length} exercises`}
       </p>
 
       {results.length === 0 ? (
@@ -95,8 +108,8 @@ export function ExerciseLibrary({ exercises }: { exercises: Exercise[] }) {
           Nothing matches. If the exercise is missing, create it below.
         </p>
       ) : (
-        <ul className="divide-y rounded-2xl border bg-card">
-          {results.map((exercise) => (
+        <ul className="divide-y bg-card rounded-2xl px-0">
+          {results.slice(0, shown).map((exercise) => (
             <li key={exercise.id}>
               <Link
                 href={`/training/exercises/${exercise.id}`}
@@ -115,6 +128,17 @@ export function ExerciseLibrary({ exercises }: { exercises: Exercise[] }) {
           ))}
         </ul>
       )}
+
+      {results.length > shown ? (
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full rounded-full"
+          onClick={() => setShown((n) => n + PAGE)}
+        >
+          Show {Math.min(PAGE, results.length - shown)} more of {results.length - shown}
+        </Button>
+      ) : null}
 
       {creating ? (
         <CreateExerciseForm

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/(app)/diary/actions", () => ({ deleteEntry: vi.fn(), updateEntryAmount: vi.fn() }));
@@ -22,6 +22,8 @@ describe("EntryRow — a Quick Add", () => {
     expect(screen.getByText("Your estimate")).toBeInTheDocument();
     expect(screen.getByText("Rough")).toHaveAccessibleName(/Rough confidence: Your own estimate/);
     expect(screen.queryByText(/0 g ·/)).not.toBeInTheDocument();
+    // What can be done to an entry opens beneath it.
+    fireEvent.click(screen.getByRole("button", { name: "Actions for Dinner out" }));
     expect(screen.queryByRole("button", { name: "Edit Dinner out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Star/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove Dinner out" })).toBeInTheDocument();

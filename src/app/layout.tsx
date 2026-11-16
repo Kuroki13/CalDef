@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 
 import { ServiceWorker } from "@/components/service-worker";
 import "./globals.css";
@@ -7,6 +7,18 @@ import "./globals.css";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+/**
+ * The display face: figures and titles. Condensed, so a four-digit calorie
+ * count can be very large and still fit a phone, which is the whole idea
+ * of the "scoreboard" (spec §16.1). Three weights, Latin only — about
+ * 60 KB, self-hosted by next/font, no request to Google at runtime.
+ */
+const display = Barlow_Condensed({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -61,7 +73,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1a1d2b",
+  themeColor: "#0f1216",
   // Extends the app under the notch and the home indicator, which is what
   // `black-translucent` above assumes.
   viewportFit: "cover",
@@ -73,7 +85,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}

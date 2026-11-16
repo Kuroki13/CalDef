@@ -79,13 +79,13 @@ export function ProgressChart({
         <path
           d={path}
           fill="none"
-          className="stroke-primary"
+          className="stroke-foreground"
           strokeWidth={2.5}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
         {points.map((p, i) => (
-          <circle key={p.sessionId} cx={x(i)} cy={y(p.value)} r={4} className="fill-primary stroke-card" strokeWidth={2} />
+          <circle key={p.sessionId} cx={x(i)} cy={y(p.value)} r={4} className="fill-volt stroke-foreground" strokeWidth={2} />
         ))}
         <text x={PADDING.left} y={HEIGHT - 6} className="fill-muted-foreground text-[11px]">
           {day(points[0].date)}

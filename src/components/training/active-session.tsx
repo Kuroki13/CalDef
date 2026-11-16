@@ -25,10 +25,14 @@ import {
   CircleAlert,
   CloudOff,
   EllipsisVertical,
+  Info,
+  Minus,
+  NotebookPen,
   Plus,
   Repeat,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -44,6 +48,7 @@ import {
   updateSessionExerciseAction,
   updateSessionNotesAction,
 } from "@/app/(app)/training/actions";
+import { Slab, SlabBar } from "@/components/page-header";
 import { PendingButton, Spinner } from "@/components/pending-button";
 import { ExercisePickerSheet } from "@/components/training/exercise-picker";
 import { REST_DONE_LINGER_MS, RestTimerBar } from "@/components/training/rest-timer";
@@ -81,7 +86,11 @@ import {
   weightUnit,
 } from "@/lib/training/format";
 import type { SetInput } from "@/lib/training/input";
-import { isCompletable, type ExerciseSessionRecord } from "@/lib/training/metrics";
+import {
+  isCompletable,
+  loadConvention,
+  type ExerciseSessionRecord,
+} from "@/lib/training/metrics";
 import {
   SaveQueue,
   type QueueState,
@@ -90,7 +99,10 @@ import {
 import {
   adjustRest,
   elapsedSeconds,
+  isPaused,
   parseRestTimer,
+  pauseRest,
+  resumeRest,
   startRest,
   type RestTimer,
 } from "@/lib/training/timer";
@@ -106,7 +118,14 @@ import { cn } from "@/lib/utils";
 
 type DraftExercise = Omit<SessionExercise, "sets"> & { sets: SetDraft[] };
 
-const STORAGE_PREFIX = "caldef.session.";
+/**
+ * Everything this screen keeps on the device lives under one prefix that
+ * names the ACCOUNT and the session: `caldef.<user>.session.<id>.…`. Two
+ * people sharing a phone therefore never see each other's unsent sets, and
+ * anything not belonging to the session on screen is removed on arrival.
+ * Signing out clears the lot (`clearTrainingStorage`).
+ */
+const STORAGE_ROOT = "caldef.";
 const REST_OPTIONS = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300];
 
 function browserStorage(key: string): QueueStorage | null {
@@ -122,13 +141,14 @@ function browserStorage(key: string): QueueStorage | null {
 }
 
 /** Leftovers of sessions that are no longer the one in progress. */
-function forgetOtherSessions(sessionId: number) {
+function forgetOtherSessions(keep: string) {
   try {
-    const keep = `${STORAGE_PREFIX}${sessionId}.`;
     const stale: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
-      if (key?.startsWith(STORAGE_PREFIX) && !key.startsWith(keep)) stale.push(key);
+      if (key?.startsWith(STORAGE_ROOT) && key.includes(".session.") && !key.startsWith(keep)) {
+        stale.push(key);
+      }
     }
     for (const key of stale) window.localStorage.removeItem(key);
   } catch {
@@ -143,7 +163,23 @@ type Props = {
   units: UnitSystem;
   /** True when "Start" opened a session that was already running. */
   resumed: boolean;
+  /** Whose device storage this is; see STORAGE_ROOT. */
+  userId: string;
 };
+
+/** Removes every unsent set and timer kept on this device. For sign-out. */
+export function clearTrainingStorage() {
+  try {
+    const stale: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(STORAGE_ROOT) && key.includes(".session.")) stale.push(key);
+    }
+    for (const key of stale) window.localStorage.removeItem(key);
+  } catch {
+    // Nothing stored, or storage unavailable.
+  }
+}
 
 /**
  * Rendered in the browser only: its first state is read from this device's
@@ -162,11 +198,12 @@ export function ActiveSession(props: Props) {
   return <ActiveSessionLive {...props} />;
 }
 
-function ActiveSessionLive({ session, previous, exercises: catalogue, units, resumed }: Props) {
+function ActiveSessionLive({ session, previous, exercises: catalogue, units, resumed, userId }: Props) {
   const router = useRouter();
   const now = useNow(500);
-  const queueKey = `${STORAGE_PREFIX}${session.id}.queue`;
-  const restKey = `${STORAGE_PREFIX}${session.id}.rest`;
+  const storagePrefix = `${STORAGE_ROOT}${userId}.session.${session.id}.`;
+  const queueKey = `${storagePrefix}queue`;
+  const restKey = `${storagePrefix}rest`;
 
   const [saveState, setSaveState] = useState<QueueState>({
     status: "saved", pending: 0, error: null,
@@ -218,21 +255,23 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [openNotes, setOpenNotes] = useState<number[]>([]);
   const [finishing, setFinishing] = useState(false);
   const buzzedFor = useRef<number | null>(null);
 
   useEffect(() => {
-    forgetOtherSessions(session.id);
+    forgetOtherSessions(storagePrefix);
     queue.resume();
     const retry = () => queue.retry();
     window.addEventListener("online", retry);
     return () => window.removeEventListener("online", retry);
-  }, [queue, session.id]);
+  }, [queue, storagePrefix]);
 
   // A short buzz when the rest ends — only while the app is open, which is
   // the only time a web page is allowed to.
   useEffect(() => {
-    if (!rest || now < rest.endsAt || buzzedFor.current === rest.endsAt) return;
+    if (!rest || isPaused(rest) || now < rest.endsAt || buzzedFor.current === rest.endsAt) return;
     buzzedFor.current = rest.endsAt;
     if (now - rest.endsAt < 2000) navigator.vibrate?.(200);
   }, [rest, now]);
@@ -468,45 +507,71 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
 
   const doneSets = items.reduce((n, e) => n + e.sets.filter((s) => s.completedAt).length, 0);
   const totalSets = items.reduce((n, e) => n + e.sets.length, 0);
-  const showRest = rest !== null && now < rest.endsAt + REST_DONE_LINGER_MS;
+  const showRest =
+    rest !== null && (isPaused(rest) || now < rest.endsAt + REST_DONE_LINGER_MS);
   const restLabel = rest ? (items.find((e) => e.id === rest.sessionExerciseId)?.name ?? null) : null;
 
   return (
-    <div className={cn("space-y-5", showRest ? "pb-20" : "")}>
-      <header className="space-y-3">
+    <div className={cn("space-y-4", showRest ? "pb-24" : "")}>
+      {/* The slab: what the session is, how long, how far. */}
+      <Slab>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="eyebrow">Session in progress</p>
-            <h1 className="truncate text-[1.75rem] leading-tight font-bold tracking-tight">
-              {session.name}
-            </h1>
+            <h1 className="display mt-1 text-3xl break-words">{session.name}</h1>
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Session options"
+                className="hover:text-slab-foreground -mr-2 shrink-0 hover:bg-white/10"
+              >
+                <EllipsisVertical />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setNotesOpen(true)}>
+                <NotebookPen aria-hidden /> Session notes
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDiscard(true)}>
+                <Trash2 aria-hidden /> Discard session
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <p>
+            <span className="figure text-7xl" role="timer" aria-label="Session time">
+              {formatClock(elapsedSeconds(session.startedAt, now))}
+            </span>
+          </p>
+          <p className="pb-1 text-right">
+            <span className="figure text-3xl">{doneSets}</span>
+            <span className="text-slab-muted text-sm"> / {totalSets} sets</span>
+          </p>
+        </div>
+        <SlabBar
+          value={totalSets === 0 ? 0 : (doneSets / totalSets) * 100}
+          tone="volt"
+          className="mt-4 h-2"
+          label="Sets completed"
+        />
+        <div className="mt-3">
           <SaveBadge state={saveState} onRetry={() => queue.retry()} />
         </div>
-        <dl className="grid grid-cols-2 gap-4 rounded-2xl border bg-card p-4">
-          <div>
-            <dt className="eyebrow">Time</dt>
-            <dd className="figure text-2xl" role="timer" aria-label="Session time">
-              {formatClock(elapsedSeconds(session.startedAt, now))}
-            </dd>
-          </div>
-          <div>
-            <dt className="eyebrow">Sets done</dt>
-            <dd className="figure text-2xl">
-              {doneSets}
-              <span className="text-muted-foreground text-base font-medium"> / {totalSets}</span>
-            </dd>
-          </div>
-        </dl>
-        {resumed ? (
-          <Alert>
-            <AlertDescription>
-              You already had this session in progress, so it was opened
-              instead of starting a new one. Finish or discard it first.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </header>
+      </Slab>
+
+      {resumed ? (
+        <Alert>
+          <AlertDescription>
+            You already had this session in progress, so it was opened instead
+            of starting a new one. Finish or discard it first.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {saveState.error ? (
         <Alert variant="destructive">
@@ -520,44 +585,61 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
         </p>
       ) : null}
 
-      <ol className="space-y-4">
+      <ol className="space-y-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
         {items.map((exercise, exerciseIndex) => {
           const last = previous[exercise.exerciseId];
           const target = [
             describeRepTarget(exercise.repMin, exercise.repMax),
             exercise.targetWeightKg === null ? null : formatWeight(exercise.targetWeightKg, units),
           ].filter(Boolean).join(" · ");
+          const convention = exercise.measure === "weight_reps" ? loadConvention(exercise) : null;
+          const exerciseDone = exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt);
+          const noteOpen = openNotes.includes(exercise.id) || Boolean(exercise.notes);
           return (
-            <li key={exercise.id} className="rounded-2xl border bg-card">
-              <div className="flex items-start gap-2 p-4 pb-2">
-                <span className="bg-accent text-accent-foreground mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums">
-                  {exerciseIndex + 1}
+            <li key={exercise.id} className="bg-card rounded-2xl">
+              <div className="flex items-start gap-3 px-4 pt-4">
+                <span
+                  className={cn(
+                    "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums",
+                    exerciseDone ? "bg-foreground text-volt" : "bg-muted",
+                  )}
+                >
+                  {exerciseDone ? <Check className="size-4" aria-hidden strokeWidth={3} /> : exerciseIndex + 1}
+                  {exerciseDone ? <span className="sr-only">Exercise {exerciseIndex + 1}, all sets done</span> : null}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-semibold leading-snug">{exercise.name}</h2>
-                  {target ? (
-                    <p className="text-muted-foreground text-xs">Target: {target}</p>
-                  ) : null}
-                  <p className="text-muted-foreground text-xs">
-                    {last
-                      ? `Last time: ${last.sets.map((s) => describeSet(exercise.measure, s, units)).join(", ")}`
-                      : "First time logging this exercise."}
+                  <h2 className="display text-2xl break-words">{exercise.name}</h2>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {[target ? `Target ${target}` : null, convention].filter(Boolean).join(" · ") ||
+                      (last ? null : "First time logging this exercise.")}
                   </p>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label={`Options for ${exercise.name}`}>
+                    <Button variant="ghost" size="icon" className="-mr-2" aria-label={`Options for ${exercise.name}`}>
                       <EllipsisVertical />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="min-w-52">
+                    <DropdownMenuItem asChild>
+                      <Link href={`/training/exercises/${exercise.exerciseId}`}>
+                        <Info aria-hidden /> How to do it
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setPicker({ replaceId: exercise.id })}>
                       <Repeat aria-hidden /> Replace exercise
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => void removeExercise(exercise)}
+                      onSelect={() => setOpenNotes((current) => [...current, exercise.id])}
                     >
+                      <NotebookPen aria-hidden /> Add a note
+                    </DropdownMenuItem>
+                    {exercise.sets.length > 0 ? (
+                      <DropdownMenuItem onSelect={() => void removeLastSet(exercise)}>
+                        <Minus aria-hidden /> Remove last set
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem variant="destructive" onSelect={() => void removeExercise(exercise)}>
                       <Trash2 aria-hidden /> Remove from session
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -567,6 +649,7 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
               <SetTable
                 exercise={exercise}
                 units={units}
+                previousSets={last?.sets ?? []}
                 placeholderFor={(index) => {
                   const guess = suggestion(exercise, index);
                   return guess ? valuesToText(guess, units) : null;
@@ -575,30 +658,21 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
                 onToggle={(index) => toggleSet(exercise, index)}
               />
 
-              <div className="flex flex-wrap items-center gap-2 px-4 pt-1 pb-3">
+              <div className="flex items-center gap-2 px-4 pt-1 pb-4">
                 <PendingButton
                   type="button"
                   variant="secondary"
-                  pending={busy === `add-set:${exercise.id}`}
+                  className="rounded-full px-4"
+                  pending={busy === `add-set:${exercise.id}` || busy === `remove-set:${exercise.id}`}
                   disabled={exercise.sets.length >= 50}
                   onClick={() => void addSet(exercise)}
                 >
-                  <Plus aria-hidden /> Add set
+                  <Plus aria-hidden /> Set
                 </PendingButton>
-                {exercise.sets.length > 0 ? (
-                  <PendingButton
-                    type="button"
-                    variant="ghost"
-                    pending={busy === `remove-set:${exercise.id}`}
-                    onClick={() => void removeLastSet(exercise)}
-                  >
-                    Remove last set
-                  </PendingButton>
-                ) : null}
-                <label className="text-muted-foreground ml-auto flex items-center gap-2 text-xs">
+                <label className="text-muted-foreground ml-auto flex items-center gap-2 text-xs font-semibold tracking-wide uppercase">
                   Rest
                   <select
-                    className="border-input bg-card text-foreground h-10 rounded-lg border px-2 text-base md:text-sm"
+                    className="border-input bg-card text-foreground h-10 rounded-full border px-3 text-base font-medium normal-case md:text-sm"
                     value={exercise.restSeconds}
                     onChange={(event) =>
                       void saveExerciseDetails(exercise, { restSeconds: Number(event.target.value) })
@@ -615,20 +689,22 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
                 </label>
               </div>
 
-              <div className="border-t px-4 py-3">
-                <Input
-                  aria-label={`Note for ${exercise.name}`}
-                  defaultValue={exercise.notes ?? ""}
-                  maxLength={500}
-                  placeholder="Note for this exercise"
-                  onBlur={(event) => {
-                    const value = event.target.value.trim() || null;
-                    if (value !== (exercise.notes ?? null)) {
-                      void saveExerciseDetails(exercise, { notes: value });
-                    }
-                  }}
-                />
-              </div>
+              {noteOpen ? (
+                <div className="border-t px-4 py-3">
+                  <Input
+                    aria-label={`Note for ${exercise.name}`}
+                    defaultValue={exercise.notes ?? ""}
+                    maxLength={500}
+                    placeholder="Note for this exercise"
+                    onBlur={(event) => {
+                      const value = event.target.value.trim() || null;
+                      if (value !== (exercise.notes ?? null)) {
+                        void saveExerciseDetails(exercise, { notes: value });
+                      }
+                    }}
+                  />
+                </div>
+              ) : null}
             </li>
           );
         })}
@@ -638,22 +714,24 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
         type="button"
         variant="outline"
         size="lg"
-        className="w-full"
+        className="w-full rounded-2xl"
         onClick={() => setPicker({ replaceId: null })}
       >
         <Plus aria-hidden /> Add exercise
       </Button>
 
-      <div className="space-y-1.5">
-        <label htmlFor="session-notes" className="eyebrow">Session notes</label>
-        <Textarea
-          id="session-notes"
-          value={notes}
-          maxLength={2000}
-          placeholder="How it went, anything to remember next time"
-          onChange={(event) => setNotes(event.target.value)}
-        />
-      </div>
+      {notesOpen || notes ? (
+        <div className="space-y-1.5">
+          <label htmlFor="session-notes" className="eyebrow">Session notes</label>
+          <Textarea
+            id="session-notes"
+            value={notes}
+            maxLength={2000}
+            placeholder="How it went, anything to remember next time"
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive" role="alert">
@@ -661,26 +739,17 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
         </Alert>
       ) : null}
 
-      <div className="space-y-2">
-        <PendingButton
-          type="button"
-          size="lg"
-          className="w-full"
-          pending={finishing}
-          pendingLabel="Saving and finishing…"
-          onClick={() => void finish()}
-        >
-          <Check aria-hidden /> Finish workout
-        </PendingButton>
-        <Button
-          type="button"
-          variant="ghost"
-          className="text-destructive w-full"
-          onClick={() => setConfirmDiscard(true)}
-        >
-          Discard session
-        </Button>
-      </div>
+      <PendingButton
+        type="button"
+        variant="volt"
+        size="lg"
+        className="min-h-[4.25rem] w-full rounded-2xl text-lg"
+        pending={finishing}
+        pendingLabel="Saving and finishing…"
+        onClick={() => void finish()}
+      >
+        <Check aria-hidden /> Finish workout
+      </PendingButton>
 
       <Dialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
         <DialogContent>
@@ -725,6 +794,9 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
           now={now}
           label={restLabel}
           onAdjust={(delta) => setRest(adjustRest(rest, delta, Date.now()))}
+          onPauseToggle={() =>
+            setRest(isPaused(rest) ? resumeRest(rest, Date.now()) : pauseRest(rest, Date.now()))
+          }
           onDismiss={() => setRest(null)}
         />
       ) : null}
@@ -732,90 +804,146 @@ function ActiveSessionLive({ session, previous, exercises: catalogue, units, res
   );
 }
 
-/** The honest state of saving, always in the same corner. */
+/**
+ * The honest state of saving. "Saved" means the server has every change;
+ * while anything is still only on this phone it says so, and offers the
+ * retry. Text and icon, never colour alone.
+ */
 function SaveBadge({ state, onRetry }: { state: QueueState; onRetry: () => void }) {
   if (state.status === "unsaved") {
     return (
       <button
         type="button"
         onClick={onRetry}
-        className="bg-destructive/10 text-destructive flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold"
+        className="bg-volt text-volt-foreground flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold"
       >
         <CloudOff className="size-4" aria-hidden />
-        Not saved · Retry
+        Not saved yet — kept on this phone. Retry
       </button>
     );
   }
   return (
-    <p
-      role="status"
-      className="text-muted-foreground flex min-h-10 shrink-0 items-center gap-1.5 text-xs font-medium"
-    >
+    <p role="status" className="text-slab-muted flex items-center gap-1.5 text-xs font-medium">
       {state.status === "saving" ? (
         <>
           <Spinner className="size-3.5" /> Saving…
         </>
       ) : (
         <>
-          <Check className="text-success size-4" aria-hidden /> Saved
+          <Check className="size-3.5" aria-hidden /> Everything saved
         </>
       )}
     </p>
   );
 }
 
+type Column = {
+  field: "weight" | "reps" | "duration" | "distance";
+  label: string;
+  mode: "decimal" | "numeric" | "text";
+};
+
+function columnsFor(measure: Measure, units: UnitSystem): Column[] {
+  switch (measure) {
+    case "weight_reps":
+      return [
+        { field: "weight", label: weightUnit(units), mode: "decimal" },
+        { field: "reps", label: "Reps", mode: "numeric" },
+      ];
+    case "reps":
+      return [{ field: "reps", label: "Reps", mode: "numeric" }];
+    case "duration":
+      return [{ field: "duration", label: "Time", mode: "text" }];
+    case "distance_duration":
+      return [
+        { field: "distance", label: distanceUnit(units), mode: "decimal" },
+        { field: "duration", label: "Time", mode: "text" },
+      ];
+  }
+}
+
+/** Last time's set, as short as it can be said: "80 × 7", "12", "1:15". */
+function shortSet(measure: Measure, set: SetValues, units: UnitSystem): string {
+  if (measure === "weight_reps") {
+    if (set.weightKg === null || set.reps === null) return "—";
+    return `${valuesToText(set, units).weight} × ${set.reps}`;
+  }
+  return describeSet(measure, set, units).replace(/ reps?$/, "");
+}
+
+/**
+ * Set | Previous | figures | done.
+ *
+ * Two states that must never be confused (spec §16.5):
+ *
+ *   PLANNED  a number in the field is a target or a suggestion. The field
+ *            is white, the figure grey, the tick an empty ring.
+ *   DONE     the row is tinted, the figures are ink and bold, the tick is
+ *            a filled disc — and only then does the set count.
+ *
+ * A prefilled weight never makes a set done; only the tick does. Tapping
+ * "previous" copies last time's figures in, still as a plan.
+ */
 function SetTable({
   exercise,
   units,
+  previousSets,
   placeholderFor,
   onChange,
   onToggle,
 }: {
   exercise: DraftExercise;
   units: UnitSystem;
+  previousSets: readonly SetValues[];
   placeholderFor: (index: number) => Pick<SetDraft, "weight" | "reps" | "duration" | "distance"> | null;
   onChange: (draft: SetDraft) => void;
   onToggle: (index: number) => void;
 }) {
   const { measure } = exercise;
-  const columns: { field: "weight" | "reps" | "duration" | "distance"; label: string; mode: "decimal" | "numeric" | "text" }[] =
-    measure === "weight_reps"
-      ? [
-          { field: "weight", label: weightUnit(units), mode: "decimal" },
-          { field: "reps", label: "Reps", mode: "numeric" },
-        ]
-      : measure === "reps"
-        ? [{ field: "reps", label: "Reps", mode: "numeric" }]
-        : measure === "duration"
-          ? [{ field: "duration", label: "Time", mode: "text" }]
-          : [
-              { field: "distance", label: distanceUnit(units), mode: "decimal" },
-              { field: "duration", label: "Time", mode: "text" },
-            ];
+  const columns = columnsFor(measure, units);
 
   if (exercise.sets.length === 0) {
-    return <p className="text-muted-foreground px-4 py-2 text-sm">No sets. Add one below.</p>;
+    return <p className="text-muted-foreground px-4 py-3 text-sm">No sets. Add one below.</p>;
   }
 
   return (
-    <div className="px-4" role="group" aria-label={`Sets of ${exercise.name}`}>
-      <div className="eyebrow flex items-center gap-2 pb-1">
-        <span className="w-7 text-center">Set</span>
+    <div className="px-2 pt-3" role="group" aria-label={`Sets of ${exercise.name}`}>
+      <div className="eyebrow flex items-center gap-2 px-2 pb-1.5">
+        <span className="w-6 text-center">Set</span>
+        <span className="w-[4.5rem]">Previous</span>
         {columns.map((column) => (
           <span key={column.field} className="flex-1 text-center">{column.label}</span>
         ))}
         <span className="w-12 text-center">Done</span>
       </div>
-      <ul className="space-y-2 pb-2">
+      <ul className="space-y-1.5 pb-2">
         {exercise.sets.map((set, index) => {
           const done = set.completedAt !== null;
           const invalid = fromDraft(set, measure, units) === null;
           const hint = placeholderFor(index);
+          const before = previousSets[index] ?? null;
           return (
-            <li key={set.id} className="flex items-center gap-2">
-              <span className="text-muted-foreground w-7 text-center text-sm font-semibold tabular-nums">
-                {index + 1}
-              </span>
+            <li
+              key={set.id}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-2 py-1 transition-colors",
+                done ? "bg-volt/25" : "",
+              )}
+            >
+              <span className="w-6 text-center text-sm font-bold tabular-nums">{index + 1}</span>
+              {before ? (
+                <button
+                  type="button"
+                  disabled={done}
+                  onClick={() => onChange({ ...set, ...valuesToText(before, units) })}
+                  aria-label={`Set ${index + 1}: use last time's ${shortSet(measure, before, units)}`}
+                  className="text-muted-foreground w-[4.5rem] truncate py-2 text-left text-sm tabular-nums underline decoration-dotted underline-offset-4 disabled:no-underline"
+                >
+                  {shortSet(measure, before, units)}
+                </button>
+              ) : (
+                <span className="text-muted-foreground w-[4.5rem] text-sm">—</span>
+              )}
               {columns.map((column) => (
                 <Input
                   key={column.field}
@@ -829,24 +957,30 @@ function SetTable({
                   onChange={(event) => onChange({ ...set, [column.field]: event.target.value })}
                   onFocus={(event) => event.target.select()}
                   className={cn(
-                    "h-12 flex-1 text-center text-lg font-semibold tabular-nums md:text-base",
-                    done ? "border-success/40 bg-success/10" : "",
+                    "figure h-12 min-w-0 flex-1 px-1 text-center text-2xl md:text-2xl",
+                    done
+                      ? "text-foreground border-transparent bg-transparent"
+                      : "text-muted-foreground",
                   )}
                 />
               ))}
               <button
                 type="button"
                 aria-pressed={done}
-                aria-label={`${exercise.name} set ${index + 1} ${done ? "done — tap to undo" : "mark done"}`}
+                aria-label={`${exercise.name} set ${index + 1}: ${done ? "done — tap to undo" : "mark done"}`}
                 onClick={() => onToggle(index)}
                 className={cn(
-                  "flex size-12 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                  "flex size-12 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                   done
-                    ? "border-success bg-success text-white"
-                    : "border-input bg-card text-muted-foreground hover:text-foreground",
+                    ? "border-foreground bg-foreground text-volt"
+                    : "border-input text-transparent",
                 )}
               >
-                {invalid ? <CircleAlert className="text-destructive size-5" aria-hidden /> : <Check className="size-6" aria-hidden />}
+                {invalid ? (
+                  <CircleAlert className="text-destructive size-5" aria-hidden />
+                ) : (
+                  <Check className="size-6" aria-hidden strokeWidth={3} />
+                )}
               </button>
             </li>
           );

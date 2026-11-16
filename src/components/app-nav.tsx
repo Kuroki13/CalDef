@@ -1,11 +1,24 @@
 "use client";
 
-import { Menu } from "lucide-react";
+/**
+ * The shell's navigation (spec §16.2).
+ *
+ *   phone    an ink top bar (wordmark, menu) and a four-tab bar at the
+ *            bottom. The top bar is the same ink as a screen's slab, so a
+ *            slab reads as the bar opening downward.
+ *   desktop  an ink sidebar with all eight destinations; no top bar.
+ *
+ * Where you are is said three ways — weight, a filled pill, and
+ * `aria-current` — never by colour alone.
+ */
+
+import { Menu, Timer } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { LinkPending } from "@/components/pending-nav";
+import { useIsClient, useNow } from "@/components/training/use-now";
 import {
   Sheet,
   SheetContent,
@@ -14,144 +27,204 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { NAV_ITEMS, PRIMARY_NAV, SECONDARY_NAV, isActivePath } from "@/lib/nav";
+import {
+  PRIMARY_NAV,
+  SECONDARY_NAV,
+  isActiveItem,
+  isActivePath,
+} from "@/lib/nav";
+import { formatClock } from "@/lib/training/format";
+import { elapsedSeconds } from "@/lib/training/timer";
 import { cn } from "@/lib/utils";
 
-/** Sidebar, shown from `md` upwards. */
+export function Wordmark({ className }: { className?: string }) {
+  return (
+    <span className={cn("display flex items-center gap-1.5 text-xl", className)}>
+      <span aria-hidden className="bg-volt size-2 rounded-full" />
+      CalDef
+    </span>
+  );
+}
+
+/** Sidebar, shown from `lg` upwards. */
 export function AppSidebar() {
   const pathname = usePathname();
 
+  const item = (
+    { href, label, icon: Icon }: (typeof PRIMARY_NAV)[number],
+    active: boolean,
+  ) => (
+    <Link
+      key={href}
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors",
+        active
+          ? "bg-volt text-volt-foreground font-semibold"
+          : "text-slab-muted hover:bg-sidebar-accent hover:text-slab-foreground",
+      )}
+    >
+      <LinkPending>
+        <Icon className="size-[18px]" aria-hidden />
+      </LinkPending>
+      {label}
+    </Link>
+  );
+
   return (
     <nav
       aria-label="Main"
-      className="bg-sidebar hidden md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col md:gap-1 md:border-r md:p-4"
+      className="on-slab hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-60 lg:shrink-0 lg:flex-col lg:gap-1 lg:p-4"
     >
-      <span className="flex items-center gap-2 px-3 pt-1 pb-5 text-lg font-bold tracking-tight">
-        <span aria-hidden className="bg-primary size-2.5 rounded-full" />
-        CalDef
-      </span>
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = isActivePath(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-              active
-                ? "bg-accent text-accent-foreground font-semibold"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <LinkPending>
-              <Icon className="size-4" aria-hidden />
-            </LinkPending>
-            {label}
-          </Link>
-        );
-      })}
+      <Wordmark className="px-3 pt-2 pb-6 text-2xl" />
+      {PRIMARY_NAV.map((entry) => item(entry, isActiveItem(pathname, entry)))}
+      <span className="eyebrow px-3 pt-6 pb-1">More</span>
+      {SECONDARY_NAV.map((entry) =>
+        item(entry, isActivePath(pathname, entry.href)),
+      )}
     </nav>
   );
 }
 
-const TAB_CLASS =
-  "relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[0.6875rem] transition-colors";
+/**
+ * The phone's top bar. Pads itself by the status bar's height, so in the
+ * installed app the clock and battery — which iOS draws in white — sit on
+ * ink.
+ */
+export function AppTopBar() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <header className="on-slab pt-safe sticky top-0 z-30 lg:hidden">
+      <div className="flex h-12 items-center justify-between px-4">
+        <Link href="/dashboard" aria-label="CalDef — today">
+          <Wordmark />
+        </Link>
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger
+            aria-label="Menu"
+            className="-mr-2 flex size-11 items-center justify-center rounded-full"
+          >
+            <Menu className="size-[22px]" aria-hidden />
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[80vw] max-w-xs">
+            <SheetHeader>
+              <SheetTitle className="display text-2xl">Menu</SheetTitle>
+              <SheetDescription>
+                Recipes, the cut phase, the assistant and your settings.
+              </SheetDescription>
+            </SheetHeader>
+            <ul className="px-2">
+              {SECONDARY_NAV.map(({ href, label, icon: Icon }) => {
+                const active = isActivePath(pathname, href);
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={() => setOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex min-h-13 items-center gap-3 rounded-xl px-3 text-base",
+                        active ? "bg-muted font-semibold" : "hover:bg-muted",
+                      )}
+                    >
+                      <Icon className="text-muted-foreground size-5" aria-hidden />
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </header>
+  );
+}
 
 /**
- * Bottom tab bar, shown below `md`.
- *
- * Four destinations and "More". The bar pads itself by the home
- * indicator's height, so on an installed iPhone the labels sit above the
- * swipe area rather than under it.
+ * Bottom tab bar, below `lg`. Four tabs; the active one is a filled ink
+ * pill behind its icon, with a heavier label.
  */
 export function AppTabBar() {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
-  const inMore = SECONDARY_NAV.some((item) => isActivePath(pathname, item.href));
 
   return (
     <nav
       aria-label="Main"
-      className="bg-card/95 pb-safe supports-backdrop-filter:backdrop-blur fixed inset-x-0 bottom-0 z-20 flex border-t md:hidden"
+      className="bg-card pb-safe fixed inset-x-0 bottom-0 z-30 border-t lg:hidden"
     >
-      {PRIMARY_NAV.map(({ href, label, icon: Icon }) => {
-        const active = isActivePath(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              TAB_CLASS,
-              active ? "text-primary font-semibold" : "text-muted-foreground",
-            )}
-          >
-            <ActiveMark active={active} />
-            <LinkPending spinnerClassName="size-[22px]">
-              <Icon className="size-[22px]" aria-hidden />
-            </LinkPending>
-            {label}
-          </Link>
-        );
-      })}
-
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetTrigger
-          className={cn(
-            TAB_CLASS,
-            inMore ? "text-primary font-semibold" : "text-muted-foreground",
-          )}
-        >
-          <ActiveMark active={inMore} />
-          <Menu className="size-[22px]" aria-hidden />
-          More
-        </SheetTrigger>
-        <SheetContent side="bottom" className="pb-safe rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>More</SheetTitle>
-            <SheetDescription>
-              Recipes, the cut phase, the assistant and your settings.
-            </SheetDescription>
-          </SheetHeader>
-          <ul className="px-2 pb-4">
-            {SECONDARY_NAV.map(({ href, label, icon: Icon }) => {
-              const active = isActivePath(pathname, href);
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    onClick={() => setMoreOpen(false)}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex min-h-12 items-center gap-3 rounded-lg px-3 text-base",
-                      active
-                        ? "bg-accent text-accent-foreground font-semibold"
-                        : "hover:bg-muted",
-                    )}
-                  >
-                    <Icon className="text-muted-foreground size-5" aria-hidden />
-                    {label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </SheetContent>
-      </Sheet>
+      <ul className="mx-auto flex max-w-md">
+        {PRIMARY_NAV.map((entry) => {
+          const { href, label, icon: Icon } = entry;
+          const active = isActiveItem(pathname, entry);
+          return (
+            <li key={href} className="flex-1">
+              <Link
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-15 flex-col items-center justify-center gap-0.5 text-[0.6875rem]",
+                  active ? "text-foreground font-bold" : "text-muted-foreground font-medium",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-14 items-center justify-center rounded-full transition-colors",
+                    active ? "bg-foreground text-volt" : "",
+                  )}
+                >
+                  <LinkPending spinnerClassName="size-5">
+                    <Icon className="size-5" aria-hidden />
+                  </LinkPending>
+                </span>
+                {label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }
 
-/** The short bar above the active tab: position, not only colour, says where you are. */
-function ActiveMark({ active }: { active: boolean }) {
+/**
+ * A session in progress follows you around the app (spec §16.2): one tap
+ * back to it from any screen, with its clock running. Not shown on the
+ * session screen itself.
+ *
+ * The clock is `now − startedAt`, so it is right after a lock; it renders
+ * only in the browser, where "now" exists.
+ */
+export function SessionBar({
+  session,
+}: {
+  session: { name: string; startedAt: string } | null;
+}) {
+  const pathname = usePathname();
+  const isClient = useIsClient();
+  const now = useNow(1000);
+
+  if (!session || pathname === "/training/session") return null;
+
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "absolute top-0 h-0.5 w-8 rounded-full transition-opacity",
-        active ? "bg-primary opacity-100" : "opacity-0",
-      )}
-    />
+    <Link
+      href="/training/session"
+      className="on-slab fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 flex min-h-13 items-center gap-3 rounded-2xl px-4 shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
+    >
+      <span className="bg-volt text-volt-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+        <Timer className="size-4" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="eyebrow block">Session in progress</span>
+        <span className="block truncate text-sm font-semibold">{session.name}</span>
+      </span>
+      <span className="figure text-2xl" aria-label="Session time">
+        {isClient ? formatClock(elapsedSeconds(session.startedAt, now)) : ""}
+      </span>
+      <span className="text-volt text-sm font-semibold">Resume</span>
+    </Link>
   );
 }

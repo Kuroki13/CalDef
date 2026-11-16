@@ -4,6 +4,9 @@ import {
   adjustRest,
   elapsedSeconds,
   parseRestTimer,
+  pauseRest,
+  restRemaining,
+  resumeRest,
   remainingSeconds,
   startRest,
 } from "@/lib/training/timer";
@@ -38,10 +41,26 @@ describe("timers are clock subtraction, not counting", () => {
 
   it("survives a reload through storage, and refuses junk", () => {
     const rest = startRest(120, T0, 3)!;
-    expect(parseRestTimer(JSON.stringify(rest))).toEqual(rest);
+    expect(parseRestTimer(JSON.stringify(rest))).toEqual({ ...rest, pausedRemaining: null });
     expect(parseRestTimer(null)).toBeNull();
     expect(parseRestTimer("{")).toBeNull();
     expect(parseRestTimer('{"endsAt":"soon","totalSeconds":60}')).toBeNull();
     expect(parseRestTimer('{"endsAt":1,"totalSeconds":0}')).toBeNull();
+  });
+
+  it("pauses: time stops passing, however long the pause lasts", () => {
+    const paused = pauseRest(startRest(90, T0)!, T0 + 30_000);
+    expect(restRemaining(paused, T0 + 30_000)).toBe(60);
+    expect(restRemaining(paused, T0 + 10 * 60_000)).toBe(60);
+
+    const resumed = resumeRest(paused, T0 + 10 * 60_000);
+    expect(restRemaining(resumed, T0 + 10 * 60_000)).toBe(60);
+    expect(restRemaining(resumed, T0 + 10 * 60_000 + 20_000)).toBe(40);
+  });
+
+  it("adds time to a paused rest, and keeps the pause through a reload", () => {
+    const paused = pauseRest(startRest(60, T0)!, T0);
+    expect(restRemaining(adjustRest(paused, 15, T0), T0 + 999_999)).toBe(75);
+    expect(restRemaining(parseRestTimer(JSON.stringify(paused))!, T0 + 999_999)).toBe(60);
   });
 });

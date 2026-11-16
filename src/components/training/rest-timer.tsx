@@ -9,11 +9,11 @@
  * when you come back, it shows where the rest stands, or that it is over.
  */
 
-import { Minus, Plus, X } from "lucide-react";
+import { Minus, Pause, Play, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { formatClock } from "@/lib/training/format";
-import { remainingSeconds, type RestTimer } from "@/lib/training/timer";
+import { isPaused, restRemaining, type RestTimer } from "@/lib/training/timer";
 
 /** How long "Rest over" stays on screen before the bar clears itself. */
 export const REST_DONE_LINGER_MS = 6000;
@@ -23,6 +23,7 @@ export function RestTimerBar({
   now,
   label,
   onAdjust,
+  onPauseToggle,
   onDismiss,
 }: {
   timer: RestTimer;
@@ -30,10 +31,12 @@ export function RestTimerBar({
   /** The exercise the rest follows. */
   label: string | null;
   onAdjust: (deltaSeconds: number) => void;
+  onPauseToggle: () => void;
   onDismiss: () => void;
 }) {
-  const remaining = remainingSeconds(timer.endsAt, now);
-  const over = remaining === 0;
+  const remaining = restRemaining(timer, now);
+  const paused = isPaused(timer);
+  const over = remaining === 0 && !paused;
   const fraction = over
     ? 1
     : Math.min(1, Math.max(0, 1 - remaining / timer.totalSeconds));
@@ -42,20 +45,30 @@ export function RestTimerBar({
     <div
       role="timer"
       aria-label="Rest timer"
-      className="bg-foreground text-background fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 overflow-hidden rounded-2xl shadow-lg md:inset-x-auto md:right-8 md:bottom-8 md:w-96"
+      className="bg-foreground text-background fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 overflow-hidden rounded-2xl shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
     >
       <div className="flex items-center gap-2 px-4 py-2.5">
         <div className="min-w-0 flex-1">
           <p className="text-background/70 truncate text-[0.6875rem] font-semibold tracking-[0.08em] uppercase">
-            {over ? "Rest over" : "Rest"}
+            {over ? "Rest over" : paused ? "Rest · paused" : "Rest"}
             {label ? ` · ${label}` : ""}
           </p>
-          <p className="figure text-2xl leading-tight" aria-live="off">
+          <p className="figure mt-0.5 text-3xl" aria-live="off">
             {over ? "Go" : formatClock(remaining)}
           </p>
         </div>
         {over ? null : (
           <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-background hover:bg-background/15 hover:text-background"
+              aria-label={paused ? "Resume rest" : "Pause rest"}
+              onClick={onPauseToggle}
+            >
+              {paused ? <Play /> : <Pause />}
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -91,7 +104,7 @@ export function RestTimerBar({
       </div>
       <div className="bg-background/20 h-1">
         <div
-          className="bg-primary h-full transition-[width] duration-300 ease-linear motion-reduce:transition-none"
+          className="bg-volt h-full transition-[width] duration-300 ease-linear motion-reduce:transition-none"
           style={{ width: `${fraction * 100}%` }}
         />
       </div>

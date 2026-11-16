@@ -25,6 +25,7 @@ import {
   startSchema,
   templateSchema,
 } from "@/lib/training/input";
+import { isCompletable } from "@/lib/training/metrics";
 import { isMeasure, type SessionExercise, type WorkoutSet } from "@/lib/training/types";
 import { z } from "zod";
 
@@ -698,6 +699,211 @@ export async function deleteSessionAction(id: unknown): Promise<ActionResult> {
     .eq("id", sessionId.data)
     .eq("status", "completed");
   if (error) return fail("The session could not be deleted. Please try again.");
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+// ----------------------------------------------------------------- programmes
+
+const programName = z.string().trim().min(1, "Give the programme a name.").max(80);
+
+export async function createProgramAction(
+  name: unknown,
+): Promise<ActionResult<{ id: number }>> {
+  const parsed = programName.safeParse(name);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+
+  const userId = await requireUserId();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_programs")
+    .insert({ user_id: userId, name: parsed.data })
+    .select("id")
+    .single();
+  if (error) return fail(GENERIC);
+
+  revalidateTraining();
+  return { ok: true, id: data.id };
+}
+
+/** Deletes a programme. Its workouts are released, not deleted. */
+export async function deleteProgramAction(id: unknown): Promise<ActionResult> {
+  const programId = positiveId.safeParse(id);
+  if (!programId.success) return fail(GENERIC);
+
+  await requireUserId();
+  const supabase = await createClient();
+  const { error } = await supabase.from("workout_programs").delete().eq("id", programId.data);
+  if (error) return fail(GENERIC);
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+const assignSchema = z.object({ templateId: positiveId, programId: positiveId.nullable() });
+
+/** Files a workout under a programme, or takes it out of one (null). */
+export async function assignProgramAction(input: unknown): Promise<ActionResult> {
+  const parsed = assignSchema.safeParse(input);
+  if (!parsed.success) return fail(GENERIC);
+
+  await requireUserId();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_templates")
+    .update({ program_id: parsed.data.programId })
+    .eq("id", parsed.data.templateId)
+    .select("id");
+  // 42501: the programme is not this user's.
+  if (error) return fail(error.code === "42501" ? "That programme is not available." : GENERIC);
+  if (!data || data.length === 0) return fail("That workout no longer exists.");
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------- planning
+
+const planSchema = z.object({ templateId: positiveId, date: z.iso.date() });
+
+/**
+ * Plans a workout for a date. Planning the same workout on the same day
+ * again changes nothing. A plan is a note to oneself: it starts nothing and
+ * changes no target.
+ */
+export async function scheduleWorkoutAction(input: unknown): Promise<ActionResult> {
+  const parsed = planSchema.safeParse(input);
+  if (!parsed.success) return fail("Choose a valid date.");
+
+  const userId = await requireUserId();
+  const supabase = await createClient();
+  const { error } = await supabase.from("workout_schedule").upsert(
+    { user_id: userId, template_id: parsed.data.templateId, scheduled_on: parsed.data.date },
+    { onConflict: "user_id,template_id,scheduled_on", ignoreDuplicates: true },
+  );
+  if (error) return fail(error.code === "42501" ? "That workout is not available." : GENERIC);
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+const moveSchema = z.object({ id: positiveId, date: z.iso.date() });
+
+/** Moves one planned occurrence to another day. The workout is untouched. */
+export async function moveScheduledAction(input: unknown): Promise<ActionResult> {
+  const parsed = moveSchema.safeParse(input);
+  if (!parsed.success) return fail("Choose a valid date.");
+
+  await requireUserId();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("workout_schedule")
+    .update({ scheduled_on: parsed.data.date })
+    .eq("id", parsed.data.id);
+  // 23505: it is already planned on that day — which is what was asked for.
+  if (error && error.code !== "23505") return fail(GENERIC);
+  if (error) {
+    await supabase.from("workout_schedule").delete().eq("id", parsed.data.id);
+  }
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+/** Cancels one planned occurrence. The workout is untouched. */
+export async function cancelScheduledAction(id: unknown): Promise<ActionResult> {
+  const scheduleId = positiveId.safeParse(id);
+  if (!scheduleId.success) return fail(GENERIC);
+
+  await requireUserId();
+  const supabase = await createClient();
+  const { error } = await supabase.from("workout_schedule").delete().eq("id", scheduleId.data);
+  if (error) return fail(GENERIC);
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- corrections
+
+const correctionSchema = setSchema.omit({ completedAt: true });
+
+/**
+ * Corrects a set of a FINISHED session — a typo noticed afterwards.
+ *
+ * The live path (`saveSetAction`) refuses finished sessions; this one
+ * accepts only them. The set stays completed, at the time it was done: a
+ * correction changes what was recorded, not when. The corrected values
+ * must still be a complete set for what the exercise measures, so history
+ * never holds half a set.
+ */
+export async function correctSetAction(input: unknown): Promise<ActionResult> {
+  const parsed = correctionSchema.safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+
+  await requireUserId();
+  const supabase = await createClient();
+  const { data: owner } = await supabase
+    .from("workout_sets")
+    .select("id, workout_session_exercises!inner(measure, session_id, workout_sessions!inner(status))")
+    .eq("id", parsed.data.setId)
+    .maybeSingle();
+  if (!owner) return fail("That set no longer exists.");
+  const parent = owner.workout_session_exercises;
+  if (parent.workout_sessions.status !== "completed") {
+    return fail("That session is still in progress.");
+  }
+  const measure = isMeasure(parent.measure) ? parent.measure : "weight_reps";
+  if (!isCompletable(measure, parsed.data)) {
+    return fail("Enter the full set — every figure this exercise records.");
+  }
+
+  const { error } = await supabase
+    .from("workout_sets")
+    .update({
+      weight_kg: parsed.data.weightKg,
+      reps: parsed.data.reps,
+      duration_s: parsed.data.durationS,
+      distance_m: parsed.data.distanceM,
+    })
+    .eq("id", parsed.data.setId);
+  if (error) return fail(GENERIC);
+
+  revalidateTraining();
+  return { ok: true };
+}
+
+const appendSchema = z.object({ templateId: positiveId, exerciseId: positiveId });
+
+/**
+ * Adds one exercise to the end of a workout, from the exercise's own page.
+ * Three sets and the default rest; the editor is where the rest is set.
+ */
+export async function appendTemplateExerciseAction(input: unknown): Promise<ActionResult> {
+  const parsed = appendSchema.safeParse(input);
+  if (!parsed.success) return fail(GENERIC);
+
+  await requireUserId();
+  const supabase = await createClient();
+  const { data: last, error: readError } = await supabase
+    .from("workout_template_exercises")
+    .select("position")
+    .eq("template_id", parsed.data.templateId)
+    .order("position", { ascending: false })
+    .limit(1);
+  if (readError) return fail(GENERIC);
+  const position = (last?.[0]?.position ?? -1) + 1;
+  if (position > 39) return fail("That workout is full.");
+
+  const { error } = await supabase.from("workout_template_exercises").insert({
+    template_id: parsed.data.templateId,
+    exercise_id: parsed.data.exerciseId,
+    position,
+  });
+  if (error) {
+    return fail(error.code === "42501" ? "That workout or exercise is not available." : GENERIC);
+  }
 
   revalidateTraining();
   return { ok: true };
