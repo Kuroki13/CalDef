@@ -16,7 +16,7 @@ import type { WorkoutSession } from "@/lib/training/types";
 
 export type TrainingToday = {
   running: { id: number; name: string; startedAt: string } | null;
-  planned: { templateId: number; name: string; detail: string } | null;
+  planned: { id: number; templateId: number; name: string; detail: string } | null;
   last: WorkoutSession | null;
 };
 
@@ -37,6 +37,7 @@ export async function getTrainingToday(
       last.map((session) => ({
         templateId: session.templateId,
         startedAt: session.startedAt,
+        scheduleId: session.scheduleId,
         date: todayInTimeZone(timeZone, new Date(session.startedAt)),
       })),
     )[0] ?? null;
@@ -44,6 +45,7 @@ export async function getTrainingToday(
     running,
     planned: first
       ? {
+          id: first.id,
           templateId: first.templateId,
           name: first.name,
           detail: `${first.exerciseCount} ${first.exerciseCount === 1 ? "exercise" : "exercises"}`,

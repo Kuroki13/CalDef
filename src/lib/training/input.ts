@@ -86,6 +86,8 @@ export const startSchema = z.object({
   templateId: nullable(id),
   fromSessionId: nullable(id),
   name: nullable(z.string().trim().max(80)),
+  /** The planned occurrence being carried out, when started from a plan. */
+  scheduleId: nullable(id).optional(),
 });
 export type StartInput = z.infer<typeof startSchema>;
 

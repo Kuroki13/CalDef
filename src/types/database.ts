@@ -320,6 +320,8 @@ export type Database = {
         Row: {
           amount: number
           carbs_g: number
+
+          client_token: string | null
           created_at: string
           fat_g: number
           food_id: number | null
@@ -341,6 +343,8 @@ export type Database = {
         Insert: {
           amount: number
           carbs_g?: number
+
+          client_token?: string | null
           created_at?: string
           fat_g?: number
           food_id?: number | null
@@ -362,6 +366,8 @@ export type Database = {
         Update: {
           amount?: number
           carbs_g?: number
+
+          client_token?: string | null
           created_at?: string
           fat_g?: number
           food_id?: number | null
@@ -1183,6 +1189,8 @@ export type Database = {
           ended_at: string | null
           id: number
           name: string
+
+          schedule_id: number | null
           notes: string | null
           start_token: string
           started_at: string
@@ -1196,6 +1204,8 @@ export type Database = {
           ended_at?: string | null
           id?: never
           name: string
+
+          schedule_id?: number | null
           notes?: string | null
           start_token: string
           started_at?: string
@@ -1209,6 +1219,8 @@ export type Database = {
           ended_at?: string | null
           id?: never
           name?: string
+
+          schedule_id?: number | null
           notes?: string | null
           start_token?: string
           started_at?: string
@@ -1409,18 +1421,32 @@ export type Database = {
         Args: { p_id: number; p_items: Json; p_name: string; p_notes: string }
         Returns: number
       }
-      start_workout: {
-        Args: {
-          p_from_session: number
-          p_name: string
-          p_template_id: number
-          p_token: string
-        }
-        Returns: {
-          resumed: boolean
-          session_id: number
-        }[]
-      }
+      start_workout:
+        | {
+            Args: {
+              p_from_session: number
+              p_name: string
+              p_template_id: number
+              p_token: string
+            }
+            Returns: {
+              resumed: boolean
+              session_id: number
+            }[]
+          }
+        | {
+            Args: {
+              p_from_session: number
+              p_name: string
+              p_schedule_id: number
+              p_template_id: number
+              p_token: string
+            }
+            Returns: {
+              resumed: boolean
+              session_id: number
+            }[]
+          }
     }
     Enums: {
       activity_level: "sedentary" | "light" | "moderate" | "very" | "extra"

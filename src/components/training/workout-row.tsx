@@ -62,6 +62,7 @@ export function WorkoutRow({
   programs,
   today,
   canStart,
+  plannedTodayId = null,
 }: {
   template: WorkoutTemplate;
   programs: WorkoutProgram[];
@@ -69,6 +70,8 @@ export function WorkoutRow({
   today: string;
   /** False while another session is running. */
   canStart: boolean;
+  /** Today's open plan of this workout: starting here carries it out. */
+  plannedTodayId?: number | null;
 }) {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
@@ -122,7 +125,7 @@ export function WorkoutRow({
       </Link>
 
       {canStart ? (
-        <StartWorkoutButton templateId={template.id} className="rounded-full px-5">
+        <StartWorkoutButton templateId={template.id} scheduleId={plannedTodayId} className="rounded-full px-5">
           Start
         </StartWorkoutButton>
       ) : null}

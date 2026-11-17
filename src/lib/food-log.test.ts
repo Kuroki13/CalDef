@@ -17,23 +17,38 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const nutrients = vi.fn();
 const servings = vi.fn();
 const inserted: Record<string, unknown>[] = [];
+/** Tokens already written, as the unique index would hold them. */
+const tokens = new Map<string, number>();
 
 vi.mock("@/lib/supabase/server", () => ({
   requireUserId: async () => "user-1",
   createClient: async () => ({
     from: (table: string) => ({
       select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: nutrients(), error: null }),
+        eq: (column: string, value: unknown) => ({
+          maybeSingle: async () =>
+            column === "client_token"
+              ? { data: { id: tokens.get(String(value)) }, error: null }
+              : { data: nutrients(), error: null },
           // `food_servings` is read as a list rather than a single row.
           then: (onFulfilled: (value: unknown) => unknown) =>
             Promise.resolve({ data: servings(), error: null }).then(onFulfilled),
         }),
       }),
-      insert: async (payload: Record<string, unknown>) => {
-        inserted.push({ table, ...payload });
-        return { error: null };
-      },
+      insert: (payload: Record<string, unknown>) => ({
+        select: () => ({
+          single: async () => {
+            const token = payload.client_token as string | null;
+            if (token && tokens.has(token)) {
+              return { data: null, error: { code: "23505", message: "duplicate key" } };
+            }
+            inserted.push({ table, ...payload });
+            const id = 100 + inserted.length;
+            if (token) tokens.set(token, id);
+            return { data: { id }, error: null };
+          },
+        }),
+      }),
     }),
   }),
 }));
@@ -54,6 +69,7 @@ const log = (over: Record<string, unknown> = {}) =>
 beforeEach(() => {
   vi.clearAllMocks();
   inserted.length = 0;
+  tokens.clear();
   servings.mockReturnValue([]);
 });
 
@@ -67,7 +83,7 @@ describe("logCachedFood — a new entry reads the nutrients as they stand", () =
       fat_g: 2,
     });
 
-    expect(await log()).toEqual({ ok: true });
+    expect(await log()).toMatchObject({ ok: true });
     expect(inserted[0]).toMatchObject({ grams: 200, kcal: 200, protein_g: 20 });
   });
 
@@ -82,7 +98,7 @@ describe("logCachedFood — a new entry reads the nutrients as they stand", () =
       fat_g: 2,
     });
 
-    expect(await log()).toEqual({ ok: true });
+    expect(await log()).toMatchObject({ ok: true });
     expect(inserted[0]).toMatchObject({ grams: 200, kcal: 500, protein_g: 60 });
   });
 
@@ -127,5 +143,24 @@ describe("logCachedFood — a new entry reads the nutrients as they stand", () =
       { error: "That serving is no longer available. Pick another." },
     );
     expect(inserted).toHaveLength(0);
+  });
+});
+
+describe("logCachedFood — a retried submission is written once", () => {
+  it("answers a second submission of the same form with the first entry", async () => {
+    nutrients.mockReturnValue({ kcal: 100, protein_g: 10, carbs_g: 0, fat_g: 1 });
+    const token = "6d1f1c5e-3d0b-4c62-9a3f-2b7f2f0a9e11";
+    const first = await log({ clientToken: token });
+    const retry = await log({ clientToken: token });
+    expect(first).toEqual({ ok: true, entryId: 101 });
+    expect(retry).toEqual({ ok: true, entryId: 101 });
+    expect(inserted).toHaveLength(1);
+  });
+
+  it("writes two entries for two separate forms", async () => {
+    nutrients.mockReturnValue({ kcal: 100, protein_g: 10, carbs_g: 0, fat_g: 1 });
+    await log({ clientToken: "6d1f1c5e-3d0b-4c62-9a3f-2b7f2f0a9e11" });
+    await log({ clientToken: "7e2a2d6f-4e1c-4d73-8b4a-3c8a3a1b0f22" });
+    expect(inserted).toHaveLength(2);
   });
 });

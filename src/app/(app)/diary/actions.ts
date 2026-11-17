@@ -20,7 +20,12 @@ import { recordChoice } from "@/lib/vocabulary";
 import type { Food } from "@/lib/food/types";
 import { createClient, requireUserId } from "@/lib/supabase/server";
 
-export type DiaryActionState = { error?: string; ok?: boolean };
+export type DiaryActionState = {
+  error?: string;
+  ok?: boolean;
+  /** Where the entry went, so the screen can show it there. */
+  saved?: { entryId: number; logDate: string; mealTypeId: number; at: number };
+};
 
 const logSchema = z.object({
   logDate: z.iso.date(),
@@ -33,6 +38,8 @@ const logSchema = z.object({
   food: z.string().min(2),
   /** What was typed to find it, when it came from search (§13I). */
   searchedFor: z.string().trim().max(200).optional(),
+  /** One per opened form: a retried submit is written once. */
+  clientToken: z.uuid().optional(),
 });
 
 export async function logFood(
@@ -66,6 +73,7 @@ export async function logFood(
     unit: parsed.data.unit,
     servingLabel: parsed.data.servingLabel,
     source: "manual",
+    clientToken: parsed.data.clientToken,
   });
   if ("error" in result) return result;
 
@@ -77,7 +85,15 @@ export async function logFood(
 
   revalidatePath("/diary");
   revalidatePath("/dashboard");
-  return { ok: true };
+  return {
+    ok: true,
+    saved: {
+      entryId: result.entryId,
+      logDate: parsed.data.logDate,
+      mealTypeId: parsed.data.mealTypeId,
+      at: Date.now(),
+    },
+  };
 }
 
 const amendSchema = z.object({

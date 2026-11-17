@@ -36,11 +36,18 @@ export type LogCachedFoodInput = {
    */
   servingLabel?: string | null;
   source: LogSource;
+  /**
+   * Made by the browser when the form opened. A retried submission carries
+   * the same token, and the database's unique index turns the second write
+   * into "already there" instead of a second entry (migration
+   * 20261118000003). Optional: callers that have none behave as before.
+   */
+  clientToken?: string | null;
 };
 
 export async function logCachedFood(
   input: LogCachedFoodInput,
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ ok: true; entryId: number } | { error: string }> {
   const userId = await requireUserId();
   const supabase = await createClient();
 
@@ -90,8 +97,9 @@ export async function logCachedFood(
     grams,
   );
 
-  const { error: insertError } = await supabase.from("food_logs").insert({
+  const { data: inserted, error: insertError } = await supabase.from("food_logs").insert({
     user_id: userId,
+    client_token: input.clientToken ?? null,
     log_date: input.logDate,
     meal_type_id: input.mealTypeId,
     food_id: input.foodId,
@@ -104,10 +112,22 @@ export async function logCachedFood(
     carbs_g: macros.carbs_g,
     fat_g: macros.fat_g,
     source: input.source,
-  });
-  if (insertError) return { error: insertError.message };
+  }).select("id").single();
+  if (insertError) {
+    // The same submission arrived twice: the first one was written, which
+    // is exactly what was asked for. Answer with that entry.
+    if (insertError.code === "23505" && input.clientToken) {
+      const { data: existing } = await supabase
+        .from("food_logs")
+        .select("id")
+        .eq("client_token", input.clientToken)
+        .maybeSingle();
+      if (existing) return { ok: true, entryId: existing.id };
+    }
+    return { error: insertError.message };
+  }
 
-  return { ok: true };
+  return { ok: true, entryId: inserted.id };
 }
 
 export type UpdateEntryPortionInput = {

@@ -21,6 +21,7 @@ export function StartWorkoutButton({
   templateId = null,
   fromSessionId = null,
   sessionName = null,
+  scheduleId = null,
   children,
   ...button
 }: {
@@ -28,6 +29,8 @@ export function StartWorkoutButton({
   fromSessionId?: number | null;
   /** For an empty session. */
   sessionName?: string | null;
+  /** The planned occurrence this start carries out. */
+  scheduleId?: number | null;
   children: React.ReactNode;
 } & Omit<React.ComponentProps<typeof Button>, "onClick" | "type">) {
   const router = useRouter();
@@ -39,7 +42,7 @@ export function StartWorkoutButton({
     setPending(true);
     setError(null);
     try {
-      const result = await startWorkoutAction({ token, templateId, fromSessionId, name: sessionName });
+      const result = await startWorkoutAction({ token, templateId, fromSessionId, name: sessionName, scheduleId });
       if (!result.ok) {
         setError(result.error);
         setPending(false);

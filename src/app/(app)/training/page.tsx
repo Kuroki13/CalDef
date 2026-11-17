@@ -57,6 +57,7 @@ export default async function TrainingPage() {
     id: s.id,
     name: s.name,
     templateId: s.templateId,
+    scheduleId: s.scheduleId,
     startedAt: s.startedAt,
     date: todayInTimeZone(profile.timezone, new Date(s.startedAt)),
   }));
@@ -169,6 +170,9 @@ export default async function TrainingPage() {
                         programs={programs}
                         today={today}
                         canStart={!active}
+                        plannedTodayId={
+                          upcoming.find((plan) => plan.date === today && plan.templateId === template.id)?.id ?? null
+                        }
                       />
                     ))}
                   </ul>

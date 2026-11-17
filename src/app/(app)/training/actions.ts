@@ -265,6 +265,9 @@ export async function startWorkoutAction(
     p_name: (parsed.data.name || null) as string,
     p_template_id: parsed.data.templateId as number,
     p_from_session: parsed.data.fromSessionId as number,
+    // The plan link (migration 20261118000003). The database links only a
+    // plan of this user, for this workout, not already carried out.
+    p_schedule_id: (parsed.data.scheduleId ?? null) as number,
   });
   if (error) {
     if (error.code === "P0002") return fail("That workout no longer exists.");

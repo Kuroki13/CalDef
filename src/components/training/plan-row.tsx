@@ -57,7 +57,7 @@ export function PlanRow({
           <p className="truncate font-semibold">{plan.name}</p>
         </div>
         {canStart ? (
-          <StartWorkoutButton templateId={plan.templateId} className="rounded-full px-5">
+          <StartWorkoutButton templateId={plan.templateId} scheduleId={plan.id} className="rounded-full px-5">
             Start
           </StartWorkoutButton>
         ) : null}

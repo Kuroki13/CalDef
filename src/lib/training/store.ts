@@ -96,6 +96,7 @@ function toSession(row: SessionRow): WorkoutSession {
     endedAt: row.ended_at,
     notes: row.notes,
     templateId: row.template_id,
+    scheduleId: row.schedule_id ?? null,
     exercises: [...row.workout_session_exercises]
       .sort((a, b) => a.position - b.position || a.id - b.id)
       .map(toSessionExercise),
@@ -478,11 +479,13 @@ export async function getScheduledFor(date: string): Promise<ScheduledWorkout[]>
  */
 export async function listSessionStarts(
   sinceIso: string,
-): Promise<{ id: number; name: string; startedAt: string; templateId: number | null }[]> {
+): Promise<
+  { id: number; name: string; startedAt: string; templateId: number | null; scheduleId: number | null }[]
+> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("workout_sessions")
-    .select("id, name, started_at, template_id")
+    .select("id, name, started_at, template_id, schedule_id")
     .eq("status", "completed")
     .gte("started_at", sinceIso)
     .order("started_at");
@@ -492,5 +495,6 @@ export async function listSessionStarts(
     name: row.name,
     startedAt: row.started_at,
     templateId: row.template_id,
+    scheduleId: row.schedule_id,
   }));
 }

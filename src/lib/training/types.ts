@@ -120,6 +120,8 @@ export type WorkoutSession = {
   endedAt: string | null;
   notes: string | null;
   templateId: number | null;
+  /** The planned occurrence it carried out, if it was started from one. */
+  scheduleId: number | null;
   exercises: SessionExercise[];
 };
 

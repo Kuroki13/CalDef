@@ -120,8 +120,14 @@ describe("startWorkoutAction", () => {
     const result = await actions.startWorkoutAction({ token, templateId: 11, fromSessionId: null, name: null });
     expect(result).toEqual({ ok: true, sessionId: 7, resumed: false });
     expect(rpc).toHaveBeenCalledWith("start_workout", {
-      p_token: token, p_name: null, p_template_id: 11, p_from_session: null,
+      p_token: token, p_name: null, p_template_id: 11, p_from_session: null, p_schedule_id: null,
     });
+  });
+
+  it("names the plan it carries out, so the session is linked to that occurrence", async () => {
+    rpc.mockResolvedValue({ data: [{ session_id: 8, resumed: false }], error: null });
+    await actions.startWorkoutAction({ token, templateId: 11, fromSessionId: null, name: null, scheduleId: 42 });
+    expect(rpc).toHaveBeenCalledWith("start_workout", expect.objectContaining({ p_template_id: 11, p_schedule_id: 42 }));
   });
 
   it("passes on that a session was already running", async () => {
