@@ -725,6 +725,30 @@ and the rest of phases 14–19 stay out.
 
 ### 16.1 Visual identity
 
+**Amendment by the account owner, 2026-11-17 (night): CalDef 2.0.** The
+direction becomes **Luxury Tech with Midnight Purple as the signature colour**
+— concept "Chronograph", refined so that it does not look like a watch. It
+supersedes "Scoreboard" below once implemented; until each screen is
+rebuilt, Scoreboard remains what the code does. The system is described in
+`docs/DESIGN_DIRECTION.md`. Binding points:
+
+- Midnight Purple is the action colour and the brand; it is not paint. A
+  restrained neutral foundation (porcelain light, aubergine-black dark); both
+  themes designed independently and with equal care; champagne only as a
+  subtle mark for personal records.
+- Precise, readable numeric typography first (Geist, tabular figures); no
+  decorative serif in the app.
+- The live session is full screen; a session in progress stays one tap away
+  from every other screen through a capsule that is part of the tab bar and
+  never covers content (amends §16.2's session bar).
+- Light mode does not keep a dark top band unless an on-device status-bar
+  test shows it is needed; if it is, the band is designed into both themes.
+- Implemented incrementally after the owner's final visual confirmation;
+  no data, nutrition, security or privacy behaviour changes with it.
+
+The rest of this section describes the previous direction, kept for history
+until the implementation replaces it.
+
 A sober, sporty, contemporary mobile app. One accent colour, a restricted
 palette, a clear hierarchy in which the important figure is read first,
 tabular numbers, regular spacing. Cards where they group something, not
@@ -889,6 +913,21 @@ movement never has two histories.
 **No media from either**: the second source states no licence for its
 images, and an invented animation could show a movement wrongly. An
 exercise's page is text. The count shown to the user is the real one.
+
+**Amendment by the account owner, 2026-11-17 (night): exercise media.**
+Exercise pages should show images, start and end positions and short
+demonstrations **where legally available**, from free sources whose licence
+is stated per file: Everkinetic (CC BY-SA 4.0) first, then wger images and
+videos carrying their own CC0 / CC BY / CC BY-SA licence and author. Each
+asset keeps its source, licence, author and whether it was modified, and is
+credited where it is shown. Excluded: anything without a stated licence
+(including free-exercise-db's photos), anything flagged AI-generated, and
+proprietary or competitor media. Assets are mapped to exercises by hand,
+never by fuzzy name. The owner's most-used exercises come first. An exercise
+without licensed media keeps a text page. **Deploying media waits for phases
+12–13 to be stable**; design and preparation may happen before. The
+paragraph above ("No media from either") remains true of the two catalogue
+sources themselves.
 
 ProFit (VGFIT) is a functional reference only. What its public store page
 documents — an exercise library, descriptions, muscles involved, preset

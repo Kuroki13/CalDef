@@ -28,14 +28,45 @@ Last updated: 2026-11-17
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13M done (13L/13M committed 2026-11-17, not yet deployed); 13N and the parser's `original_text` remain |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13M done (13L/13M committed `e31090a` and deployed 2026-11-17); 13N and the parser's `original_text` remain |
 | 16 | Strength training and visual identity (spec §16) | DONE — second pass 2026-11-17: "Scoreboard" redesign and the full training module, **seen in a real browser** at 360/390/430/1280 px on development. iPhone checks still open; see TODO |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
-| UX | Daily-use overhaul (owner's brief of 2026-11-17, evening) | DONE on development and deployed — iPhone checks open; see "CURRENT WORK" |
+| UX | Daily-use overhaul (owner's brief of 2026-11-17, evening) | DONE on development and deployed — iPhone checks open |
+| 2.0 | CalDef 2.0 redesign — Luxury Tech / Midnight Purple (owner's brief of 2026-11-17, night) | DIRECTION APPROVED (Concept B "Chronograph", refined); v2 key screens awaiting the owner's final visual confirmation. No visual code changed. See "CURRENT WORK" and `docs/DESIGN_DIRECTION.md` |
 
 ---
 
-## CURRENT WORK — daily-use overhaul (brief of 2026-11-17)
+## CURRENT WORK — CalDef 2.0 redesign (brief of 2026-11-17, night)
+
+Resume here. The owner approved Concept B, "Chronograph", as the foundation
+for a Luxury Tech / Midnight Purple redesign, with refinements: not literally
+a watch; resume a session from anywhere without overlapping bars; licensed
+exercise images and demonstrations as a priority (gated); test the iOS
+status-bar options before keeping any dark band in light mode; typography
+approved; restaurant work finished and committed first. The decisions are
+recorded in `docs/DESIGN_DIRECTION.md` and PRODUCT_SPEC §16.1 / §16.10
+(amendments of 2026-11-17, night).
+
+| Step | State |
+|---|---|
+| Audit + two concepts (artifact v1) | DONE |
+| Restaurant work 13L/13M, separately | DONE — `e31090a`, deployed |
+| Refined key screens in both themes (artifact v2) | DONE — **awaiting the owner's final visual confirmation** |
+| 0b iOS status-bar test (three temporary static pages) | WAITING for the owner's go-ahead to deploy them |
+| Exercise-media wave 1 list (owner's most-used exercises) | WAITING for the owner's list, or approval of one read-only slug count |
+| 1 tokens · 2 shell + capsule + Today · 3 session/training · 4 nutrition · 5 progress + secondary | NOT STARTED — after confirmation |
+| Media UI | GATED — phases 12–13 stable first; design and build script may be prepared |
+
+**Next action:** wait for the owner's confirmation of the v2 screens; then
+step 0b and step 1. No visual code until then.
+
+Research done for the design (2026-11-17): exercise-media licences checked
+against the Everkinetic repository licence, the wger API (per-file licence,
+author, AI flag) and free-exercise-db issue #12; the status-bar behaviour of
+`theme-color` in an installed iOS app could not be confirmed from sources,
+hence the device test.
+
+## PREVIOUS WORK — daily-use overhaul (brief of 2026-11-17)
 
 Resume here. The brief: push the Scoreboard design much further, judged by
 three journeys — **add a food to the right meal and date**, **log a set
@@ -925,8 +956,9 @@ Phase 13, in the order spec §15 sets:
 - **Family Foods and cooked weight (13H): DONE, live on production since 2026-10-08.**
 - **Personal vocabulary (13I): DONE, live on production since 2026-10-08.**
 - French and Canadian datasets (13J/13K): DONE, live 2026-10-08.
-- **Restaurants and their modifiers (13L/13M): DONE, committed 2026-11-17**
-  (see "Phase 13L/13M — official restaurant data" below). Not deployed yet.
+- **Restaurants and their modifiers (13L/13M): DONE, live on production since
+  2026-11-17** (`e31090a`, deployment `dpl_DPX7ZTr9…` READY; see "Phase
+  13L/13M — official restaurant data" under TEST RESULTS).
 - Then connecting confidence to resolution (13N).
 - Not yet: the AI parser preserving `original_text` (§13.1). The manual
   search path is where recognition runs today. The parser already resolves
@@ -1349,7 +1381,9 @@ Finished and committed separately from the redesign, at the owner's request.
   three test rows were then deleted by id (873–875) from development.
 - `npm run test` 99 files / **1073 passed** · `typecheck` 0 · `lint` 0 ·
   `build` 0.
-- **Not checked:** an iPhone; production (not deployed in this commit). The
+- **Deployed:** Vercel built `e31090a` to production (`dpl_DPX7ZTr9…`, READY);
+  `/login` 200 and `/diary` redirects to sign-in afterwards. No migration.
+- **Not checked:** an iPhone; production signed in. The
   builder logs without a retry token, like Quick Add, recipes and saved meals
   (known gap, invariant 27); its button disables while pending.
 

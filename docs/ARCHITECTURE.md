@@ -400,6 +400,11 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     contrast. Figures and titles use the display face (`.figure`,
     `.display`); `Slab`, `SlabBar`, `SectionTitle`, `Stat` and `EmptyState`
     in `components/page-header.tsx` are the shared pieces.
+    - *Pending change:* the owner approved CalDef 2.0 (Midnight Purple,
+      `docs/DESIGN_DIRECTION.md`, spec §16.1 amendment of 2026-11-17). The
+      first half of this invariant stays (every colour a token, none
+      literal); the volt/slab rules are rewritten when step 1 replaces the
+      tokens in code, not before.
 
 24. **What the device keeps is scoped to the account.** A live session's
     unsent saves and rest timer are stored under
