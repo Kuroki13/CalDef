@@ -31,6 +31,79 @@ Last updated: 2026-11-17
 | 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13K live; restaurants (13L/13M) next |
 | 16 | Strength training and visual identity (spec §16) | DONE — second pass 2026-11-17: "Scoreboard" redesign and the full training module, **seen in a real browser** at 360/390/430/1280 px on development. iPhone checks still open; see TODO |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
+| UX | Daily-use overhaul (owner's brief of 2026-11-17, evening) | IN PROGRESS — see "CURRENT WORK" just below |
+
+---
+
+## CURRENT WORK — daily-use overhaul (brief of 2026-11-17)
+
+Resume here. The brief: push the Scoreboard design much further, judged by
+three journeys — **add a food to the right meal and date**, **log a set
+between two exercises**, **understand progress on opening the tab**. Ten
+phases (0 audit … 9 delivery). The uncommitted restaurant work (13L/13M)
+stays in the tree, untouched and uncommitted; commits here must not
+include it (a file carrying both is committed with the restaurant hunks
+reverse-applied — the saved diff is the reference).
+
+| Phase | State |
+|---|---|
+| 0 Audit and reference captures | DONE 2026-11-17 |
+| 1 Art direction | next |
+| 2 Data reliability (plan ↔ session link) | todo |
+| 3 Nutrition | todo |
+| 4 Live session | todo |
+| 5 Training home, catalogue, workouts | todo |
+| 6 Progress | todo |
+| 7 Today and sign-in | todo |
+| 8 Validation | todo |
+| 9 Delivery | todo |
+
+### Phase 0 — audit (2026-11-17)
+
+**State found.** Branch `main`, `975c7bd`, equal to `origin/main` and to
+the production deployment (`dpl_EaTKwfo3…`, READY). Working tree: the
+restaurant work only. Development database awake; 980 exercises listed
+(the brief's 996 predates the 16 retired duplicates).
+
+**How it was looked at.** Production build (`next build && next start`)
+against development, signed in as the development fixture
+(`caldef.studio.verify@example.com`, filled by
+`.vercel/caldef-ops/design-fixture.mjs`: 21 weigh-ins, 7 foods today, 3
+workouts, 4 sessions), in headless Chromium. Production was not signed
+into: no test account is written there. Captures, first screen at
+**360×740, 390×844, 430×932 and 1280×800**, plus the full page at 390, in
+`docs/design/2026-11-17-ux/before/`: today, nutrition, add-food, training
+(idle and with a session running), catalogue, exercise (Ab Crunch
+Machine), new workout, session, progress, phase, login.
+
+**The brief's findings, each checked on the current version:**
+
+| Finding | Verdict |
+|---|---|
+| Nutrition: the summary pushes the meals down | Confirmed — first meal starts at 575 px of 844 |
+| Date is not selectable | Confirmed. Arrows and "Today" already exist |
+| No "+" per meal; context not carried | Confirmed — one "Add food", meal chosen last, date never shown |
+| "1 × 100 g · 100 g" | Confirmed in code (`describePortion` + grams), for a serving named by its weight |
+| Share of estimated calories | Present; what was estimated is not explained |
+| Nothing says where an entry went | Confirmed — the form silently resets |
+| Plan ↔ session matched on date + name | Already changed: workout + day + "started after planned". Still no occurrence id |
+| Session: every exercise equal, the clock dominates | Confirmed |
+| Training opens on "0 sessions this week" | Confirmed; the library is the last row; two "create" buttons when empty |
+| "développé couché" | Already works (alias + accent folding, tested) |
+| Ab Crunch Machine: a wall of text | Confirmed |
+| Progress: one figure dominates, form open, chart below the fold | Confirmed — chart starts at ~800 px |
+| "1 weeks" | Confirmed in code (`phase-dashboard.ts`) |
+| Today picks the first empty meal by itself | Confirmed ("Log dinner") |
+| Reached vs exceeded look the same | Partly — the words differ, the bar does not |
+| Sign-in offers "Create one" while signup is closed | Confirmed; there is no password recovery at all |
+| Themes and languages | English only, no translation layer; a dark token set exists and nothing switches to it |
+| Tab bar covering the last row | Not reproduced — every page ends above it |
+
+**Priorities.** (1) Nutrition: compact summary, date picker, "+" per meal,
+context kept to the end, visible result. (2) Session: one active exercise,
+the next set next to its button. (3) Progress: chart under a compact
+summary, weigh-in behind a button. Then Training home by state, Today,
+sign-in, the plan link, and the catalogue details.
 
 ---
 
