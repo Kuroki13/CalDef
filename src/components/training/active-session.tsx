@@ -51,6 +51,7 @@ import {
 } from "@/app/(app)/training/actions";
 import { Slab, SlabBar } from "@/components/page-header";
 import { PendingButton, Spinner } from "@/components/pending-button";
+import { AlternativesSheet } from "@/components/training/alternatives-sheet";
 import { ExercisePickerSheet } from "@/components/training/exercise-picker";
 import { REST_DONE_LINGER_MS, RestTimerBar } from "@/components/training/rest-timer";
 import {
@@ -255,6 +256,8 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
   });
   const [notes, setNotes] = useState(session.notes ?? "");
   const [picker, setPicker] = useState<{ replaceId: number | null } | null>(null);
+  // The session exercise an alternative is being looked for.
+  const [alternativeFor, setAlternativeFor] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -438,8 +441,8 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
     setItems((current) => current.filter((e) => e.id !== exercise.id));
   }
 
-  async function picked(chosen: Exercise[]) {
-    const target = picker;
+  async function picked(chosen: Exercise[], given?: { replaceId: number | null }) {
+    const target = given ?? picker;
     if (!target || chosen.length === 0) return;
     if (target.replaceId !== null) {
       const replaceId = target.replaceId;
@@ -478,6 +481,7 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
       ]);
     }
     setPicker(null);
+    setAlternativeFor(null);
   }
 
   async function saveExerciseDetails(
@@ -759,8 +763,11 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
                         <Info aria-hidden /> How to do it
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setAlternativeFor(exercise.id)}>
+                      <Repeat aria-hidden /> Find an alternative
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setPicker({ replaceId: exercise.id })}>
-                      <Repeat aria-hidden /> Replace exercise
+                      <Repeat aria-hidden /> Replace with any exercise
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={() => setOpenNotes((current) => [...current, exercise.id])}
@@ -929,6 +936,23 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
         onPick={(chosen) => void picked(chosen)}
         onCreated={(exercise) => setCatalogueList((current) => [...current, exercise])}
       />
+
+      {(() => {
+        const item = items.find((e) => e.id === alternativeFor) ?? null;
+        const base = item ? catalogueList.find((e) => e.id === item.exerciseId) ?? null : null;
+        return (
+          <AlternativesSheet
+            target={item && base ? { ...base, sessionExerciseId: item.id } : null}
+            doneSets={item ? item.sets.filter((set) => set.completedAt).length : 0}
+            sessionName={session.name}
+            catalogue={catalogueList}
+            pending={busy === "picker"}
+            onOpenChange={(open) => (open ? null : setAlternativeFor(null))}
+            onReplace={(exercise) => void picked([exercise], { replaceId: item?.id ?? null })}
+            onAdd={(exercise) => void picked([exercise], { replaceId: null })}
+          />
+        );
+      })()}
 
       {showRest && rest ? (
         <RestTimerBar

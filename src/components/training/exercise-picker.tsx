@@ -11,7 +11,7 @@
  * exercise can be created on the spot with the name already filled in.
  */
 
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Plus, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { createExerciseAction } from "@/app/(app)/training/actions";
@@ -467,6 +467,25 @@ export function ExercisePickerSheet({
         </div>
         {single ? null : (
           <div className="pb-safe border-t bg-card px-4 pt-3">
+            {/* What is ticked, whatever the search now shows — kept across
+                searches and filters, and removable from here. */}
+            {selected.length > 0 ? (
+              <ul aria-label="Selected" className="no-scrollbar -mx-4 mb-2 flex gap-2 overflow-x-auto px-4">
+                {selected.map((exercise) => (
+                  <li key={exercise.id} className="shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggle(exercise)}
+                      aria-label={`Remove ${exercise.name} from the selection`}
+                      className="bg-muted flex min-h-11 max-w-56 items-center gap-1.5 rounded-full pr-2 pl-3.5 text-sm font-medium"
+                    >
+                      <span className="truncate">{exercise.name}</span>
+                      <X className="size-4 shrink-0" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <PendingButton
               type="button"
               size="lg"

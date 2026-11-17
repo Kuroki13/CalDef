@@ -1,4 +1,4 @@
-import { ArrowRight, Dumbbell, Plus } from "lucide-react";
+import { ArrowRight, CalendarDays, Dumbbell, Play, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -13,7 +13,7 @@ import { getAccountSetup } from "@/lib/profile";
 import { weekOf } from "@/lib/training/calendar";
 import { openPlans } from "@/lib/training/plans";
 import {
-  getActiveSessionSummary,
+  getActiveSession,
   listPrograms,
   listSchedule,
   listSessionStarts,
@@ -26,15 +26,20 @@ import { dayOf, summaryLineOf } from "@/lib/training/view";
 export const metadata: Metadata = { title: "Training · CalDef" };
 
 /**
- * The training home. In order of urgency:
+ * The training home: the session first, the statistics after.
  *
- *   the week         what was done, what is planned (the slab)
- *   what is planned  today's workout to start, the next ones to move
- *   your workouts    by programme; Start on the row, the rest in a menu
- *   what you did     the last few sessions
+ * The slab answers "what do I do now?" with one dominant action, chosen by
+ * the state of the account:
  *
- * A session in progress is not repeated here: the bar at the bottom of
- * every screen is its way back in, and while it runs no other can start.
+ *   a session is running      Resume it — its name, sets done, its clock
+ *   a workout is planned today Start it
+ *   workouts exist            the list is the choice; Free session beside it
+ *   nothing yet               Create my first workout; Free session and the
+ *                             exercise library next to it
+ *
+ * The week is a thin strip under that, and says nothing when there is
+ * nothing to say. Exercises and history sit with the actions, not at the
+ * bottom of the page.
  */
 export default async function TrainingPage() {
   const { profile } = await getAccountSetup();
@@ -44,7 +49,7 @@ export default async function TrainingPage() {
   const monday = startOfIsoWeek(today);
 
   const [active, templates, programs, recent, plans, starts] = await Promise.all([
-    getActiveSessionSummary(),
+    getActiveSession(),
     listTemplates(),
     listPrograms(),
     listSessionSummaries(3),
@@ -80,47 +85,105 @@ export default async function TrainingPage() {
     { title: null, items: templates.filter((t) => t.programId === null || !programs.some((p) => p.id === t.programId)) },
   ].filter((group) => group.items.length > 0);
 
+  const plannedToday = active ? null : (upcoming.find((plan) => plan.date === today) ?? null);
+  const setsDone = active
+    ? active.exercises.reduce((n, e) => n + e.sets.filter((set) => set.completedAt).length, 0)
+    : 0;
+  const setsTotal = active ? active.exercises.reduce((n, e) => n + e.sets.length, 0) : 0;
+  const plannedThisWeek = week.reduce((n, day) => n + day.planned.length, 0);
+
   return (
     <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
       <div className="lg:sticky lg:top-0 lg:col-span-5">
-        <Slab>
-          <h1 className="display text-3xl">Training</h1>
-          <p className="mt-4 flex items-end gap-3">
-            <span className="figure text-7xl leading-[0.8]">{sessionsThisWeek}</span>
-            <span className="text-slab-muted pb-1 text-sm leading-tight">
-              {sessionsThisWeek === 1 ? "session" : "sessions"}
-              <br />
-              this week
-            </span>
-          </p>
-          <div className="border-slab-line mt-6 border-t pt-5">
-            <WeekStrip week={week} />
-          </div>
-        </Slab>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {active ? (
-            <p className="text-muted-foreground col-span-2 px-1 text-sm">
-              Finish or discard “{active.name}” to start another session.
+        <Slab size="strip">
+          <div className="flex items-baseline justify-between gap-3 pt-2">
+            <h1 className="display text-3xl">Training</h1>
+            <p className="text-slab-muted text-sm tabular-nums">
+              {sessionsThisWeek === 0
+                ? plannedThisWeek > 0
+                  ? `${plannedThisWeek} planned this week`
+                  : "Nothing yet this week"
+                : `${sessionsThisWeek} ${sessionsThisWeek === 1 ? "session" : "sessions"} this week`}
             </p>
-          ) : (
-            <StartWorkoutButton
-              sessionName="Free session"
-              // One volt action per screen: a workout planned today, or the
-              // invitation to build the first one, takes it instead.
-              variant={upcoming[0]?.date === today || templates.length === 0 ? "outline" : "volt"}
-              size="lg"
-              className="w-full rounded-2xl"
+          </div>
+
+          {/* The one action of the screen, by state. */}
+          <div className="mt-4">
+            {active ? (
+              <Link
+                href="/training/session"
+                className="bg-volt text-volt-foreground flex min-h-[4.5rem] items-center gap-3 rounded-2xl px-5"
+              >
+                <Play className="size-6 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-lg leading-tight font-bold">Resume the session</span>
+                  <span className="block truncate text-sm opacity-75">
+                    {active.name} · {setsDone} of {setsTotal} sets done
+                  </span>
+                </span>
+              </Link>
+            ) : plannedToday ? (
+              <div className="space-y-1">
+                <p className="eyebrow">Planned today</p>
+                <StartWorkoutButton
+                  templateId={plannedToday.templateId}
+                  scheduleId={plannedToday.id}
+                  variant="volt"
+                  size="lg"
+                  className="min-h-[4.25rem] w-full justify-start rounded-2xl px-5 text-lg"
+                >
+                  Start {plannedToday.name}
+                </StartWorkoutButton>
+              </div>
+            ) : templates.length === 0 ? (
+              <Button asChild variant="volt" size="lg" className="min-h-[4.25rem] w-full justify-start rounded-2xl px-5 text-lg">
+                <Link href="/training/templates/new">
+                  <Plus aria-hidden /> Create my first workout
+                </Link>
+              </Button>
+            ) : (
+              <p className="text-slab-muted text-sm">
+                Pick a workout below, or start an empty session and add
+                exercises as you go.
+              </p>
+            )}
+          </div>
+
+          {/* Secondary actions, together and near the main one. */}
+          <div className="mt-3 grid grid-cols-3 gap-2 text-sm font-semibold">
+            {active ? (
+              <span className="text-slab-muted col-span-1 flex min-h-11 items-center justify-center rounded-xl bg-white/5 px-2 text-center text-xs font-medium">
+                One session at a time
+              </span>
+            ) : (
+              <StartWorkoutButton
+                sessionName="Free session"
+                variant="ghost"
+                className="text-slab-foreground min-h-11 w-full rounded-xl bg-white/10 px-2 hover:bg-white/20 hover:text-slab-foreground"
+              >
+                Free
+              </StartWorkoutButton>
+            )}
+            <Link
+              href="/training/exercises"
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white/10 px-2 hover:bg-white/20"
             >
-              Free session
-            </StartWorkoutButton>
-          )}
-          <Button asChild variant="outline" size="lg" className={active ? "col-span-2 rounded-2xl" : "rounded-2xl"}>
-            <Link href="/training/templates/new">
-              <Plus aria-hidden /> Create workout
+              <Dumbbell className="size-4" aria-hidden /> Exercises
             </Link>
-          </Button>
-        </div>
+            <Link
+              href="/training/history"
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-white/10 px-2 hover:bg-white/20"
+            >
+              <CalendarDays className="size-4" aria-hidden /> History
+            </Link>
+          </div>
+
+          {sessionsThisWeek > 0 || plannedThisWeek > 0 ? (
+            <div className="border-slab-line mt-4 border-t pt-3">
+              <WeekStrip week={week} />
+            </div>
+          ) : null}
+        </Slab>
       </div>
 
       <div className="mt-6 space-y-7 lg:col-span-7 lg:mt-10">
@@ -141,20 +204,26 @@ export default async function TrainingPage() {
         ) : null}
 
         <section aria-labelledby="workouts-heading">
-          <SectionTitle id="workouts-heading">Workouts</SectionTitle>
+          <SectionTitle
+            id="workouts-heading"
+            action={
+              templates.length > 0 ? (
+                <Button asChild variant="ghost">
+                  <Link href="/training/templates/new">
+                    <Plus aria-hidden /> New
+                  </Link>
+                </Button>
+              ) : null
+            }
+          >
+            Workouts
+          </SectionTitle>
           {templates.length === 0 ? (
             <div className="mt-2">
-              <EmptyState
-                icon={Dumbbell}
-                title="Build your first workout"
-                action={
-                  <Button asChild variant="volt" className="rounded-full px-5">
-                    <Link href="/training/templates/new">Create “Push A”</Link>
-                  </Button>
-                }
-              >
-                Pick exercises, set sets and rest, and start it whenever you
-                train. Or tap Free session and add exercises as you go.
+              <EmptyState icon={Dumbbell} title="No workouts yet">
+                A workout is a list of exercises with their sets, reps and
+                rest — &ldquo;Push A&rdquo;, &ldquo;Legs&rdquo;. Create one
+                above, or tap Free and add exercises as you go.
               </EmptyState>
             </div>
           ) : (
@@ -193,7 +262,7 @@ export default async function TrainingPage() {
               </Button>
             }
           >
-            History
+            Recent sessions
           </SectionTitle>
           {recent.length === 0 ? (
             <p className="text-muted-foreground mt-2 px-1 text-sm">
@@ -219,16 +288,6 @@ export default async function TrainingPage() {
           )}
         </section>
 
-        <Link href="/training/exercises" className="bg-card flex min-h-16 items-center gap-3 rounded-2xl px-5">
-          <Dumbbell className="text-muted-foreground size-5" aria-hidden />
-          <span className="flex-1">
-            <span className="block font-semibold">Exercise library</span>
-            <span className="text-muted-foreground block text-sm">
-              Search, filter, find an alternative, see your progress
-            </span>
-          </span>
-          <ArrowRight className="text-muted-foreground size-4" aria-hidden />
-        </Link>
       </div>
     </div>
   );

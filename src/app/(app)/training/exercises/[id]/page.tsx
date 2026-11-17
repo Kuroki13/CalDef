@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { structureInstructions } from "@/lib/training/instructions";
 import { notFound } from "next/navigation";
 
 import { PageHeader, SectionTitle, Stat } from "@/components/page-header";
@@ -132,6 +133,7 @@ export default async function ExercisePage({
   const series = progressSeries(exercise.measure, history);
   const records = personalRecords(exercise.measure, history);
   const { caption, format } = axis(exercise.measure, units);
+  const cue = structureInstructions(exercise.instructions);
 
   return (
     <div className="space-y-7 lg:max-w-3xl">
@@ -155,10 +157,62 @@ export default async function ExercisePage({
         />
       )}
 
-      <section className="bg-card space-y-3 rounded-2xl p-5 text-sm">
+      {/* What it is, at a glance: the four facts asked before anything else. */}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="eyebrow">Equipment</dt>
+          <dd className="mt-0.5 font-semibold">{EQUIPMENT_LABEL[exercise.equipment]}</dd>
+        </div>
+        <div>
+          <dt className="eyebrow">Main muscles</dt>
+          <dd className="mt-0.5 font-semibold">{MUSCLE_LABEL[exercise.muscleGroup]}</dd>
+        </div>
+        <div>
+          <dt className="eyebrow">Also works</dt>
+          <dd className="mt-0.5 font-semibold">
+            {exercise.secondaryMuscles.length > 0
+              ? exercise.secondaryMuscles
+                  .map((m) => (isMuscleGroup(m) ? MUSCLE_LABEL[m] : m))
+                  .join(", ")
+              : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="eyebrow">A set records</dt>
+          <dd className="mt-0.5 font-semibold">{MEASURE_LABEL[exercise.measure]}</dd>
+        </div>
+      </dl>
+
+      <section className="bg-card space-y-4 rounded-2xl p-5 text-sm">
         <h2 className="eyebrow">How to do it</h2>
-        {exercise.instructions ? (
-          <p className="leading-relaxed">{exercise.instructions}</p>
+        {cue.parts.length > 0 ? (
+          <div className="space-y-4">
+            {cue.parts.map((part, i) => (
+              <div key={i}>
+                {part.title ? <h3 className="display text-lg">{part.title}</h3> : null}
+                <ol className="mt-1 space-y-1.5">
+                  {part.steps.map((step, j) => (
+                    <li key={j} className="flex gap-3 leading-relaxed">
+                      <span className="text-muted-foreground w-4 shrink-0 text-right tabular-nums">
+                        {j + 1}
+                      </span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+            {cue.tips.length > 0 ? (
+              <div className="bg-muted rounded-xl p-3">
+                <h3 className="eyebrow">Tips</h3>
+                <ul className="mt-1 space-y-1 leading-relaxed">
+                  {cue.tips.map((tip, i) => (
+                    <li key={i}>{tip}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         ) : (
           <p className="text-muted-foreground">No written cue for this exercise.</p>
         )}
@@ -173,16 +227,6 @@ export default async function ExercisePage({
               {convention ? ` — ${convention}` : ""}
             </dd>
           </div>
-          {exercise.secondaryMuscles.length > 0 ? (
-            <div>
-              <dt className="inline font-semibold">Also works: </dt>
-              <dd className="inline">
-                {exercise.secondaryMuscles
-                  .map((m) => (isMuscleGroup(m) ? MUSCLE_LABEL[m] : m))
-                  .join(", ")}
-              </dd>
-            </div>
-          ) : null}
           {exercise.aliases.length > 0 ? (
             <div>
               <dt className="inline font-semibold">Also called: </dt>

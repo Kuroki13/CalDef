@@ -210,7 +210,8 @@ export function SessionBar({
   const isClient = useIsClient();
   const now = useNow(1000);
 
-  if (!session || pathname === "/training/session") return null;
+  // The training home and the session screen carry their own way back in.
+  if (!session || pathname === "/training/session" || pathname === "/training") return null;
 
   return (
     <Link
