@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, MessageCircle, Pencil, Repeat, Star, Trash2 } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import {
   deleteEntry,
@@ -16,13 +16,14 @@ import { Input } from "@/components/ui/input";
 import { ConfidenceBadge } from "@/components/confidence-badge";
 import { LogAgainForm } from "@/components/repeat-forms";
 import type { DiaryEntry, MealType } from "@/lib/diary";
-import { describePortion } from "@/lib/nutrition/units";
+import { portionText } from "@/lib/nutrition/units";
 
 export function EntryRow({
   entry,
   aiEnabled,
   mealTypes = [],
   today,
+  isNew = false,
 }: {
   entry: DiaryEntry;
   /** The assistant's amend box is a shortcut; Edit below always works. */
@@ -30,7 +31,16 @@ export function EntryRow({
   /** For "Log again"; without them the control is not offered. */
   mealTypes?: MealType[];
   today?: string;
+  /** Just added: marked, and brought into view, so it is seen where it went. */
+  isNew?: boolean;
 }) {
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!isNew) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.current?.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }, [isNew]);
+
   const [editing, setEditing] = useState(false);
   const [again, setAgain] = useState(false);
   const [amending, setAmending] = useState(false);
@@ -54,7 +64,7 @@ export function EntryRow({
   const actionClass = "min-h-10 rounded-full px-3.5";
 
   return (
-    <li className="py-1">
+    <li ref={row} className="-mx-4 px-4 py-1" data-new={isNew || undefined}>
       {/*
         One line to read, one tap to act. The row is the food, its portion
         and its calories; everything that can be done to it opens beneath,
@@ -78,8 +88,7 @@ export function EntryRow({
             ) : (
               <>
                 {entry.foodBrand ? `${entry.foodBrand} · ` : ""}
-                {describePortion(entry.amount, entry.unit, entry.servingLabel)}
-                {entry.unit !== "g" ? ` · ${Math.round(entry.grams)} g` : ""}
+                {portionText(entry.amount, entry.unit, entry.grams, entry.servingLabel)}
               </>
             )}
             {" · "}
@@ -105,12 +114,14 @@ export function EntryRow({
 
       {open ? (
         <div className="space-y-2.5 pb-3">
-          {uncertain ? null : (
-            <p className="text-muted-foreground flex items-center gap-2 text-xs">
-              <ConfidenceBadge level={entry.confidence} />
-              How far this figure can be trusted.
-            </p>
-          )}
+          {/* What was estimated in this entry, from its own data — the
+              "why" behind the badge, where a finger can find it. */}
+          <p className="text-muted-foreground flex items-start gap-2 text-xs">
+            <ConfidenceBadge level={entry.confidence} />
+            <span className="pt-0.5">
+              {entry.estimationNote ?? "How far this figure can be trusted."}
+            </span>
+          </p>
           {editing ? (
             <form action={formAction} className="flex items-center gap-2">
               <input type="hidden" name="entryId" value={entry.id} />

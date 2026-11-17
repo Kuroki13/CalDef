@@ -12,7 +12,7 @@ import type { DiaryEntry } from "@/lib/diary";
 const estimate: DiaryEntry = {
   id: 1, meal_type_id: 3, amount: 1, unit: "serving", grams: 0, source: "manual",
   notes: "Dinner out", foodName: "Dinner out", foodBrand: null, servingLabel: null,
-  foodId: null, isFavorite: false, isEstimate: true, confidence: "rough",
+  foodId: null, isFavorite: false, isEstimate: true, confidence: "rough", estimationNote: null,
   kcal: 750, protein_g: 45, carbs_g: 0, fat_g: 0,
 };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type EntryProvenance, entryConfidence, estimatedShare } from "@/lib/nutrition/confidence";
+import { type EntryProvenance, entryConfidence, estimatedShare, estimationNote } from "@/lib/nutrition/confidence";
 
 const food = (over: Partial<NonNullable<EntryProvenance["food"]>> = {}) => ({
   source: "usda" as const,
@@ -59,5 +59,19 @@ describe("estimatedShare", () => {
 
   it("is null for an empty day, not zero", () => {
     expect(estimatedShare([])).toBeNull();
+  });
+});
+
+describe("estimationNote — what was estimated, from the entry's own data", () => {
+  const food = { source: "usda" as const, isVerified: true, isRestaurantReference: false, basisUnit: "g" as const };
+  it("names the 1 g/ml conversion for a weighed food poured in ml", () => {
+    expect(estimationNote({ isEstimate: false, food, recipe: null, unit: "ml" })).toMatch(/1 ml = 1 g/);
+  });
+  it("names a drafted recipe and a typed estimate", () => {
+    expect(estimationNote({ isEstimate: false, food: null, recipe: { aiDrafted: true }, unit: "serving" })).toMatch(/drafted/);
+    expect(estimationNote({ isEstimate: true, food: null, recipe: null, unit: "serving" })).toMatch(/typed/);
+  });
+  it("says nothing about a reliable figure", () => {
+    expect(estimationNote({ isEstimate: false, food, recipe: null, unit: "g" })).toBeNull();
   });
 });

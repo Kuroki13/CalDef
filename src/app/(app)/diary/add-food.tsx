@@ -11,6 +11,8 @@
 
 import { useActionState, useState } from "react";
 
+import { LogContext } from "@/components/log-context";
+
 import { logFood, type DiaryActionState } from "@/app/(app)/diary/actions";
 import { forgetVocabularyAction } from "@/app/(app)/recipes/actions";
 import { BarcodeScanner } from "@/components/barcode-scanner";
@@ -26,12 +28,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PendingButton } from "@/components/pending-button";
 import { SourceBadge } from "@/components/source-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -50,7 +46,9 @@ import {
 } from "@/components/ui/tabs";
 import { hasStrongMatch } from "@/lib/food/text-match";
 import type { Food, LearnedHit, RecipeHit, RecognisedDish } from "@/lib/food/types";
-import { describePortion } from "@/lib/nutrition/units";
+import { describePortion, portionText, toGrams } from "@/lib/nutrition/units";
+import { scaleNutrients } from "@/lib/nutrition/macros";
+import { formatLongDate } from "@/lib/dates";
 import type { UsualPortion } from "@/lib/nutrition/typical-portion";
 import type { MealType } from "@/lib/diary";
 import {
@@ -90,19 +88,46 @@ const IDLE: SearchState = {
   text: "",
 };
 
+export type SavedEntry = NonNullable<DiaryActionState["saved"]>;
+
 export function AddFood({
-  logDate,
-  mealTypes,
+  logDate: initialDate,
+  mealTypes: allMeals,
   aiReady = false,
   library = EMPTY_LIBRARY,
+  initialMealTypeId,
+  today,
+  onSaved,
 }: {
   logDate: string;
   mealTypes: MealType[];
+  /** The meal the user asked to add to — the "+" they tapped. */
+  initialMealTypeId?: number;
+  /** The last day that can be logged; the date field stops there. */
+  today?: string;
+  /** Told where an entry went, so the diary can show it there. */
+  onSaved?: (saved: SavedEntry) => void;
   /** The user's own foods (§12B), offered before anything is searched. */
   library?: PersonalLibrary;
   /** Whether the assistant can be asked to draft a dish it did not find. */
   aiReady?: boolean;
 }) {
+  // Where this goes: the meal and the day, chosen before anything else and
+  // visible until the end (they can be changed at any point). Every form
+  // below receives them, so nothing is logged to a meal nobody chose.
+  const [mealId, setMealId] = useState<number>(
+    initialMealTypeId ?? allMeals[0]?.id ?? 0,
+  );
+  const [logDate, setLogDate] = useState(initialDate);
+  const chosenMeal = allMeals.find((meal) => meal.id === mealId) ?? allMeals[0];
+  // The forms below start on the first meal they are given.
+  const mealTypes = chosenMeal
+    ? [chosenMeal, ...allMeals.filter((meal) => meal.id !== chosenMeal.id)]
+    : allMeals;
+  // One per opened form, renewed after each entry: a retried submission of
+  // the same form reaches the same entry instead of writing a second one.
+  const [clientToken, setClientToken] = useState(() => crypto.randomUUID());
+
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>(IDLE);
   const [chosen, setChosen] = useState<Food | null>(null);
@@ -171,7 +196,7 @@ export function AddFood({
   }
 
   const [state, formAction] = useActionState<DiaryActionState, FormData>(
-    logFood,
+    logWithoutLosingTheForm,
     {},
   );
 
@@ -189,6 +214,8 @@ export function AddFood({
       setChosen(null);
       setQuery("");
       setSearch(IDLE);
+      setClientToken(crypto.randomUUID());
+      if (state.saved) onSaved?.(state.saved);
     }
   }
 
@@ -256,11 +283,15 @@ export function AddFood({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Add food</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-4">
+        <LogContext
+          meals={allMeals}
+          mealId={chosenMeal?.id ?? mealId}
+          onMealChange={setMealId}
+          date={logDate}
+          onDateChange={setLogDate}
+          maxDate={today ?? initialDate}
+        />
         {!chosen ? (
           <Tabs value={tab} onValueChange={setTab}>
             {/*
@@ -275,7 +306,7 @@ export function AddFood({
               easier to reach than an obscure provider result, and the
               fastest way to reach it is not to search at all.
             */}
-            <TabsList className="mb-3">
+            <TabsList className="mb-3 w-full">
               <TabsTrigger value="mine">My foods</TabsTrigger>
               <TabsTrigger value="search">Search</TabsTrigger>
               {aiReady ? (
@@ -520,6 +551,8 @@ export function AddFood({
         ) : (
           <form action={formAction} className="space-y-4">
             <input type="hidden" name="logDate" value={logDate} />
+            <input type="hidden" name="mealTypeId" value={chosenMeal?.id ?? ""} />
+            <input type="hidden" name="clientToken" value={clientToken} />
             <input type="hidden" name="food" value={JSON.stringify(chosen)} />
             {pickedFor ? (
               <input type="hidden" name="searchedFor" value={pickedFor} />
@@ -533,13 +566,13 @@ export function AddFood({
                   {Math.round(chosen.nutrients.kcal)} kcal / {per100Label(chosen)}
                 </p>
               </div>
+              {/* Back to the results, with the search as it was. */}
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={() => setChosen(null)}
               >
-                Change
+                {search.status === "done" ? "Back to results" : "Change"}
               </Button>
             </div>
 
@@ -551,22 +584,47 @@ export function AddFood({
 
             <PortionFields
               food={chosen}
-              mealTypes={mealTypes}
               usual={usualFor(chosen, library)}
+              destination={`${chosenMeal?.name ?? "Meal"} · ${formatLongDate(logDate)}`}
             />
 
             <PendingButton
               type="submit"
-              className="w-full"
+              variant="volt"
+              size="lg"
+              className="w-full rounded-2xl"
               pendingLabel="Adding…"
             >
-              Add to diary
+              Add to {chosenMeal?.name ?? "diary"}
             </PendingButton>
           </form>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
+}
+
+/**
+ * A dropped connection is a state of this form, not a broken screen.
+ *
+ * Without this, a submit that cannot reach the server throws, the error
+ * boundary replaces the whole diary, and the food, the amount, the meal and
+ * the day that were chosen are gone. Here the form stays as it was and says
+ * so. Trying again sends the same client token, so if the first attempt did
+ * arrive after all, the retry answers with that entry instead of adding a
+ * second one.
+ */
+async function logWithoutLosingTheForm(
+  previous: DiaryActionState,
+  form: FormData,
+): Promise<DiaryActionState> {
+  try {
+    return await logFood(previous, form);
+  } catch {
+    return {
+      error:
+        "No connection — nothing was added yet. Everything you chose is still here: try again when you are back online.",
+    };
+  }
 }
 
 const bilingual = (food: Food) => food.source === "ciqual" || food.source === "cnf";
@@ -599,13 +657,14 @@ function usualFor(food: Food, library: PersonalLibrary): UsualPortion | null {
 
 function PortionFields({
   food,
-  mealTypes,
   usual = null,
+  destination,
 }: {
   food: Food;
-  mealTypes: MealType[];
   /** Offered on a tap, never applied by itself (§12D). */
   usual?: UsualPortion | null;
+  /** "Lunch · Mon 16 Nov": said once more beside the figure it will add. */
+  destination: string;
 }) {
   // A drink starts in millilitres: its label is per 100 ml, and that is how
   // anyone pours one.
@@ -729,30 +788,64 @@ function PortionFields({
         the recipe draft — and the same `toGrams`/`scaleNutrients` the
         server uses to write the row.
       */}
-      <div className="col-span-2 rounded-md border p-3">
-        <PortionMacros
+      <div className="col-span-2 rounded-xl border p-3">
+        <PortionSummary
           food={food}
           amount={Number(amount)}
           unit={unit}
           serving={unit === "serving" ? chosenServing : null}
+          destination={destination}
         />
+        <div className="mt-3 border-t pt-3">
+          <PortionMacros
+            food={food}
+            amount={Number(amount)}
+            unit={unit}
+            serving={unit === "serving" ? chosenServing : null}
+          />
+        </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="col-span-2 space-y-2">
-        <Label htmlFor="mealTypeId">Meal</Label>
-        <Select name="mealTypeId" defaultValue={String(mealTypes[0]?.id ?? "")}>
-          <SelectTrigger id="mealTypeId">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {mealTypes.map((meal) => (
-              <SelectItem key={meal.id} value={String(meal.id)}>
-                {meal.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+/**
+ * The one line to check before tapping Add: how much, what it costs, and
+ * where it goes. Computed with the same `toGrams` and `scaleNutrients` the
+ * server uses, so the figure here is the figure the diary will show.
+ */
+function PortionSummary({
+  food,
+  amount,
+  unit,
+  serving,
+  destination,
+}: {
+  food: Food;
+  amount: number;
+  unit: "g" | "ml" | "serving";
+  serving: { label: string; grams: number } | null;
+  destination: string;
+}) {
+  let grams: number | null = null;
+  try {
+    grams = Number.isFinite(amount) && amount > 0 ? toGrams({ amount, unit, serving }) : null;
+  } catch {
+    grams = null;
+  }
+  const kcal = grams === null ? null : scaleNutrients(food.nutrients, grams).kcal;
+  return (
+    <div className="flex items-end justify-between gap-3" aria-live="polite">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">
+          {grams === null ? "Enter an amount" : portionText(amount, unit, grams, serving?.label)}
+        </p>
+        <p className="text-muted-foreground truncate text-xs">{destination}</p>
       </div>
+      <p className="shrink-0 whitespace-nowrap">
+        <span className="figure text-4xl">{kcal === null ? "—" : Math.round(kcal)}</span>
+        <span className="text-muted-foreground text-xs"> kcal</span>
+      </p>
     </div>
   );
 }

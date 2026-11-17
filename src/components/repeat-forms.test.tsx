@@ -24,6 +24,7 @@ const entry = (id: number, name: string, over: Partial<DiaryEntry> = {}): DiaryE
   isFavorite: false,
   isEstimate: false,
   confidence: "strong",
+  estimationNote: null,
   kcal: 200,
   protein_g: 10,
   carbs_g: 20,

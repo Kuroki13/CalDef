@@ -161,6 +161,7 @@ export default async function DashboardPage() {
               </div>
               <StartWorkoutButton
                 templateId={training.planned.templateId}
+                scheduleId={training.planned.id}
                 className="rounded-full px-5"
               >
                 Start

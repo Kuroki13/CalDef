@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 
 import { ServiceWorker } from "@/components/service-worker";
+import { ThemeProvider } from "@/components/theme";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -85,10 +87,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      // next-themes sets the theme class before React wakes up.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
+        <ThemeProvider>
+          {children}
+          {/* Confirmations appear at the top: the bottom belongs to the
+              tab bar and the thumb. */}
+          <Toaster position="top-center" offset={{ top: "calc(env(safe-area-inset-top) + 3.5rem)" }} mobileOffset={{ top: "calc(env(safe-area-inset-top) + 3.5rem)" }} />
+        </ThemeProvider>
         <ServiceWorker />
       </body>
     </html>

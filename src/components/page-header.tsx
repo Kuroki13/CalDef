@@ -42,14 +42,24 @@ export function PageHeader({
 export function Slab({
   children,
   className,
+  size = "hero",
 }: {
   children: React.ReactNode;
   className?: string;
+  /**
+   * How much of the screen the numbers deserve. `hero` is Today's: the
+   * figure is the screen. `strip` is for a screen whose point is the list
+   * or the chart underneath — a band of figures, then the content.
+   */
+  size?: "hero" | "strip";
 }) {
   return (
     <section
       className={cn(
-        "on-slab -mx-4 rounded-b-[1.75rem] px-5 pt-3 pb-6 lg:mx-0 lg:mt-10 lg:rounded-[1.75rem] lg:p-8",
+        "on-slab -mx-4 lg:mx-0 lg:mt-10",
+        size === "hero"
+          ? "rounded-b-[1.75rem] px-5 pt-3 pb-6 lg:rounded-[1.75rem] lg:p-8"
+          : "rounded-b-3xl px-4 pt-1 pb-4 lg:rounded-3xl lg:p-6",
         className,
       )}
     >

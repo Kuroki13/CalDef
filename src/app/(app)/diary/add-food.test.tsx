@@ -290,7 +290,7 @@ describe("AddFood — what your words mean (§13I)", () => {
 
     // Picking it from the results carries the phrase into the log form.
     fireEvent.click(screen.getByRole("button", { name: /Stuffed grape leaves with meat/ }));
-    const form = screen.getByRole("button", { name: "Add to diary" }).closest("form") as HTMLFormElement;
+    const form = screen.getByRole("button", { name: /^Add to / }).closest("form") as HTMLFormElement;
     expect(new FormData(form).get("searchedFor")).toBe("warak");
   });
 
@@ -299,7 +299,41 @@ describe("AddFood — what your words mean (§13I)", () => {
       <AddFood logDate="2026-10-08" mealTypes={meals} library={{ ...library, usual: {} }} />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Chicken breast, grilled/ }));
-    const form = screen.getByRole("button", { name: "Add to diary" }).closest("form") as HTMLFormElement;
+    const form = screen.getByRole("button", { name: /^Add to / }).closest("form") as HTMLFormElement;
     expect(new FormData(form).get("searchedFor")).toBeNull();
+  });
+});
+
+describe("AddFood — where the entry goes", () => {
+  const meals = [
+    { id: 1, slug: "breakfast", name: "Breakfast", sort_order: 1 },
+    { id: 2, slug: "lunch", name: "Lunch", sort_order: 2 },
+  ];
+  it("opens on the meal and day it was asked for, keeps them visible, and sends them", () => {
+    render(
+      <AddFood
+        logDate="2026-10-07"
+        today="2026-10-08"
+        mealTypes={meals}
+        initialMealTypeId={meals[1].id}
+        library={{ ...library, usual: {} }}
+      />,
+    );
+    expect(screen.getByRole("radio", { name: meals[1].name })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Wed 7 Oct")).toBeInTheDocument();
+    expect(screen.getByText("· Yesterday")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Chicken breast, grilled/ }));
+    const submit = screen.getByRole("button", { name: `Add to ${meals[1].name}` });
+    const form = new FormData(submit.closest("form") as HTMLFormElement);
+    expect(form.get("mealTypeId")).toBe(String(meals[1].id));
+    expect(form.get("logDate")).toBe("2026-10-07");
+    // One token per opened form, so a retried submit is written once.
+    expect(String(form.get("clientToken"))).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Changed on the way: the review and the submission follow.
+    fireEvent.click(screen.getByRole("radio", { name: meals[0].name }));
+    const changed = screen.getByRole("button", { name: `Add to ${meals[0].name}` });
+    expect(new FormData(changed.closest("form") as HTMLFormElement).get("mealTypeId")).toBe(String(meals[0].id));
   });
 });

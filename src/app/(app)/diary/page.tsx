@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
-import { ChefHat, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChefHat, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
-import { AddFood } from "@/app/(app)/diary/add-food";
 import { CopyFromYesterday } from "@/components/repeat-forms";
 import { EntryRow } from "@/app/(app)/diary/entry-row";
-import { AddFoodPanel } from "@/app/(app)/diary/add-food-panel";
-import {
-  CalorieBudget,
-  MacroRemainder,
-  ProteinFloor,
-} from "@/app/(app)/dashboard/macro-budget";
+import { AddFoodButton, AddToMeal, DiaryAdd } from "@/app/(app)/diary/diary-add";
+import { BackToToday, DayNav } from "@/app/(app)/diary/day-nav";
+import { CompactBudget } from "@/app/(app)/dashboard/macro-budget";
 import { Slab } from "@/components/page-header";
-import { LinkPending } from "@/components/pending-nav";
-import { addDays, formatLongDate, isIsoDate, todayInTimeZone } from "@/lib/dates";
+import { addDays, isIsoDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
 import { getPersonalLibrary } from "@/lib/food/library";
 import { estimatedShare } from "@/lib/nutrition/confidence";
@@ -23,13 +18,20 @@ import { getOrCreateDailyTarget } from "@/lib/targets";
 
 export const metadata: Metadata = { title: "Nutrition · CalDef" };
 
-const DAY_NAV_CLASS =
-  "flex size-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20";
-
+/**
+ * The diary: a day's meals, and adding to them.
+ *
+ * Composition ("Ledger", chosen against a tiles layout on 2026-11-17): one
+ * band of figures — the day, what is left, the macros — and then the meals,
+ * which are the page. Each meal carries its own "+", which opens the adding
+ * tool on that meal and that day; the meal and the day stay visible and
+ * changeable until the entry is saved, and the new row is marked where it
+ * landed.
+ */
 export default async function DiaryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; add?: string }>;
+  searchParams: Promise<{ date?: string; add?: string; saved?: string }>;
 }) {
   const { profile } = await getAccountSetup();
   // The layout guarantees setup is complete before this renders.
@@ -64,19 +66,6 @@ export default async function DiaryPage({
 
   const consumed = day.totals.totals;
 
-  // Every adding form starts on the first meal it is given. So the meal
-  // that was asked for — "Log dinner" on Today sends `?add=<its id>` — or
-  // otherwise the first meal of the day with nothing in it, is handed over
-  // first. Nothing is logged to breakfast by default at eight in the
-  // evening.
-  const askedMeal = day.mealTypes.find((meal) => String(meal.id) === query.add);
-  const nextMeal =
-    askedMeal ??
-    day.mealTypes.find((meal) => !day.entries.some((e) => e.meal_type_id === meal.id));
-  const mealsForAdding = nextMeal
-    ? [nextMeal, ...day.mealTypes.filter((meal) => meal.id !== nextMeal.id)]
-    : day.mealTypes;
-
   const entriesByMeal = new Map(
     day.mealTypes.map((meal) => [
       meal.id,
@@ -84,114 +73,70 @@ export default async function DiaryPage({
     ]),
   );
 
+  const savedId = Number(query.saved);
+  const estimatedPct =
+    uncertainShare !== null && uncertainShare > 0
+      ? Math.max(1, Math.round(uncertainShare * 100))
+      : null;
+
   return (
+    <DiaryAdd
+      // A different day is a different context: whatever was open closes.
+      key={date}
+      date={date}
+      today={today}
+      meals={day.mealTypes}
+      aiReady={aiReady}
+      library={library}
+      openOnArrival={query.add ?? null}
+    >
     <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
       <div className="lg:sticky lg:top-0 lg:col-span-5">
-        <Slab>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="display text-3xl">Nutrition</h1>
-              <p className="eyebrow mt-1">
-                {date === today ? `Today · ${formatLongDate(date)}` : formatLongDate(date)}
-              </p>
-            </div>
-            <nav aria-label="Day" className="flex items-center gap-1.5">
-              {date !== today ? (
-                <Link
-                  href="/diary"
-                  className="flex h-10 items-center rounded-full bg-white/10 px-3.5 text-sm font-semibold hover:bg-white/20"
-                >
-                  <LinkPending>Today</LinkPending>
-                </Link>
-              ) : null}
-              <Link
-                href={`/diary?date=${addDays(date, -1)}`}
-                className={DAY_NAV_CLASS}
-                aria-label="Previous day"
-              >
-                <LinkPending spinnerClassName="size-5">
-                  <ChevronLeft className="size-5" aria-hidden />
-                </LinkPending>
-              </Link>
-              {date < today ? (
-                <Link
-                  href={`/diary?date=${addDays(date, 1)}`}
-                  className={DAY_NAV_CLASS}
-                  aria-label="Next day"
-                >
-                  <LinkPending spinnerClassName="size-5">
-                    <ChevronRight className="size-5" aria-hidden />
-                  </LinkPending>
-                </Link>
-              ) : (
-                // Today is the last day there is: shown, so the two arrows
-                // do not jump, and plainly not a control.
-                <span
-                  aria-hidden
-                  className="flex size-10 items-center justify-center rounded-full opacity-30"
-                >
-                  <ChevronRight className="size-5" />
-                </span>
-              )}
-            </nav>
-          </div>
-
+        <Slab size="strip">
+          <h1 className="sr-only">Nutrition</h1>
+          <DayNav date={date} today={today} />
           {target ? (
-            <>
-              <div className="mt-5">
-                <CalorieBudget
-                  consumed={consumed.kcal}
-                  target={target.macros.kcal}
-                  label={target.label}
-                  day={date === today ? "today" : "that day"}
-                  compact
-                />
-              </div>
-              <dl className="border-slab-line mt-6 grid grid-cols-3 gap-4 border-t pt-5">
-                <ProteinFloor consumed={consumed.protein_g} target={target.macros.protein_g} />
-                <MacroRemainder
-                  carbs={{ consumed: consumed.carbs_g, target: target.macros.carbs_g }}
-                  fat={{ consumed: consumed.fat_g, target: target.macros.fat_g }}
-                />
-              </dl>
-              <div className="text-slab-muted mt-4 space-y-1 text-xs">
-                {target.detail ? <p>{target.detail.explanation}</p> : null}
-                {uncertainShare !== null && uncertainShare > 0 ? (
-                  <p>
-                    About {Math.max(1, Math.round(uncertainShare * 100))}% of this
-                    day&rsquo;s calories are estimates.
-                  </p>
-                ) : null}
-                {target.fellBackFromPhase ? (
-                  <p>
-                    Your cut phase has ended, so this is your everyday target
-                    again. The number changed because the phase is no longer
-                    setting it.
-                  </p>
-                ) : null}
-              </div>
-            </>
+            <div className="mt-3">
+              <CompactBudget
+                consumed={consumed.kcal}
+                target={target.macros.kcal}
+                label={target.label}
+                macros={{
+                  protein: { consumed: consumed.protein_g, target: target.macros.protein_g },
+                  carbs: { consumed: consumed.carbs_g, target: target.macros.carbs_g },
+                  fat: { consumed: consumed.fat_g, target: target.macros.fat_g },
+                }}
+                estimatedPct={estimatedPct}
+              />
+              {target.fellBackFromPhase ? (
+                <p className="text-slab-muted mt-3 text-xs">
+                  Your cut phase has ended, so this is your everyday target
+                  again. The number changed because the phase is no longer
+                  setting it.
+                </p>
+              ) : null}
+            </div>
           ) : (
-            <div className="mt-5 space-y-1">
+            <div className="mt-3 space-y-1">
               <p className="display text-3xl">No target yet</p>
               <p className="text-slab-muted text-sm">
                 Add your profile and a weigh-in to get a target.
               </p>
             </div>
           )}
+          <div className="mt-4 flex items-center gap-2">
+            <AddFoodButton className="flex-1 sm:flex-none" />
+            {date !== today ? <BackToToday /> : null}
+          </div>
         </Slab>
+        {target?.detail ? (
+          <p className="text-muted-foreground mt-3 hidden px-1 text-xs lg:block">
+            {target.detail.explanation}
+          </p>
+        ) : null}
       </div>
 
-      <div className="mt-4 space-y-6 lg:col-span-7 lg:mt-10">
-        <AddFoodPanel defaultOpen={query.add !== undefined}>
-          <AddFood
-            logDate={date}
-            mealTypes={mealsForAdding}
-            aiReady={aiReady}
-            library={library}
-          />
-        </AddFoodPanel>
-
+      <div className="mt-5 space-y-6 lg:col-span-7 lg:mt-10">
         {day.mealTypes.map((meal) => {
           const entries = entriesByMeal.get(meal.id) ?? [];
           const previous = previousDay.entries.filter(
@@ -200,9 +145,9 @@ export default async function DiaryPage({
           const mealKcal = entries.reduce((sum, e) => sum + e.kcal, 0);
 
           return (
-            <section key={meal.id} aria-labelledby={`meal-${meal.id}`}>
-              <div className="flex items-baseline justify-between gap-3 px-1">
-                <h2 id={`meal-${meal.id}`} className="display text-2xl">
+            <section key={meal.id} id={`meal-${meal.id}`} aria-labelledby={`meal-${meal.id}-title`} className="scroll-mt-20">
+              <div className="flex items-center gap-3 pl-1">
+                <h2 id={`meal-${meal.id}-title`} className="display flex-1 text-2xl">
                   {meal.name}
                 </h2>
                 <p className="text-muted-foreground text-sm tabular-nums">
@@ -217,9 +162,10 @@ export default async function DiaryPage({
                     </>
                   )}
                 </p>
+                <AddToMeal mealId={meal.id} mealName={meal.name} />
               </div>
               {entries.length > 0 ? (
-                <ul className="bg-card mt-2 divide-y rounded-2xl px-4">
+                <ul className="bg-card mt-2 divide-y overflow-hidden rounded-2xl px-4">
                   {entries.map((entry) => (
                     <EntryRow
                       key={entry.id}
@@ -227,6 +173,7 @@ export default async function DiaryPage({
                       aiEnabled={aiReady}
                       mealTypes={day.mealTypes}
                       today={today}
+                      isNew={entry.id === savedId}
                     />
                   ))}
                 </ul>
@@ -257,10 +204,12 @@ export default async function DiaryPage({
         </Link>
 
         <p className="text-muted-foreground px-1 text-xs">
+          {target?.detail ? <span className="lg:hidden">{target.detail.explanation} </span> : null}
           CalDef provides estimates for personal tracking. It is not medical or
           dietary advice.
         </p>
       </div>
     </div>
+    </DiaryAdd>
   );
 }

@@ -241,6 +241,28 @@
   .no-scrollbar {
     scrollbar-width: none;
   }
+  /* Room above the tab bar for something docked there. */
+  .bottom-above-tabs {
+    bottom: calc(3.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+/*
+ * A row that has just arrived. The flash says "here"; the ink edge stays
+ * until the page is left, so the answer to "where did it go?" does not
+ * depend on having watched an animation — or on motion being allowed.
+ */
+@keyframes arrive {
+  from {
+    background-color: color-mix(in oklch, var(--volt) 55%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+[data-new] {
+  animation: arrive 2.4s ease-out 1;
+  box-shadow: inset 3px 0 0 var(--foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {

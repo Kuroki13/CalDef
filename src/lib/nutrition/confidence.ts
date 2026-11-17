@@ -60,6 +60,32 @@ export function entryConfidence(entry: EntryProvenance): Confidence {
   return "strong";
 }
 
+/**
+ * What, in this entry, was estimated — from the data the entry carries, and
+ * only from it. Null when nothing was: an exact or strong figure needs no
+ * excuse. Never a guess about what the user meant.
+ */
+export function estimationNote(entry: EntryProvenance): string | null {
+  if (entry.isEstimate) {
+    return "You typed these figures yourself. They are attached to no food, so there is no weight behind them.";
+  }
+  if (entry.recipe?.aiDrafted) {
+    return "A recipe the assistant drafted: its ingredients and amounts are an estimate. Each ingredient's nutrition comes from a database.";
+  }
+  const food = entry.food;
+  if (!food) return null;
+  if (entry.unit === "ml" && food.basisUnit !== "ml") {
+    return "Logged in millilitres for a food measured by weight: converted at 1 ml = 1 g, which is right for water and only close for most foods.";
+  }
+  if (food.source === "usda" && !food.isVerified) {
+    return "From a USDA dataset that is modelled rather than analysed.";
+  }
+  if ((food.source === "ciqual" || food.source === "cnf") && !food.isVerified) {
+    return "The table computes this food from a recipe rather than measuring it.";
+  }
+  return null;
+}
+
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   exact: "Exact",
   strong: "Strong",

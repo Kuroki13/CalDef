@@ -87,6 +87,41 @@ export function describePortion(
   return `${formatAmount(amount)} ${unit}`;
 }
 
+/**
+ * One way to say a logged portion, without saying it twice.
+ *
+ *   180 g                       weighed in grams
+ *   250 ml                      poured, at 1 g/ml — the grams add nothing
+ *   250 ml · 270 g              poured, where the food's density differs
+ *   100 g                       "1 × 100 g", whose grams are the same 100 g
+ *   150 g                       "1.5 × 100 g": a serving that IS a weight
+ *   1.5 × slice · 291 g         a real serving, and what it weighed
+ *
+ * The serving's own label is kept whenever it says something the grams do
+ * not ("slice", "pot", "medium"); when it is only a weight, the weight is
+ * the portion.
+ */
+export function portionText(
+  amount: number,
+  unit: PortionUnit,
+  grams: number | null,
+  servingLabel?: string | null,
+): string {
+  const g = grams === null || !Number.isFinite(grams) ? null : Math.round(grams);
+  if (unit === "g") return `${formatAmount(amount)} g`;
+  if (unit === "ml") {
+    return g === null || g === Math.round(amount)
+      ? `${formatAmount(amount)} ml`
+      : `${formatAmount(amount)} ml · ${g} g`;
+  }
+  const label = servingLabel?.trim() || "serving";
+  // "100 g", "100g", "30 g serving": a label that is only a weight.
+  const onlyWeight = /^\d+(?:[.,]\d+)?\s*(?:g|ml)(?:\s+serving)?$/i.test(label);
+  if (onlyWeight && g !== null) return `${g} g`;
+  const head = amount === 1 ? `1 ${label}` : `${formatAmount(amount)} × ${label}`;
+  return g === null ? head : `${head} · ${g} g`;
+}
+
 /** Trims trailing zeros so 200 reads as "200", not "200.0". */
 function formatAmount(value: number): string {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));

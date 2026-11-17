@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getAccountSetup } from "@/lib/profile";
+import { AppearanceSetting } from "@/components/theme";
 
 export const metadata: Metadata = { title: "Settings · CalDef" };
 
@@ -46,6 +47,19 @@ export default async function SettingsPage() {
             activityLevel={goal.activity_level}
             proteinPerKg={goal.protein_g_per_kg}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>
+            Kept on this device. System follows your phone&rsquo;s light or
+            dark mode.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AppearanceSetting />
         </CardContent>
       </Card>
 

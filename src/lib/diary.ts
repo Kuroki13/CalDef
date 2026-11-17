@@ -10,7 +10,12 @@ import "server-only";
  */
 
 import { isRestaurantReference } from "@/lib/food/restaurant-catalogue";
-import { type Confidence, entryConfidence } from "@/lib/nutrition/confidence";
+import {
+  type Confidence,
+  type EntryProvenance,
+  entryConfidence,
+  estimationNote,
+} from "@/lib/nutrition/confidence";
 import { type IsoDate } from "@/lib/dates";
 import { getFavoriteFoodIds } from "@/lib/favorites";
 import {
@@ -47,6 +52,8 @@ export type DiaryEntry = MacroTotals & {
   isEstimate: boolean;
   /** How far the figures can be trusted (§11.3); never changes them. */
   confidence: Confidence;
+  /** What was estimated in it, when something was; from its own data. */
+  estimationNote: string | null;
 };
 
 export type DiaryDay = {
@@ -92,7 +99,21 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
 
   if (entriesResult.error) throw new Error(entriesResult.error.message);
 
-  const entries: DiaryEntry[] = (entriesResult.data ?? []).map((row) => ({
+  const entries: DiaryEntry[] = (entriesResult.data ?? []).map((row) => {
+    const provenance: EntryProvenance = {
+      isEstimate: row.is_estimate,
+      food: row.foods
+        ? {
+            source: row.foods.source,
+            isVerified: row.foods.is_verified,
+            isRestaurantReference: isRestaurantReference(row.foods),
+            basisUnit: row.foods.basis_unit === "ml" ? "ml" : "g",
+          }
+        : null,
+      recipe: row.recipes ? { aiDrafted: row.recipes.ai_drafted_at !== null } : null,
+      unit: row.unit as DiaryEntry["unit"],
+    };
+    return {
     id: row.id,
     meal_type_id: row.meal_type_id,
     amount: Number(row.amount),
@@ -112,20 +133,10 @@ export async function getDiaryDay(date: IsoDate): Promise<DiaryDay> {
     foodId: row.food_id,
     isFavorite: row.food_id !== null && favoriteIds.has(row.food_id),
     isEstimate: row.is_estimate,
-    confidence: entryConfidence({
-      isEstimate: row.is_estimate,
-      food: row.foods
-        ? {
-            source: row.foods.source,
-            isVerified: row.foods.is_verified,
-            isRestaurantReference: isRestaurantReference(row.foods),
-            basisUnit: row.foods.basis_unit === "ml" ? "ml" : "g",
-          }
-        : null,
-      recipe: row.recipes ? { aiDrafted: row.recipes.ai_drafted_at !== null } : null,
-      unit: row.unit as DiaryEntry["unit"],
-    }),
-  }));
+    confidence: entryConfidence(provenance),
+    estimationNote: estimationNote(provenance),
+    };
+  });
 
   return {
     date,

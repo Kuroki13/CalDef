@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PortionError,
+  portionText,
   describePortion,
   pickDefaultServing,
   toGrams,
@@ -82,5 +83,21 @@ describe("describePortion", () => {
   it("trims trailing zeros", () => {
     expect(describePortion(1.5, "serving", "slice")).toBe("1.5 × slice");
     expect(describePortion(100.0, "g")).toBe("100 g");
+  });
+});
+
+describe("portionText — one portion, said once", () => {
+  it("does not repeat a serving that is only a weight", () => {
+    expect(portionText(1, "serving", 100, "100 g")).toBe("100 g");
+    expect(portionText(1.5, "serving", 150, "100g")).toBe("150 g");
+  });
+  it("keeps a real serving and what it weighed, which are complementary", () => {
+    expect(portionText(1.5, "serving", 291, "portion")).toBe("1.5 × portion · 291 g");
+    expect(portionText(1, "serving", 160, "pot")).toBe("1 pot · 160 g");
+  });
+  it("says grams once and millilitres once when they agree", () => {
+    expect(portionText(180, "g", 180)).toBe("180 g");
+    expect(portionText(250, "ml", 250)).toBe("250 ml");
+    expect(portionText(250, "ml", 270)).toBe("250 ml · 270 g");
   });
 });
