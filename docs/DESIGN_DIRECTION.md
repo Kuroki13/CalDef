@@ -4,14 +4,16 @@ The reference for the visual system that replaces "Scoreboard". Product
 requirements stay in `PRODUCT_SPEC.md` (§16.1 records the decision);
 `ARCHITECTURE.md` invariant 23 changes when the tokens change in code.
 
-Status: **direction "Chronograph Refined" approved by the account owner
-(2026-11-17); the final screen designs are not yet approved. V3 — an
-interactive prototype — awaits that approval. No visual code has changed.**
-Proposal pages: versions 1 (audit, two concepts), 2 (refined key screens)
-and 3 (interactive prototype, all states, both themes) of the claude.ai
-artifact "CalDef 2.0 Direction". V3 is kept in the repository as
+Status: **V3 approved by the account owner (2026-11-19) as the design
+foundation; implementation is incremental, on branch `caldef-2` with preview
+deployments, each phase reviewed before the next.** Phase 1 (tokens, palette,
+type) is done there. The V3 prototype is kept in the repository as
 `docs/design/2026-11-17-caldef2/v3-prototype.html` (open it in a browser; it
-reads and writes nothing — network, saves and timing are simulated).
+reads and writes nothing).
+
+Owner's additions at approval: the 11 px labels of V3 are raised — 12 px is
+the floor and gym-facing labels go larger; the prototype is a direction, not
+a pixel specification; previews before production.
 
 ## 0. V3 decisions (supersede anything below that disagrees)
 
