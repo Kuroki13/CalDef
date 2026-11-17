@@ -36,38 +36,28 @@ Last updated: 2026-11-17
 
 ---
 
-## CURRENT WORK — CalDef 2.0 redesign (brief of 2026-11-17, night)
+## CURRENT WORK — CalDef 2.0 redesign (V3 approved 2026-11-19)
 
-Resume here. The owner approved Concept B, "Chronograph", as the foundation
-for a Luxury Tech / Midnight Purple redesign, with refinements: not literally
-a watch; resume a session from anywhere without overlapping bars; licensed
-exercise images and demonstrations as a priority (gated); test the iOS
-status-bar options before keeping any dark band in light mode; typography
-approved; restaurant work finished and committed first. The decisions are
-recorded in `docs/DESIGN_DIRECTION.md` and PRODUCT_SPEC §16.1 / §16.10
-(amendments of 2026-11-17, night).
+Resume here. The owner approved V3 "Chronograph Refined" as the design
+foundation and authorised incremental implementation, after two data fixes
+and the status-bar test pages. Each phase is reviewed (screenshots, both
+themes, tests) before the next; visual work happens on branch `caldef-2`,
+whose Vercel **preview deployments use the DEVELOPMENT database** (preview
+env vars added 2026-11-19: development URL and publishable key only; no
+USDA/Gemini keys, so search there runs without USDA and AI shows as off).
+`main` (production) changes only when the owner approves a merge.
 
 | Step | State |
 |---|---|
-| Audit + two concepts (artifact v1) | DONE |
-| Restaurant work 13L/13M, separately | DONE — `e31090a`, deployed |
-| Refined key screens in both themes (artifact v2) | DONE — reviewed; the owner approved the direction "Chronograph Refined" but not the screens |
-| V3 interactive prototype (artifact v3; copy in `docs/design/2026-11-17-caldef2/v3-prototype.html`) | DONE — **awaiting the owner's final approval**. Scripted in headless Chrome: all 12 required interactions reached, no console errors, no horizontal overflow at 1280 / 390 px; double tap → one simulated row; offline retry reuses its key → still one row |
-| 0b iOS status-bar test (three temporary static pages) | WAITING for the owner's go-ahead to deploy them |
-| Exercise-media wave 1 list (owner's most-used exercises) | WAITING for the owner's list, or approval of one read-only slug count |
-| 1 tokens · 2 shell + capsule + Today · 3 session/training · 4 nutrition · 5 progress + secondary | NOT STARTED — after confirmation |
-| Media UI | GATED — phases 12–13 stable first; design and build script may be prepared |
-
-**Next action:** wait for the owner's approval of V3; then step 0b (with
-the owner's go-ahead to deploy the temporary status-bar pages) and step 1.
-No visual code until then. Two small non-visual fixes found during V3 await
-scheduling: "œ" folding in food search, and the remaining retry tokens.
-
-Research done for the design (2026-11-17): exercise-media licences checked
-against the Everkinetic repository licence, the wger API (per-file licence,
-author, AI flag) and free-exercise-db issue #12; the status-bar behaviour of
-`theme-color` in an installed iOS app could not be confirmed from sources,
-hence the device test.
+| Ligature folding in food search | DONE — `6077d21` on main, migration 26 on dev + prod |
+| Every food-add path written once, whole | DONE — `fabb256` on main |
+| Status-bar lab (`/lab/statusbar/`, 4 variants) | LIVE on production since `46e6073` — **waiting for the owner's iPhone results**. Remove afterwards: `public/lab/`, the `/lab` entry in `src/lib/supabase/proxy.ts` PUBLIC_PREFIXES, and the `/lab` X-Robots-Tag rule in `next.config.ts` (all marked TEMPORARY) |
+| Exercise usage (read-only, production) | DONE — 1 completed session, 1 template, 8 exercises so far: too little for a top-20 by frequency. Ranking kept out of the public repo |
+| Media wave 1 (the owner's 8 exercises) | REVIEWED by hand — 7 with licensed start/end drawings, wrist curl none; mapping kept locally (`.vercel/caldef-ops/media-wave1.json`, git-ignored) until wave 2 makes it a neutral catalogue file. wger clips: candidates, not yet watched |
+| Phase 1 — tokens, Midnight palette, both themes, Geist, 12 px labels | DONE on `caldef-2` (this commit) — awaiting the owner's review on the preview |
+| Phase 2 — shell, navigation, capsule | NEXT — depends on the status-bar result (L1 or L2 top) |
+| Phases 3–8 | TODO |
+| Media UI | GATED — phases 12–13 stable first |
 
 ## PREVIOUS WORK — daily-use overhaul (brief of 2026-11-17)
 

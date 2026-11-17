@@ -41,11 +41,14 @@
   --color-card: var(--card);
   --color-volt: var(--volt);
   --color-volt-foreground: var(--volt-foreground);
+  --color-volt-soft: var(--volt-soft);
+  --color-lume: var(--lume);
+  --color-gold: var(--gold);
   --color-slab: var(--slab);
   --color-slab-foreground: var(--slab-foreground);
   --color-slab-muted: var(--slab-muted);
   --color-slab-line: var(--slab-line);
-  --font-display: var(--font-display);
+  --font-display: var(--font-geist-sans);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-macro-protein: var(--macro-protein);
@@ -61,118 +64,129 @@
 }
 
 /*
- * CalDef's visual system — "Scoreboard" (spec §16.1).
+ * CalDef's visual system — CalDef 2.0, "Chronograph Refined"
+ * (Luxury Tech, Midnight Purple; docs/DESIGN_DIRECTION.md, spec §16.1 as
+ * amended 2026-11-17).
  *
- * Three materials and one signal:
+ * Phase 1 keeps every token NAME the screens already use and gives it the
+ * new value, so nothing breaks while the screens are recomposed one by one:
  *
- *   SLAB    ink. Carries the numbers that matter right now — what is left
- *           today, the session clock. One per screen, at the top.
- *   PAPER   the page. Warm off-white; lists sit on it with hairlines.
- *   CARD    white. Groups one thing that has an action.
- *   VOLT    the signal. On the slab it is the measured thing (progress);
- *           on paper it is THE action of the screen, at most one. It
- *           always carries ink text — never white — and is never a text
- *           colour on a light surface, where it would be unreadable.
+ *   background / card     porcelain and white (light); near-black and
+ *                         aubergine (dark).
+ *   primary               the default button: deep Midnight (light) or
+ *                         aubergine (dark) — quiet, so purple keeps meaning.
+ *   volt                  the ACTION colour — Midnight Purple. The one
+ *                         primary action of a screen, the active state,
+ *                         focus. Name kept until the screens are rebuilt.
+ *   slab                  the Midnight band. Inside it (`.on-slab`) the
+ *                         action colour becomes LUME, the pale lavender that
+ *                         marks the measured thing, because purple on
+ *                         Midnight would not read.
+ *   lume                  lavender, for what is measured, on Midnight only.
  *
- * Buttons are ink by default; `volt` is reserved for the one primary
- * action. State colours (success, warning, destructive) are states, never
- * decoration. Figures use the condensed display face; everything else the
- * text face. A colour is changed here or nowhere.
+ * Contrast is measured, not guessed (DESIGN_DIRECTION §2 and the V3 page):
+ * every text pair ≥ 4.5:1 in both themes. A colour is changed here or
+ * nowhere.
  */
 :root {
-  --background: oklch(0.966 0.004 106);
-  --foreground: oklch(0.185 0.012 255);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.185 0.012 255);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.185 0.012 255);
-  --primary: oklch(0.185 0.012 255);
-  --primary-foreground: oklch(0.98 0.003 106);
-  --secondary: oklch(0.925 0.006 106);
-  --secondary-foreground: oklch(0.185 0.012 255);
-  --muted: oklch(0.925 0.006 106);
-  --muted-foreground: oklch(0.46 0.012 255);
-  --accent: oklch(0.925 0.006 106);
-  --accent-foreground: oklch(0.185 0.012 255);
-  --volt: oklch(0.9 0.2 122);
-  --volt-foreground: oklch(0.185 0.012 255);
-  --slab: oklch(0.185 0.012 255);
-  --slab-foreground: oklch(0.966 0.004 106);
-  --slab-muted: oklch(0.74 0.01 255);
-  --slab-line: oklch(1 0 0 / 14%);
-  --destructive: oklch(0.55 0.21 27);
-  --success: oklch(0.55 0.15 150);
-  --warning: oklch(0.72 0.15 70);
-  --macro-protein: oklch(0.9 0.2 122);
-  --macro-carbs: oklch(0.966 0.004 106);
-  --macro-fat: oklch(0.966 0.004 106);
-  --border: oklch(0.895 0.006 106);
-  --input: oklch(0.84 0.008 106);
-  --ring: oklch(0.185 0.012 255);
-  --chart-1: oklch(0.185 0.012 255);
-  --chart-2: oklch(0.55 0.15 150);
-  --chart-3: oklch(0.72 0.15 70);
-  --chart-4: oklch(0.46 0.012 255);
-  --chart-5: oklch(0.84 0.008 106);
-  --radius: 0.875rem;
-  --sidebar: oklch(0.185 0.012 255);
-  --sidebar-foreground: oklch(0.966 0.004 106);
-  --sidebar-primary: oklch(0.9 0.2 122);
-  --sidebar-primary-foreground: oklch(0.185 0.012 255);
-  --sidebar-accent: oklch(1 0 0 / 10%);
-  --sidebar-accent-foreground: oklch(0.966 0.004 106);
-  --sidebar-border: oklch(1 0 0 / 14%);
-  --sidebar-ring: oklch(0.9 0.2 122);
+  --background: #F7F5F2;
+  --foreground: #16121E;
+  --card: #FFFFFF;
+  --card-foreground: #16121E;
+  --popover: #FFFFFF;
+  --popover-foreground: #16121E;
+  --primary: #1F1530;
+  --primary-foreground: #F3EFFA;
+  --secondary: #F0EDF3;
+  --secondary-foreground: #16121E;
+  --muted: #F0EDF3;
+  --muted-foreground: #686178;
+  --accent: #F0EDF3;
+  --accent-foreground: #16121E;
+  --volt: #5A3A99;
+  --volt-foreground: #FFFFFF;
+  --volt-soft: #EFEAF8;
+  --slab: #1F1530;
+  --slab-foreground: #F3EFFA;
+  --slab-muted: #B3A6CC;
+  --slab-line: rgb(255 255 255 / 12%);
+  --lume: #C9B8F5;
+  --aurora: rgb(140 104 230 / 40%);
+  --destructive: #B42318;
+  --success: #1B7A53;
+  --warning: #965800;
+  --gold: #8A6A35;
+  --macro-protein: var(--volt);
+  --macro-carbs: var(--foreground);
+  --macro-fat: var(--foreground);
+  --border: #E4DFE9;
+  --input: #CFC8D9;
+  --ring: #5A3A99;
+  --chart-1: #5A3A99;
+  --chart-2: #1B7A53;
+  --chart-3: #965800;
+  --chart-4: #686178;
+  --chart-5: #CFC8D9;
+  --radius: 1rem;
+  --sidebar: #1F1530;
+  --sidebar-foreground: #F3EFFA;
+  --sidebar-primary: #C9B8F5;
+  --sidebar-primary-foreground: #140F1F;
+  --sidebar-accent: rgb(255 255 255 / 9%);
+  --sidebar-accent-foreground: #F3EFFA;
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: #C9B8F5;
 }
 
 /*
- * Dark is its own composition, not an inversion: the page goes to ink, so
- * the slab lifts one step to stay a distinct surface, and volt — which is
- * at home on dark — may also be the button colour.
+ * Dark is its own composition: near-black with a violet undertone, surfaces
+ * lifted in aubergine steps rather than shadowed, and the action colour a
+ * pale violet that carries ink text.
  */
 .dark {
-  --background: oklch(0.155 0.01 255);
-  --foreground: oklch(0.95 0.004 106);
-  --card: oklch(0.215 0.012 255);
-  --card-foreground: oklch(0.95 0.004 106);
-  --popover: oklch(0.215 0.012 255);
-  --popover-foreground: oklch(0.95 0.004 106);
-  --primary: oklch(0.9 0.2 122);
-  --primary-foreground: oklch(0.185 0.012 255);
-  --secondary: oklch(0.27 0.012 255);
-  --secondary-foreground: oklch(0.95 0.004 106);
-  --muted: oklch(0.27 0.012 255);
-  --muted-foreground: oklch(0.73 0.01 255);
-  --accent: oklch(0.27 0.012 255);
-  --accent-foreground: oklch(0.95 0.004 106);
-  --volt: oklch(0.9 0.2 122);
-  --volt-foreground: oklch(0.185 0.012 255);
-  --slab: oklch(0.235 0.014 255);
-  --slab-foreground: oklch(0.966 0.004 106);
-  --slab-muted: oklch(0.74 0.01 255);
-  --slab-line: oklch(1 0 0 / 14%);
-  --destructive: oklch(0.7 0.19 22);
-  --success: oklch(0.74 0.16 150);
-  --warning: oklch(0.8 0.14 75);
-  --macro-protein: oklch(0.9 0.2 122);
-  --macro-carbs: oklch(0.966 0.004 106);
-  --macro-fat: oklch(0.966 0.004 106);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.9 0.2 122);
-  --chart-1: oklch(0.9 0.2 122);
-  --chart-2: oklch(0.74 0.16 150);
-  --chart-3: oklch(0.8 0.14 75);
-  --chart-4: oklch(0.73 0.01 255);
-  --chart-5: oklch(0.4 0.012 255);
-  --sidebar: oklch(0.215 0.012 255);
-  --sidebar-foreground: oklch(0.966 0.004 106);
-  --sidebar-primary: oklch(0.9 0.2 122);
-  --sidebar-primary-foreground: oklch(0.185 0.012 255);
-  --sidebar-accent: oklch(1 0 0 / 10%);
-  --sidebar-accent-foreground: oklch(0.966 0.004 106);
-  --sidebar-border: oklch(1 0 0 / 14%);
-  --sidebar-ring: oklch(0.9 0.2 122);
+  --background: #0C0A12;
+  --foreground: #F3F0F8;
+  --card: #16121E;
+  --card-foreground: #F3F0F8;
+  --popover: #16121E;
+  --popover-foreground: #F3F0F8;
+  --primary: #2A2142;
+  --primary-foreground: #F3F0F8;
+  --secondary: #201A2B;
+  --secondary-foreground: #F3F0F8;
+  --muted: #201A2B;
+  --muted-foreground: #958DA6;
+  --accent: #201A2B;
+  --accent-foreground: #F3F0F8;
+  --volt: #BBA5F0;
+  --volt-foreground: #140F1F;
+  --volt-soft: #2A2142;
+  --slab: #1A1426;
+  --slab-foreground: #F3F0F8;
+  --slab-muted: #A49BB5;
+  --slab-line: rgb(255 255 255 / 10%);
+  --lume: #BBA5F0;
+  --aurora: rgb(140 104 230 / 24%);
+  --destructive: #FF8C82;
+  --success: #63D6A3;
+  --warning: #F2B65C;
+  --gold: #D8B67A;
+  --border: rgb(255 255 255 / 9%);
+  --input: rgb(255 255 255 / 16%);
+  --ring: #BBA5F0;
+  --chart-1: #BBA5F0;
+  --chart-2: #63D6A3;
+  --chart-3: #F2B65C;
+  --chart-4: #958DA6;
+  --chart-5: #3A3149;
+  --sidebar: #16121E;
+  --sidebar-foreground: #F3F0F8;
+  --sidebar-primary: #BBA5F0;
+  --sidebar-primary-foreground: #140F1F;
+  --sidebar-accent: rgb(255 255 255 / 7%);
+  --sidebar-accent-foreground: #F3F0F8;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: #BBA5F0;
 }
 
 @layer base {
@@ -207,29 +221,39 @@
 }
 
 @layer utilities {
-  /* The small capital label above a figure or a section. */
+  /*
+   * The small label above a figure or a section. 12 px is the floor: it is
+   * read at arm's length between two sets (owner's legibility requirement).
+   */
   .eyebrow {
-    @apply text-muted-foreground text-[0.6875rem] font-semibold tracking-[0.1em] uppercase;
+    @apply text-muted-foreground text-xs font-semibold tracking-[0.08em] uppercase;
   }
-  /* A number that is the point: condensed, tight, tabular. */
+  /* A number that is the point: Geist, light, tight, tabular. */
   .figure {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
-    @apply leading-none font-bold tabular-nums;
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    @apply leading-none font-light tracking-[-0.03em] tabular-nums;
   }
-  /* A title in the display face: screens and workouts are named in capitals. */
+  /* A title: Geist semibold, sentence case, tight. */
   .display {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
-    @apply leading-[0.95] font-bold tracking-[0.005em] uppercase;
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    @apply leading-[1.05] font-semibold tracking-[-0.025em];
   }
-  /* Everything inside the slab reads against ink. */
+  /*
+   * Everything inside the Midnight band reads against it: the action colour
+   * becomes lume, which is what is measured there, and focus follows it.
+   */
   .on-slab {
     @apply bg-slab text-slab-foreground;
+    --volt: var(--lume);
+    --volt-foreground: #140F1F;
+    --focus: var(--lume);
   }
   .on-slab .eyebrow {
     color: var(--slab-muted);
   }
-  .on-slab {
-    --focus: var(--volt);
+  /* The faint Midnight light in a band, top right. */
+  .aurora {
+    background-image: radial-gradient(110% 140% at 100% -30%, var(--aurora), transparent 62%);
   }
   /* Room for the iPhone's home indicator and notch. */
   .pb-safe {
@@ -254,7 +278,7 @@
  */
 @keyframes arrive {
   from {
-    background-color: color-mix(in oklch, var(--volt) 55%, transparent);
+    background-color: color-mix(in oklch, var(--volt) 18%, transparent);
   }
   to {
     background-color: transparent;
@@ -262,7 +286,7 @@
 }
 [data-new] {
   animation: arrive 2.4s ease-out 1;
-  box-shadow: inset 3px 0 0 var(--foreground);
+  box-shadow: inset 3px 0 0 var(--volt);
 }
 
 @media (prefers-reduced-motion: reduce) {

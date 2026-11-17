@@ -56,7 +56,7 @@ export function Slab({
   return (
     <section
       className={cn(
-        "on-slab -mx-4 lg:mx-0 lg:mt-10",
+        "on-slab aurora -mx-4 lg:mx-0 lg:mt-10",
         size === "hero"
           ? "rounded-b-[1.75rem] px-5 pt-3 pb-6 lg:rounded-[1.75rem] lg:p-8"
           : "rounded-b-3xl px-4 pt-1 pb-4 lg:rounded-3xl lg:p-6",

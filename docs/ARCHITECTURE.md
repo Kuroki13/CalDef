@@ -391,20 +391,24 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     one that user can see. The three training functions are
     `security invoker`, so RLS decides inside them exactly as outside.
 
-23. **Colour is a token, and volt has rules.** `globals.css` defines every
-    colour, radius and state once (light and dark): paper, card, the ink
-    `--slab` and its text, `--volt`, the state colours. Screens use the
-    names; a literal colour in a component is a defect. Volt is the
-    measured thing on the slab and the one primary action on paper; it
-    carries ink text and is never text on a light surface, where it fails
-    contrast. Figures and titles use the display face (`.figure`,
-    `.display`); `Slab`, `SlabBar`, `SectionTitle`, `Stat` and `EmptyState`
-    in `components/page-header.tsx` are the shared pieces.
-    - *Pending change:* the owner approved CalDef 2.0 (Midnight Purple,
-      `docs/DESIGN_DIRECTION.md`, spec §16.1 amendment of 2026-11-17). The
-      first half of this invariant stays (every colour a token, none
-      literal); the volt/slab rules are rewritten when step 1 replaces the
-      tokens in code, not before.
+23. **Colour is a token, and the action colour has rules** (CalDef 2.0,
+    phase 1, `docs/DESIGN_DIRECTION.md`). `globals.css` defines every colour,
+    radius and state once, for light and dark; screens use the names, and a
+    literal colour in a component is a defect. Token names are kept from
+    Scoreboard while screens are rebuilt: `--volt` is now the **action
+    colour, Midnight Purple** (`#5A3A99` light / `#BBA5F0` dark) — the one
+    primary action of a screen, the active state, focus — carrying white
+    (light) or ink (dark) text; `--slab` is the **Midnight band**, and inside
+    it (`.on-slab`) the action colour resolves to `--lume`, the lavender that
+    marks what is measured, because purple on Midnight would not read.
+    `--primary` (the default button) is deep Midnight / aubergine, quiet on
+    purpose so purple keeps its meaning. Champagne (`--gold`) marks personal
+    records only. Every text pair is ≥ 4.5:1 in both themes (measured).
+    Figures and titles are Geist (`.figure` light weight with tabular
+    numerals, verified equal-width; `.display` semibold, sentence case);
+    labels (`.eyebrow`) are 12 px minimum. `Slab`, `SlabBar`, `SectionTitle`,
+    `Stat` and `EmptyState` in `components/page-header.tsx` remain the shared
+    pieces until the shell and screens are recomposed (phases 2–7).
 
 24. **What the device keeps is scoped to the account.** A live session's
     unsent saves and rest timer are stored under
