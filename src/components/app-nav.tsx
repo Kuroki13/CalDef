@@ -176,7 +176,7 @@ export function AppTabBar() {
                 <span
                   className={cn(
                     "flex h-8 w-14 items-center justify-center rounded-full transition-colors",
-                    active ? "bg-foreground text-volt" : "",
+                    active ? "bg-slab text-volt" : "",
                   )}
                 >
                   <LinkPending spinnerClassName="size-5">
@@ -216,7 +216,7 @@ export function SessionBar({
   return (
     <Link
       href="/training/session"
-      className="on-slab fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 flex min-h-13 items-center gap-3 rounded-2xl px-4 shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
+      className="on-slab fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 flex min-h-13 items-center gap-3 rounded-2xl px-4 shadow-lg dark:ring-1 dark:ring-white/15 lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
     >
       <span className="bg-volt text-volt-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
         <Timer className="size-4" aria-hidden />

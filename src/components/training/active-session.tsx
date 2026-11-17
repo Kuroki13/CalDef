@@ -692,7 +692,7 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
                   <span
                     className={cn(
                       "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums",
-                      exerciseDone ? "bg-foreground text-volt" : "bg-muted",
+                      exerciseDone ? "bg-slab text-volt" : "bg-muted",
                     )}
                   >
                     {exerciseDone ? <Check className="size-4" aria-hidden strokeWidth={3} /> : exerciseIndex + 1}
@@ -720,7 +720,7 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
                 <span
                   className={cn(
                     "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums",
-                    exerciseDone ? "bg-foreground text-volt" : "bg-muted",
+                    exerciseDone ? "bg-slab text-volt" : "bg-muted",
                   )}
                 >
                   {exerciseDone ? <Check className="size-4" aria-hidden strokeWidth={3} /> : exerciseIndex + 1}
@@ -1002,7 +1002,7 @@ function NextSetBar({
   onDone: () => void;
 }) {
   return (
-    <div className="on-slab bottom-above-tabs fixed inset-x-3 z-20 flex items-center gap-3 rounded-2xl py-2 pr-2 pl-4 shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-[26rem]">
+    <div className="on-slab bottom-above-tabs fixed inset-x-3 z-20 flex items-center gap-3 rounded-2xl py-2 pr-2 pl-4 shadow-lg dark:ring-1 dark:ring-white/15 lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-[26rem]">
       <div className="min-w-0 flex-1">
         <p className="eyebrow truncate">
           Next · {setLabel}
@@ -1232,7 +1232,7 @@ function SetTable({
                 className={cn(
                   "flex size-12 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                   done
-                    ? "border-foreground bg-foreground text-volt"
+                    ? "border-slab bg-slab text-volt dark:border-volt"
                     : index === nextIndex
                       ? "border-foreground text-foreground/25"
                       : "border-input text-transparent",

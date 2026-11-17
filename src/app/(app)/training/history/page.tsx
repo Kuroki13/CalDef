@@ -105,7 +105,7 @@ export default async function HistoryPage({
                     const cell = cn(
                       "mx-auto flex size-10 items-center justify-center rounded-full text-sm tabular-nums",
                       !day.inMonth && "opacity-35",
-                      isDone && "bg-foreground text-volt font-bold",
+                      isDone && "bg-slab text-volt font-bold",
                       isPlanned && "border-foreground border-2 border-dashed font-semibold",
                       day.isToday && !isDone && "ring-foreground ring-2 ring-offset-2",
                     );
@@ -138,7 +138,7 @@ export default async function HistoryPage({
 
           <p className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <span className="flex items-center gap-1.5">
-              <span aria-hidden className="bg-foreground text-volt flex size-4 items-center justify-center rounded-full">
+              <span aria-hidden className="bg-slab text-volt flex size-4 items-center justify-center rounded-full">
                 <Check className="size-2.5" strokeWidth={4} />
               </span>
               Done

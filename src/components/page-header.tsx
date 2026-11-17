@@ -166,7 +166,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-start gap-3 rounded-2xl border border-dashed px-5 py-6">
       {Icon ? (
-        <span className="bg-foreground text-volt flex size-10 items-center justify-center rounded-full">
+        <span className="bg-slab text-volt flex size-10 items-center justify-center rounded-full">
           <Icon className="size-5" aria-hidden />
         </span>
       ) : null}

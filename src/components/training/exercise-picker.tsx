@@ -178,7 +178,7 @@ export function ExerciseList({
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full border",
                       ticked
-                        ? "border-foreground bg-foreground text-volt"
+                        ? "border-slab bg-slab text-volt dark:border-volt"
                         : "border-input",
                     )}
                   >
