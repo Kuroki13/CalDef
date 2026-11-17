@@ -48,10 +48,10 @@ reverse-applied — the saved diff is the reference).
 | Phase | State |
 |---|---|
 | 0 Audit and reference captures | DONE 2026-11-17 |
-| 1 Art direction | next |
-| 2 Data reliability (plan ↔ session link) | todo |
-| 3 Nutrition | todo |
-| 4 Live session | todo |
+| 1 Art direction | DONE — "Ledger" chosen over "Meal tiles" (`direction-a-vs-b.png`); foundations in `7c74442` |
+| 2 Data reliability (plan ↔ session link) | DONE — `54bf4e4`, migration `20261118000003` on development AND production (25), SQL suites pass on both |
+| 3 Nutrition | DONE — `7c74442`; journey driven in a browser (see below) |
+| 4 Live session | next |
 | 5 Training home, catalogue, workouts | todo |
 | 6 Progress | todo |
 | 7 Today and sign-in | todo |
@@ -98,6 +98,41 @@ Machine), new workout, session, progress, phase, login.
 | Sign-in offers "Create one" while signup is closed | Confirmed; there is no password recovery at all |
 | Themes and languages | English only, no translation layer; a dark token set exists and nothing switches to it |
 | Tab bar covering the last row | Not reproduced — every page ends above it |
+
+### Phases 1–3 (2026-11-17)
+
+- **Direction.** Two compositions of Nutrition with the same data: A
+  "Ledger" (compact strip, meals are the page, "+" per meal) and B "Meal
+  tiles" (hero figure, swipeable meal tiles, docked add bar). A kept: the
+  foods stay visible, the first meal is at ~310 px, and B had to guess a
+  meal for its docked bar. Foundations: 44 px controls (button, input,
+  select), `Slab size="strip"`, an arrival mark (`[data-new]`: a volt flash
+  plus an ink edge that stays — readable with reduced motion), reached vs
+  over (words + warning colour + a notch at the target), an Appearance
+  setting (system/light/dark, next-themes, stored on the device), toasts
+  at the top.
+- **Plan link.** `workout_sessions.schedule_id` (unique when set,
+  restrictive policy against foreign plan ids) and a 5-argument
+  `start_workout` overload; the 4-argument one is unchanged for the old
+  deployment. Old sessions have no link and match by the old rule,
+  reported `inferred` (`lib/training/plans.ts`). Starting from a plan row,
+  Today's planned card, or a workout planned today links the occurrence.
+- **Retry-safe food log.** `food_logs.client_token` + unique index;
+  `logCachedFood` answers a duplicate token with the first entry. Only the
+  main add path sends a token so far — Quick Add, recipes, saved meals and
+  the AI review do not yet.
+- **Nutrition journey, driven in headless Chromium at 390×844 against the
+  production build on development:** open 16 Nov with the arrow → "+" on
+  Lunch (sheet says Lunch · Mon 16 Nov · Yesterday) → Search "banana" →
+  Bananas, raw → 135 g (review: 135 g · 120 kcal · Lunch · Mon 16 Nov) →
+  "Back to results" keeps the list → Add to Lunch → lands on
+  `/diary?date=2026-11-16&saved=871`, the row marked in Lunch. A recent
+  food (Onions) from My foods: one tap to the review. **Offline**: the form
+  stays, says nothing was added; back online, retry → exactly one row
+  (checked in the database).
+- Found and fixed on the way: a submit with no connection replaced the
+  whole diary with the error screen; the sheet could keep an old day if
+  the day changed underneath it (now keyed by the day).
 
 **Priorities.** (1) Nutrition: compact summary, date picker, "+" per meal,
 context kept to the end, visible result. (2) Session: one active exercise,
