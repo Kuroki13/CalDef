@@ -28,7 +28,7 @@ Last updated: 2026-11-17
 | 10 | PWA, rate limiting, security hardening | DONE |
 | 11 | Acceptance pass and Vercel deploy | IN PROGRESS — deployed and verified signed-in on production; **open until the owner's iPhone checks pass** |
 | 12 | Personal Food Intelligence (spec §12) | DONE — 12A–12H live on production (2026-10-07). Not yet checked signed-in on production |
-| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13K live; restaurants (13L/13M) next |
+| 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13M done (13L/13M committed 2026-11-17, not yet deployed); 13N and the parser's `original_text` remain |
 | 16 | Strength training and visual identity (spec §16) | DONE — second pass 2026-11-17: "Scoreboard" redesign and the full training module, **seen in a real browser** at 360/390/430/1280 px on development. iPhone checks still open; see TODO |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
 | UX | Daily-use overhaul (owner's brief of 2026-11-17, evening) | DONE on development and deployed — iPhone checks open; see "CURRENT WORK" |
@@ -40,10 +40,9 @@ Last updated: 2026-11-17
 Resume here. The brief: push the Scoreboard design much further, judged by
 three journeys — **add a food to the right meal and date**, **log a set
 between two exercises**, **understand progress on opening the tab**. Ten
-phases (0 audit … 9 delivery). The uncommitted restaurant work (13L/13M)
-stays in the tree, untouched and uncommitted; commits here must not
-include it (a file carrying both is committed with the restaurant hunks
-reverse-applied — the saved diff is the reference).
+phases (0 audit … 9 delivery). The restaurant work (13L/13M) that sat
+uncommitted beside it was finished and committed on its own on 2026-11-17
+(see TEST RESULTS).
 
 | Phase | State |
 |---|---|
@@ -925,9 +924,10 @@ Phase 13, in the order spec §15 sets:
   something else. That comes with 13H.
 - **Family Foods and cooked weight (13H): DONE, live on production since 2026-10-08.**
 - **Personal vocabulary (13I): DONE, live on production since 2026-10-08.**
-- Then
-  evaluate French and Canadian datasets (13J/13K), restaurant resolution
-  (13L/13M), and connecting confidence to resolution (13N).
+- French and Canadian datasets (13J/13K): DONE, live 2026-10-08.
+- **Restaurants and their modifiers (13L/13M): DONE, committed 2026-11-17**
+  (see "Phase 13L/13M — official restaurant data" below). Not deployed yet.
+- Then connecting confidence to resolution (13N).
 - Not yet: the AI parser preserving `original_text` (§13.1). The manual
   search path is where recognition runs today. The parser already resolves
   its queries through `searchFoods`, so recognition applies to them too.
@@ -1313,6 +1313,46 @@ What is left, and **Phase 11 stays open until it is done**:
   verified against the live API (HTTP 200, search returns results).
 
 ## TEST RESULTS
+
+### Phase 13L/13M — official restaurant data, 2026-11-17 (Claude Code)
+
+Finished and committed separately from the redesign, at the owner's request.
+
+- **Data.** Harvey's (4 items, reviewed by hand, identities unchanged), plus
+  Subway Canada (155 items, official PDF "October 2026"), A&W Canada (209,
+  official menu API, captured 2026-10-08) and Five Guys Canada (38 parts,
+  official sheet "CA 12-2023"). Built by `scripts/build-restaurants.mjs` from
+  `scripts/restaurant-sources/`; rebuilding gives byte-identical
+  `restaurants.json` and `fiveguys-parts.json` (checked with `cmp`). Rows
+  without a published weight or core figure are left out (Subway 2), and one
+  physically impossible published row (Five Guys "Chocolate" mix-in) is left
+  out rather than corrected.
+- **Search.** An item is offered only when the query names the chain and every
+  other word matches it ("subway chicken nuggets", "five guys cheeseburger"
+  find nothing). The 70 KB catalogue stays on the server: the review screen
+  and the source badge read the source from the stored marker
+  (`lib/food/attribution.ts`); only the 4 KB Five Guys parts list ships to the
+  browser (checked in `.next/static`).
+- **Five Guys builder (§13M).** Five Guys publishes parts, not burgers, so a
+  search for a Five Guys burger/order offers the parts with steppers; each
+  part is logged as its own entry through `logCachedFood`, exact throughout.
+  The server trusts only catalogue slugs and counts.
+- **Fixed on the way:** a published label that carries its own count and
+  weight printed both twice ("1 1 portion (14 g) · 14 g"); `portionText` now
+  says "1 portion · 14 g" / "2 × portion · 130 g" (Harvey's "1 burger (281 g)"
+  had the same latent defect).
+- **Browser journey** (headless Chrome, production build, development data,
+  fixture account): Nutrition → "+" on Dinner → Search "five guys burger" →
+  builder shown, meal = Dinner → bun 1, patty 2, bacon 1 → preview 914 kcal
+  (240 + 2×302 + 70) → "Log 3 parts" → "Logged 3 parts from Five Guys." →
+  Dinner shows the three rows with the published figures; no page errors. The
+  three test rows were then deleted by id (873–875) from development.
+- `npm run test` 99 files / **1073 passed** · `typecheck` 0 · `lint` 0 ·
+  `build` 0.
+- **Not checked:** an iPhone; production (not deployed in this commit). The
+  builder logs without a retry token, like Quick Add, recipes and saved meals
+  (known gap, invariant 27); its button disables while pending.
+
 
 ### Audit and fixes, 2026-11-17 (Claude Code)
 

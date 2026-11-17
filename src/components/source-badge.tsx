@@ -8,6 +8,7 @@
  */
 
 import { Badge } from "@/components/ui/badge";
+import { isRestaurantDescription } from "@/lib/food/attribution";
 import type { Food } from "@/lib/food/types";
 
 export function SourceBadge({ food }: { food: Food }) {
@@ -24,6 +25,11 @@ export function SourceBadge({ food }: { food: Food }) {
   if (food.source === "off") {
     // Community-contributed. The spec requires not presenting it as verified.
     return <Badge variant="outline">Community</Badge>;
+  }
+  // A stored official restaurant item is a custom row, but it is the
+  // chain's published data, not something the user typed in.
+  if (isRestaurantDescription(food.description)) {
+    return <Badge variant="default">Official</Badge>;
   }
   return <Badge variant="secondary">Yours</Badge>;
 }

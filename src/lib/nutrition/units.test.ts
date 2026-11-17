@@ -95,6 +95,16 @@ describe("portionText — one portion, said once", () => {
     expect(portionText(1.5, "serving", 291, "portion")).toBe("1.5 × portion · 291 g");
     expect(portionText(1, "serving", 160, "pot")).toBe("1 pot · 160 g");
   });
+  it("does not repeat a published label's own count and weight", () => {
+    expect(portionText(1, "serving", 14, "1 portion (14 g)")).toBe("1 portion · 14 g");
+    expect(portionText(2, "serving", 130, "1 portion (65 g)")).toBe("2 × portion · 130 g");
+    expect(portionText(1, "serving", 281, "1 burger (281 g)")).toBe("1 burger · 281 g");
+    expect(portionText(1, "serving", 245, '1 6" sub (245 g)')).toBe('1 6" sub · 245 g');
+  });
+  it("keeps a label's weight when no grams follow, and a real fraction", () => {
+    expect(portionText(1, "serving", null, "1 burger (281 g)")).toBe("1 burger (281 g)");
+    expect(portionText(2, "serving", 240, "1 1/2 cup")).toBe("2 × 1 1/2 cup · 240 g");
+  });
   it("says grams once and millilitres once when they agree", () => {
     expect(portionText(180, "g", 180)).toBe("180 g");
     expect(portionText(250, "ml", 250)).toBe("250 ml");

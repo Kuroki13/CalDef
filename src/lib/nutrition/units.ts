@@ -118,8 +118,25 @@ export function portionText(
   // "100 g", "100g", "30 g serving": a label that is only a weight.
   const onlyWeight = /^\d+(?:[.,]\d+)?\s*(?:g|ml)(?:\s+serving)?$/i.test(label);
   if (onlyWeight && g !== null) return `${g} g`;
-  const head = amount === 1 ? `1 ${label}` : `${formatAmount(amount)} × ${label}`;
+  const noun = servingNoun(label, g !== null);
+  const head = amount === 1 ? `1 ${noun}` : `${formatAmount(amount)} × ${noun}`;
   return g === null ? head : `${head} · ${g} g`;
+}
+
+/**
+ * What one serving is called, without what the line already says.
+ *
+ * Published labels often carry their own count and weight — a restaurant's
+ * "1 portion (65 g)", Harvey's "1 burger (281 g)" — so printed as they are
+ * the count and the weight came out twice: "1 1 portion (14 g) · 14 g". The
+ * leading "1" goes (the amount is printed in front), and so does a trailing
+ * weight in brackets when the grams are printed after it anyway. "1 1/2 cup"
+ * is a quantity, not a count of one, and is left alone.
+ */
+function servingNoun(label: string, weightShown: boolean): string {
+  let noun = label.replace(/^1\s+(?!\d+\s*\/\s*\d)/, "");
+  if (weightShown) noun = noun.replace(/\s*\(\s*\d+(?:[.,]\d+)?\s*(?:g|ml)\s*\)$/i, "");
+  return noun.trim() || label;
 }
 
 /** Trims trailing zeros so 200 reads as "200", not "200.0". */

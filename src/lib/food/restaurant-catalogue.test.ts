@@ -26,3 +26,57 @@ describe("reviewed restaurant references", () => {
     expect(restaurantReference({ description: null })).toBeNull();
   });
 });
+
+describe("Subway, A&W and Five Guys — official Canadian data (§13L)", () => {
+  const kcalPerServing = (food: ReturnType<typeof searchRestaurantCatalogue>[number]) =>
+    scaleNutrients(food.nutrients, food.servings[0].grams).kcal;
+
+  it("tells a 6-inch sub from the wrap and salad of the same name", () => {
+    const names = searchRestaurantCatalogue("subway italian bmt").map((f) => f.name);
+    expect(names).toContain('Italian B.M.T. — 6" sub');
+    expect(names).toContain("Italian B.M.T. — wrap");
+    expect(names).toContain("Italian B.M.T. — salad");
+  });
+
+  it("gives the published 6-inch figures, and reads 'footlong' as no extra word", () => {
+    const [sub] = searchRestaurantCatalogue("subway footlong italian bmt sub");
+    expect(sub.name).toBe('Italian B.M.T. — 6" sub');
+    expect(sub.servings[0]).toEqual({ label: '1 6" sub (245 g)', grams: 245, isDefault: true });
+    expect(kcalPerServing(sub)).toBeCloseTo(560, 0);
+  });
+
+  it("finds the Teen Burger at A&W however the chain is written", () => {
+    for (const q of ["A&W teen burger", "a and w teen burger", "teen burger a&w"]) {
+      const [first] = searchRestaurantCatalogue(q);
+      expect(first?.name, q).toBe("Teen Burger");
+      expect(kcalPerServing(first)).toBeCloseTo(500, 0);
+    }
+  });
+
+  it("offers Five Guys components and add-ons as the official parts they are", () => {
+    const [patty] = searchRestaurantCatalogue("five guys patty");
+    expect(patty.servings[0].grams).toBe(65);
+    expect(kcalPerServing(patty)).toBeCloseTo(302, 0);
+    expect(searchRestaurantCatalogue("5 guys bacon")[0].name).toBe("Bacon (2 pieces)");
+  });
+
+  it("leaves out the published row that cannot be true, rather than correcting it", () => {
+    expect(searchRestaurantCatalogue("five guys chocolate")).toEqual([]);
+  });
+
+  it("still refuses what is not on the sheet", () => {
+    // ("subway combo" is not one of these: Subway sells a Cold Cut Combo.)
+    expect(searchRestaurantCatalogue("subway chicken nuggets")).toEqual([]);
+    expect(searchRestaurantCatalogue("five guys cheeseburger")).toEqual([]);
+  });
+
+  it("round-trips an identity and names its source", () => {
+    const [teen] = searchRestaurantCatalogue("A&W teen burger");
+    expect(restaurantById(teen.sourceId)?.name).toBe("Teen Burger");
+    expect(restaurantReference(teen)).toEqual({
+      url: "https://web.aw.ca/api/menu/",
+      reviewed: "2026-10-08",
+      country: "Canada",
+    });
+  });
+});

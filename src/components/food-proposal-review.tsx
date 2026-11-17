@@ -6,7 +6,7 @@ import { PendingButton } from "@/components/pending-button";
 import { PortionMacros } from "@/components/portion-macros";
 import type { FoodProposal } from "@/lib/ai/resolve";
 import type { MealType } from "@/lib/diary";
-import { restaurantReference } from "@/lib/food/restaurant-catalogue";
+import { restaurantReferenceFromDescription as restaurantReference } from "@/lib/food/attribution";
 import { toGrams, type PortionUnit } from "@/lib/nutrition/units";
 import { per100Label } from "@/lib/food/basis";
 
@@ -62,7 +62,7 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
       <input type="hidden" name="payload" value={payload} />
       <fieldset disabled={locked} className="min-w-0 space-y-4">
         {rows.map((row, i) => {
-          const reference = row.food ? restaurantReference(row.food) : null;
+          const reference = row.food ? restaurantReference(row.food.description) : null;
           return (
             <div key={i} className="space-y-2 border-b pb-3">
               <p className="text-muted-foreground text-xs">Understood: {row.proposal.intent.query}</p>

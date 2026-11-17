@@ -19,6 +19,7 @@ import { BarcodeScanner } from "@/components/barcode-scanner";
 import { DescribeDish } from "@/components/describe-dish";
 import { CustomFoodForm } from "@/components/custom-food-form";
 import { DescribeMeal } from "@/components/describe-meal";
+import { FiveGuysBuilder, wantsFiveGuysBuilder } from "@/components/five-guys-builder";
 import { MyFoods } from "@/components/my-foods";
 import { NoMatchChoices } from "@/components/no-match-choices";
 import { RecipeHits } from "@/components/recipe-hits";
@@ -420,6 +421,11 @@ export function AddFood({
                 "maqlouba" with none. Useless also covers results that are
                 there but are not what was asked for — "chicken maqlouba"
                 returning chicken spread and chicken fat. */}
+            {/* §13M: Five Guys publishes parts, not burgers. */}
+            {search.status === "done" && wantsFiveGuysBuilder(search.text) ? (
+              <FiveGuysBuilder logDate={logDate} mealTypes={mealTypes} />
+            ) : null}
+
             {search.status === "done" && search.recipes.length > 0 ? (
               <RecipeHits
                 recipes={search.recipes}
@@ -435,6 +441,7 @@ export function AddFood({
                 its answer comes first, and these follow it. */}
             {noMatch &&
             !search.recognised?.variantOpen &&
+            !wantsFiveGuysBuilder(search.text) &&
             !creatingFood &&
             !quickAdding &&
             !scannerOpen ? (

@@ -26,6 +26,7 @@ vi.mock("@/components/describe-meal", () => ({
 }));
 vi.mock("@/components/custom-food-form", () => ({ CustomFoodForm: () => null }));
 vi.mock("@/components/quick-add-form", () => ({ QuickAddForm: () => null }));
+vi.mock("@/app/(app)/diary/restaurant-actions", () => ({ logRestaurantPartsAction: vi.fn() }));
 
 const { AddFood } = await import("@/app/(app)/diary/add-food");
 import { EMPTY_LIBRARY, type PersonalLibrary } from "@/lib/food/library-types";

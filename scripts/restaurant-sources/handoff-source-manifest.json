@@ -1,0 +1,151 @@
+{
+  "reviewed_date": "2026-10-08",
+  "country": "Canada",
+  "scope": "Official Canadian restaurant nutrition research handoff; no application code changed.",
+  "sources": [
+    {
+      "restaurant": "Subway Canada",
+      "source_type": "official PDF linked by official Canadian nutrition page",
+      "source_url": "https://media.subway.com/dam/urn:aaid:aem:261b4b3a-2da3-43c5-a5f6-77b529ebf134/original/as/CAN_Nutrition_ENG_9-16-26.pdf",
+      "publisher_label": "October 2026",
+      "file_name_date": "2026-09-16",
+      "reviewed_date": "2026-10-08",
+      "primary_file": "subway-canada-2026-10.pdf",
+      "normalized_file": "subway-canada-nutrition.json",
+      "nutrition_rows": 157,
+      "weight_coverage": "155 rows have positive published serving grams; salt and pepper are published as 0 g and cannot be converted to per 100 g.",
+      "notes": "The PDF filename date is distinct from its October 2026 visible document label."
+    },
+    {
+      "restaurant": "Tim Hortons Canada",
+      "source_type": "official PDF linked by the current nutrition-and-allergens page CMS content",
+      "source_url": "https://cdn.sanity.io/files/czqk28jt/prod_th_ca/147e592c99c865b50aca61832fa8ce3975cb0da5.pdf",
+      "publisher_label": "July 2026",
+      "reviewed_date": "2026-10-08",
+      "primary_file": "timhortons-canada-2026-07.pdf",
+      "normalized_file": "timhortons-canada-nutrition.json",
+      "nutrition_rows": 347,
+      "weight_coverage": "No serving weights in the PDF.",
+      "additional_raw_source_url": "https://czqk28jt.apicdn.sanity.io/v1/data/query/prod_th_ca?query=%2A%5B_type+%3D%3D+%22item%22+%26%26+defined%28nutrition%29%5D%7B_id%2C_updatedAt%2Cname%2Cnutrition%2CnutritionWithModifiers%2CitemSize%2CitemUnit%2CshowInStaticMenu%2ChideCalories%7D",
+      "raw_file": "timhortons-official-menu-nutrition.json",
+      "raw_records": 7058,
+      "discovery_asset_url": "https://www.timhortons.ca/static/js/main.46c4236e.chunk.js"
+    },
+    {
+      "restaurant": "A&W Canada",
+      "source_type": "official public menu API called by the official item-page JavaScript",
+      "source_url": "https://web.aw.ca/api/menu/",
+      "example_item_url": "https://web.aw.ca/api/menu/teen-burger",
+      "reviewed_date": "2026-10-08",
+      "raw_file": "aw-canada-official-items.json",
+      "normalized_file": "aw-canada-nutrition.json",
+      "menu_index_file": "aw-canada-official-menu.json",
+      "unique_menu_index_slugs": 102,
+      "listed_variant_slugs": 156,
+      "successful_records": 258,
+      "normalized_rows_with_positive_weight_and_core_macros": 252,
+      "excluded_zero_weight_records": 6,
+      "discovery_asset_url": "https://web.aw.ca/static/js/11.283295f0.chunk.js",
+      "notes": "Each raw capture retains its exact URL. Publisher date_modified is a content timestamp, not a verified nutrition revision date."
+    },
+    {
+      "restaurant": "Burger King Canada",
+      "source_type": "official public production CMS nutrition fields",
+      "source_url": "https://kjfd81ul.apicdn.sanity.io/v1/data/query/prod_bk_ca?query=%2A%5B_type+%3D%3D+%22item%22+%26%26+defined%28nutrition%29%5D%7B_id%2C_updatedAt%2Cname%2Cnutrition%2CnutritionWithModifiers%2CitemSize%2CitemUnit%2CshowInStaticMenu%2ChideCalories%7D",
+      "official_page": "https://www.burgerking.ca/nutrition-explorer",
+      "reviewed_date": "2026-10-08",
+      "raw_file": "burgerking-official-menu-nutrition.json",
+      "raw_records": 2926,
+      "static_menu_subset_file": "burgerking-static-menu-subset.json",
+      "static_menu_subset_records": 156,
+      "discovery_asset_url": "https://www.burgerking.ca/_expo/static/js/web/index-fb59d3d4e856d3af89ef917b586768e9.js",
+      "notes": "Not import-ready: resolve current menu membership, default modifiers, weights and source inconsistencies."
+    },
+    {
+      "restaurant": "McDonald's Canada",
+      "status": "Current numerical data not recovered",
+      "official_page": "https://www.mcdonalds.com/ca/en-ca/about-our-food/nutrition-calculator.html",
+      "historical_source_url": "https://qa.mcdonalds.com/content/dam/sites/ca/nfl/pdf/NutritionFacts_CA_EN.pdf",
+      "historical_document_date": "2019-09-18",
+      "reviewed_date": "2026-10-08",
+      "notes": "Web research could read the historical PDF and the current pages explanatory text. Direct HTTP requests returned 403; no current nutrition rows included."
+    }
+  ],
+  "files": [
+    {
+      "file": "README-FOR-CLAUDE.md",
+      "bytes": 9472,
+      "sha256": "ba3f8010cc76d8a5e567b6ac0a72eb5eb2be318c73a0d8ad5914e27785d89100"
+    },
+    {
+      "file": "subway-canada-2026-10.pdf",
+      "bytes": 230435,
+      "sha256": "d0c5a4e487242e3d4879d5f02f7b41dd188861b5fb94654f2d73eb352e853f2d"
+    },
+    {
+      "file": "subway-canada-nutrition.json",
+      "bytes": 98656,
+      "sha256": "1454c290417d51984a19f14333b53ccacf0f74c46b957d4b7c522367734a72c5"
+    },
+    {
+      "file": "subway-canada-2026-10-layout.txt",
+      "bytes": 20994,
+      "sha256": "8ff1c618ac008cad64af3c090ee20d56aca2a08fe70a6e8857e078e478c958ea"
+    },
+    {
+      "file": "timhortons-canada-2026-07.pdf",
+      "bytes": 630269,
+      "sha256": "71cdd67b9380cd2de96dd75dcbfa7457fc4a0f1490c39d7c9e3a9b2875881f9f"
+    },
+    {
+      "file": "timhortons-canada-nutrition.json",
+      "bytes": 182054,
+      "sha256": "28db45074b562c5263dd23a1b44de7b89bb12ca509c4734e7321b5864e33e2b3"
+    },
+    {
+      "file": "timhortons-canada-2026-07-layout.txt",
+      "bytes": 103630,
+      "sha256": "29c39b04f387eddf548fa19702938740be6ebb30d855c5bfa9515c60177e055e"
+    },
+    {
+      "file": "timhortons-official-menu-nutrition.json",
+      "bytes": 2981450,
+      "sha256": "118b56896d690d4418a1a64a575fca4ec6687a51dc2f64c2d659910b90341601"
+    },
+    {
+      "file": "aw-canada-official-menu.json",
+      "bytes": 32643,
+      "sha256": "30f7c619939bc30dd4767dba0dba04351714bf851da814f02b62ad826c9f5ed9"
+    },
+    {
+      "file": "aw-canada-official-items.json",
+      "bytes": 1843671,
+      "sha256": "939ac3dd7759d984c54b458eb80cb4969c7f4210eb707d9aa57e87ed3201416e"
+    },
+    {
+      "file": "aw-canada-nutrition.json",
+      "bytes": 232785,
+      "sha256": "f027e0c32d40ec07a3931ce2e77b5c4eea8189d9e7ef3ec61083d1becb401b04"
+    },
+    {
+      "file": "burgerking-official-menu-nutrition.json",
+      "bytes": 1463512,
+      "sha256": "f27f7e67c22cb20ae0bdaf6e9d024427c9c63a94a1578c7aa80dbc753dd9f37f"
+    },
+    {
+      "file": "burgerking-static-menu-subset.json",
+      "bytes": 156758,
+      "sha256": "09b4df4b4c1d8773b656ba92a25db5fb8fd28bf4127c0d82503ae52a01fd608d"
+    },
+    {
+      "file": "source-quality-checks.json",
+      "bytes": 96346,
+      "sha256": "53b35b5752160ce8c1cf0566de2ab13e39fd01fcbb1159b33c673b62086c028e"
+    },
+    {
+      "file": "source-checks.ipynb",
+      "bytes": 7142,
+      "sha256": "80b21efff38fdd49e45cdc3a0edf18f0d3e84a9d4ce85043975ec8beafe3002a"
+    }
+  ]
+}
