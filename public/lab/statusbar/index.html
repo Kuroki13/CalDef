@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="lab.css">
+<title>CalDef status-bar lab</title>
+</head>
+<body>
+<header class="top"><p class="tag">Temporary · no data · removed after the test</p><h1>Status-bar lab</h1></header>
+<main>
+  <section class="card"><p class="tag">Why</p><p>The design prefers a fully light top in light mode (L1). Whether an installed iPhone app can show a dark clock in light mode <i>and</i> a light clock in dark mode cannot be confirmed from documentation. These four pages answer it on your phone.</p></section>
+  <section class="card"><p class="tag">How to test — about five minutes</p><ol>
+    <li>In <b>Safari</b> on the iPhone, open <b>A</b> below.</li>
+    <li>Share → <b>Add to Home Screen</b> → Add. It appears as “Lab A”.</li>
+    <li>Do the same for <b>B</b>, <b>C</b> and <b>D</b> (each from its own page, so each keeps its settings).</li>
+    <li>Open each one <b>from the Home Screen</b> (not Safari). The page says “Installed app: Yes”.</li>
+    <li>Follow the four checks on the page, in Light and in Dark. A screenshot of the top of each, in each mode, is the clearest answer — 8 screenshots.</li>
+    <li>Tell me for each: Light — clock dark and readable? Dark — clock light and readable? Any coloured strip that does not match the page?</li>
+    <li>Then delete the four Lab icons from the Home Screen.</li>
+  </ol></section>
+  <section class="card"><p class="tag">The variants</p><dl>
+    <dt><a href="a.html">A</a></dt><dd>L1 · default style, theme-color per mode</dd>
+    <dt><a href="b.html">B</a></dt><dd>L1 · default style, no theme-color</dd>
+    <dt><a href="c.html">C</a></dt><dd>L2 · black-translucent, Midnight cap (today's behaviour)</dd>
+    <dt><a href="d.html">D</a></dt><dd>L1 · one theme-color switched live</dd>
+  </dl></section>
+  <section class="card"><p class="tag">What decides it</p><p>If <b>A</b> (or <b>D</b>) is readable in both modes, the app moves to L1. If neither is, it keeps L2 with the smallest possible Midnight cap (<b>C</b>). Nothing here reads, stores or sends any data.</p></section>
+</main>
+</body>
+</html>

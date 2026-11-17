@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lab D">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#FFFFFF" data-live>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="lab.css">
+<title>CalDef status-bar lab · D</title>
+</head>
+<body class="">
+<div class="cap"></div>
+<header class="top"><p class="tag">Test page D · temporary · no data</p><h1>L1 · one theme-color, switched live</h1></header>
+<main>
+  <section class="card"><dl>
+    <dt>Status-bar style</dt><dd>default</dd>
+    <dt>Appearance now</dt><dd id="mode">…</dd>
+    <dt>Installed app</dt><dd id="standalone">…</dd>
+    <dt>Top inset</dt><dd id="insetv">…</dd>
+  </dl></section>
+  <section class="card"><p class="tag">What this variant tests</p><p>L1 with a single theme-color that the page changes when the phone switches mode. Tests whether iOS follows a change made while the app is open.</p></section>
+  <section class="card"><p class="tag">Look at the clock and battery at the very top</p><ol>
+    <li>In <b>Light</b>: are the clock and battery <b>dark</b> and easy to read? What colour is the bar behind them?</li>
+    <li>Switch to <b>Dark</b> (Control Centre → long-press brightness → Dark Mode), then come back here.</li>
+    <li>In <b>Dark</b>: are the clock and battery <b>light</b> and easy to read? Does the bar behind them match the dark page?</li>
+    <li>Quit the app from the app switcher, reopen it in Dark, and check again. Then the same in Light.</li>
+  </ol></section>
+  <nav class="nav" aria-label="Other variants"><a href="index.html">How to test</a><a href="a.html">A</a><a href="b.html">B</a><a href="c.html">C</a><a href="d.html">D</a></nav>
+</main>
+<div id="inset"></div>
+<script src="lab.js"></script>
+</body>
+</html>

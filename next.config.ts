@@ -76,6 +76,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // TEMPORARY: the status-bar test pages are never indexed. Removed with them.
+      { source: "/lab/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       {
         // Must not be cached by the CDN or the browser, or a stale worker
         // outlives its deploy and keeps serving an old shell.

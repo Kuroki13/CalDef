@@ -19,6 +19,10 @@ const PUBLIC_PREFIXES = [
   "/manifest.webmanifest",
   "/sw.js",
   "/offline",
+  // TEMPORARY (2026-11-19): the iPhone status-bar test pages, static and
+  // data-free (public/lab/statusbar). Removed with them after the test —
+  // see IMPLEMENTATION_STATUS, CURRENT WORK.
+  "/lab",
 ];
 
 function isPublicPath(pathname: string) {
