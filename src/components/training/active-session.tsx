@@ -22,6 +22,7 @@
 
 import {
   Check,
+  ChevronDown,
   CircleAlert,
   CloudOff,
   EllipsisVertical,
@@ -261,6 +262,11 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
   const [openNotes, setOpenNotes] = useState<number[]>([]);
   const [finishing, setFinishing] = useState(false);
   const buzzedFor = useRef<number | null>(null);
+  // Exercises opened by hand; the one in progress is always open.
+  const [opened, setOpened] = useState<number[]>([]);
+  // While a field has the keyboard, the docked bar steps aside so the field
+  // and the keyboard have the screen.
+  const [typing, setTyping] = useState(false);
 
   useEffect(() => {
     forgetOtherSessions(storagePrefix);
@@ -316,6 +322,40 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
     queue.push(`set:${draft.id}`, { setId: draft.id, ...values, completedAt: draft.completedAt });
   }
 
+  /**
+   * What ticking this set would record: the figures typed, and for any left
+   * empty, the suggestion ("same as suggested" — one tap, no typing). The
+   * docked bar shows exactly this, so what it announces is what is saved.
+   */
+  function whatTickRecords(
+    exercise: DraftExercise,
+    index: number,
+  ): { filled: SetDraft; values: SetValues | null; invalid: boolean; suggested: boolean } {
+    const draft = exercise.sets[index];
+    const typed = fromDraft(draft, exercise.measure, units);
+    if (!typed) return { filled: draft, values: null, invalid: true, suggested: false };
+    if (isCompletable(exercise.measure, typed)) {
+      return { filled: draft, values: typed, invalid: false, suggested: false };
+    }
+    const guess = suggestion(exercise, index);
+    if (!guess) return { filled: draft, values: null, invalid: false, suggested: false };
+    const text = valuesToText(guess, units);
+    const filled = {
+      ...draft,
+      weight: draft.weight || text.weight,
+      reps: draft.reps || text.reps,
+      duration: draft.duration || text.duration,
+      distance: draft.distance || text.distance,
+    };
+    const values = fromDraft(filled, exercise.measure, units);
+    return {
+      filled,
+      values: values && isCompletable(exercise.measure, values) ? values : null,
+      invalid: false,
+      suggested: true,
+    };
+  }
+
   function toggleSet(exercise: DraftExercise, index: number) {
     setError(null);
     const draft = exercise.sets[index];
@@ -324,28 +364,12 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
       return;
     }
 
-    let filled = draft;
-    let values = fromDraft(filled, exercise.measure, units);
-    if (!values) {
+    const { filled, values, invalid } = whatTickRecords(exercise, index);
+    if (invalid) {
       setError(`${exercise.name}, set ${index + 1}: check the figures first.`);
       return;
     }
-    if (!isCompletable(exercise.measure, values)) {
-      // Ticking an empty set means "same as suggested" — one tap, no typing.
-      const guess = suggestion(exercise, index);
-      if (guess) {
-        const text = valuesToText(guess, units);
-        filled = {
-          ...draft,
-          weight: draft.weight || text.weight,
-          reps: draft.reps || text.reps,
-          duration: draft.duration || text.duration,
-          distance: draft.distance || text.distance,
-        };
-        values = fromDraft(filled, exercise.measure, units);
-      }
-    }
-    if (!values || !isCompletable(exercise.measure, values)) {
+    if (!values) {
       setError(`${exercise.name}, set ${index + 1}: enter what you did, then tick it.`);
       return;
     }
@@ -509,14 +533,52 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
     router.refresh();
   }
 
+  // The exercise in progress: the first with a set still to do. Its next set
+  // is what the docked bar offers to log.
+  const currentIndex = items.findIndex((e) => e.sets.some((set) => !set.completedAt));
+  const current = currentIndex >= 0 ? items[currentIndex] : null;
+  const nextSetIndex = current ? current.sets.findIndex((set) => !set.completedAt) : -1;
+  const nextTick = current && nextSetIndex >= 0 ? whatTickRecords(current, nextSetIndex) : null;
+
+  // When an exercise is finished, the next one comes into view by itself —
+  // the thumb should not have to go looking for it.
+  const currentId = current?.id ?? null;
+  const shownCurrent = useRef(currentId);
+  useEffect(() => {
+    if (currentId === null || shownCurrent.current === currentId) return;
+    shownCurrent.current = currentId;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document
+      .getElementById(`exercise-${currentId}`)
+      ?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }, [currentId]);
+
   const doneSets = items.reduce((n, e) => n + e.sets.filter((s) => s.completedAt).length, 0);
   const totalSets = items.reduce((n, e) => n + e.sets.length, 0);
   const showRest =
     rest !== null && (isPaused(rest) || now < rest.endsAt + REST_DONE_LINGER_MS);
   const restLabel = rest ? (items.find((e) => e.id === rest.sessionExerciseId)?.name ?? null) : null;
+  const nextLabel =
+    current && nextSetIndex >= 0
+      ? `${current.id === rest?.sessionExerciseId ? "Set" : `${current.name} · set`} ${nextSetIndex + 1}${
+          nextTick?.values ? ` · ${shortSet(current.measure, nextTick.values, units)}` : ""
+        }`
+      : null;
 
   return (
-    <div className={cn("space-y-4", showRest ? "pb-24" : "")}>
+    <div
+      className="space-y-4 pb-28 lg:pb-8"
+      onFocus={(event) => {
+        if (event.target instanceof HTMLInputElement) {
+          setTyping(true);
+          // Keep the field in sight above the keyboard.
+          event.target.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      }}
+      onBlur={(event) => {
+        if (event.target instanceof HTMLInputElement) setTyping(false);
+      }}
+    >
       {/* The slab: what the session is, how long, how far. */}
       <Slab>
         <div className="flex items-start justify-between gap-3">
@@ -546,15 +608,26 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
           </DropdownMenu>
         </div>
 
-        <div className="mt-5 flex items-end justify-between gap-4">
-          <p>
-            <span className="figure text-7xl" role="timer" aria-label="Session time">
-              {formatClock(elapsedSeconds(session.startedAt, now))}
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <p className="min-w-0">
+            <span className="eyebrow block">
+              {current
+                ? `Exercise ${currentIndex + 1} of ${items.length}`
+                : items.length > 0
+                  ? "Every set done"
+                  : "No exercises yet"}
+            </span>
+            <span className="mt-1 block truncate text-lg font-semibold">
+              {current ? current.name : items.length > 0 ? "Finish when you are ready" : "Add one below"}
             </span>
           </p>
-          <p className="pb-1 text-right">
-            <span className="figure text-3xl">{doneSets}</span>
-            <span className="text-slab-muted text-sm"> / {totalSets} sets</span>
+          <p className="shrink-0 text-right">
+            <span className="figure block text-4xl" role="timer" aria-label="Session time">
+              {formatClock(elapsedSeconds(session.startedAt, now))}
+            </span>
+            <span className="text-slab-muted text-xs tabular-nums">
+              {doneSets} / {totalSets} sets
+            </span>
           </p>
         </div>
         <SlabBar
@@ -599,8 +672,46 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
           const convention = exercise.measure === "weight_reps" ? loadConvention(exercise) : null;
           const exerciseDone = exercise.sets.length > 0 && exercise.sets.every((set) => set.completedAt);
           const noteOpen = openNotes.includes(exercise.id) || Boolean(exercise.notes);
+          const isCurrent = exerciseIndex === currentIndex;
+          const isOpen = isCurrent || opened.includes(exercise.id);
+          const doneHere = exercise.sets.filter((set) => set.completedAt).length;
+          if (!isOpen) {
+            // Folded: one line, what is done, and a tap to open it.
+            return (
+              <li key={exercise.id} className="bg-card rounded-2xl">
+                <button
+                  type="button"
+                  aria-expanded={false}
+                  onClick={() => setOpened((ids) => [...ids, exercise.id])}
+                  className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left"
+                >
+                  <span
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums",
+                      exerciseDone ? "bg-foreground text-volt" : "bg-muted",
+                    )}
+                  >
+                    {exerciseDone ? <Check className="size-4" aria-hidden strokeWidth={3} /> : exerciseIndex + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{exercise.name}</span>
+                    <span className="text-muted-foreground block truncate text-xs">
+                      {exerciseDone
+                        ? `Done · ${exercise.sets.length} ${exercise.sets.length === 1 ? "set" : "sets"}`
+                        : `${doneHere} of ${exercise.sets.length} sets${target ? ` · ${target}` : ""}`}
+                    </span>
+                  </span>
+                  <ChevronDown className="text-muted-foreground size-4 shrink-0" aria-hidden />
+                </button>
+              </li>
+            );
+          }
           return (
-            <li key={exercise.id} className="bg-card rounded-2xl">
+            <li
+              key={exercise.id}
+              id={`exercise-${exercise.id}`}
+              className={cn("bg-card scroll-mt-20 rounded-2xl", isCurrent ? "ring-foreground ring-2" : "")}
+            >
               <div className="flex items-start gap-3 px-4 pt-4">
                 <span
                   className={cn(
@@ -612,11 +723,29 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
                   {exerciseDone ? <span className="sr-only">Exercise {exerciseIndex + 1}, all sets done</span> : null}
                 </span>
                 <div className="min-w-0 flex-1">
+                  {isCurrent ? <p className="eyebrow text-foreground">Now</p> : null}
                   <h2 className="display text-2xl break-words">{exercise.name}</h2>
-                  <p className="text-muted-foreground mt-0.5 text-xs">
-                    {[target ? `Target ${target}` : null, convention].filter(Boolean).join(" · ") ||
-                      (last ? null : "First time logging this exercise.")}
-                  </p>
+                  {/* Three things never shown alike: what was done LAST
+                      time, what is PLANNED, and what is done today (the
+                      tinted rows below). */}
+                  <dl className="mt-1 space-y-0.5 text-xs">
+                    <div className="flex gap-1.5">
+                      <dt className="text-muted-foreground w-11 shrink-0">Last</dt>
+                      <dd className="font-medium tabular-nums">
+                        {last && last.sets.length > 0
+                          ? summariseSets(exercise.measure, last.sets, units)
+                          : "First time"}
+                      </dd>
+                    </div>
+                    {target || convention ? (
+                      <div className="flex gap-1.5">
+                        <dt className="text-muted-foreground w-11 shrink-0">Plan</dt>
+                        <dd className="text-muted-foreground">
+                          {[target, convention].filter(Boolean).join(" · ")}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -638,6 +767,13 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
                     >
                       <NotebookPen aria-hidden /> Add a note
                     </DropdownMenuItem>
+                        {!isCurrent ? (
+                      <DropdownMenuItem
+                        onSelect={() => setOpened((ids) => ids.filter((id) => id !== exercise.id))}
+                      >
+                        <ChevronDown aria-hidden className="rotate-180" /> Fold
+                      </DropdownMenuItem>
+                    ) : null}
                     {exercise.sets.length > 0 ? (
                       <DropdownMenuItem onSelect={() => void removeLastSet(exercise)}>
                         <Minus aria-hidden /> Remove last set
@@ -660,6 +796,7 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
                 }}
                 onChange={(draft) => applySet(exercise.id, draft, exercise.measure)}
                 onToggle={(index) => toggleSet(exercise, index)}
+                nextIndex={isCurrent ? nextSetIndex : -1}
               />
 
               <div className="flex items-center gap-2 px-4 pt-1 pb-4">
@@ -747,7 +884,8 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
         type="button"
         variant="volt"
         size="lg"
-        className="min-h-[4.25rem] w-full rounded-2xl text-lg"
+        // Brought into view clear of the docked bar and the tab bar.
+        className="min-h-[4.25rem] w-full scroll-mb-44 rounded-2xl text-lg"
         pending={finishing}
         pendingLabel="Saving and finishing…"
         onClick={() => void finish()}
@@ -797,15 +935,89 @@ function ActiveSessionLive({ session, previous: initialPrevious, exercises: cata
           timer={rest}
           now={now}
           label={restLabel}
+          next={nextLabel}
           onAdjust={(delta) => setRest(adjustRest(rest, delta, Date.now()))}
           onPauseToggle={() =>
             setRest(isPaused(rest) ? resumeRest(rest, Date.now()) : pauseRest(rest, Date.now()))
           }
           onDismiss={() => setRest(null)}
         />
+      ) : current && nextSetIndex >= 0 && !typing ? (
+        <NextSetBar
+          title={`${current.name}`}
+          setLabel={`Set ${nextSetIndex + 1} of ${current.sets.length}`}
+          values={(() => {
+            const tick = whatTickRecords(current, nextSetIndex);
+            return tick.values
+              ? { text: shortSet(current.measure, tick.values, units), suggested: tick.suggested }
+              : null;
+          })()}
+          onDone={() => toggleSet(current, nextSetIndex)}
+        />
       ) : null}
     </div>
   );
+}
+
+/**
+ * The next set, one thumb away: which exercise, which set, what it will
+ * record — marked "suggested" until the figures are the user's own — and
+ * the tick. Docked above the tab bar; the page leaves room for it, so it
+ * covers nothing. While the rest timer runs, the timer takes this place and
+ * names the next set itself.
+ */
+function NextSetBar({
+  title,
+  setLabel,
+  values,
+  onDone,
+}: {
+  title: string;
+  setLabel: string;
+  values: { text: string; suggested: boolean } | null;
+  onDone: () => void;
+}) {
+  return (
+    <div className="on-slab bottom-above-tabs fixed inset-x-3 z-20 flex items-center gap-3 rounded-2xl py-2 pr-2 pl-4 shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-[26rem]">
+      <div className="min-w-0 flex-1">
+        <p className="eyebrow truncate">
+          Next · {setLabel}
+        </p>
+        <p className="truncate text-sm font-semibold">{title}</p>
+        <p className="text-slab-muted truncate text-xs tabular-nums">
+          {values ? (
+            <>
+              <span className="text-slab-foreground figure text-base">{values.text}</span>
+              {values.suggested ? " · planned, not logged yet" : " · as entered"}
+            </>
+          ) : (
+            "Enter the figures in the set row"
+          )}
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="volt"
+        className="h-12 shrink-0 rounded-xl px-5 text-base"
+        disabled={values === null}
+        onClick={onDone}
+      >
+        <Check className="size-5" aria-hidden strokeWidth={3} /> Done
+      </Button>
+    </div>
+  );
+}
+
+/** "82.5 × 7 · 6 · 6 · 5": last time's sets, the load said once when it held. */
+function summariseSets(measure: Measure, sets: readonly SetValues[], units: UnitSystem): string {
+  if (measure === "weight_reps" && sets.every((set) => set.weightKg === sets[0].weightKg)) {
+    const first = sets[0];
+    if (first.weightKg !== null) {
+      const load = valuesToText(first, units).weight;
+      return `${load} ${weightUnit(units)} × ${sets.map((set) => set.reps ?? "—").join(" · ")}`;
+    }
+  }
+  return sets.map((set) => shortSet(measure, set, units)).join(" · ");
 }
 
 /**
@@ -908,7 +1120,10 @@ function SetTable({
   placeholderFor,
   onChange,
   onToggle,
+  nextIndex,
 }: {
+  /** The set to do next, marked so it is found at a glance; -1 for none. */
+  nextIndex: number;
   exercise: DraftExercise;
   units: UnitSystem;
   previousSets: readonly SetValues[];
@@ -942,9 +1157,10 @@ function SetTable({
           return (
             <li
               key={set.id}
+              aria-current={index === nextIndex ? "step" : undefined}
               className={cn(
                 "flex items-center gap-2 rounded-xl px-2 py-1 transition-colors",
-                done ? "bg-volt/25" : "",
+                done ? "bg-volt/25" : index === nextIndex ? "bg-muted" : "",
               )}
             >
               <span className="w-6 text-center text-sm font-bold tabular-nums">{index + 1}</span>
@@ -993,7 +1209,9 @@ function SetTable({
                   "flex size-12 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                   done
                     ? "border-foreground bg-foreground text-volt"
-                    : "border-input text-transparent",
+                    : index === nextIndex
+                      ? "border-foreground text-foreground/25"
+                      : "border-input text-transparent",
                 )}
               >
                 {invalid ? (

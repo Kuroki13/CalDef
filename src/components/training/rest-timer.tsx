@@ -22,6 +22,7 @@ export function RestTimerBar({
   timer,
   now,
   label,
+  next = null,
   onAdjust,
   onPauseToggle,
   onDismiss,
@@ -30,6 +31,8 @@ export function RestTimerBar({
   now: number;
   /** The exercise the rest follows. */
   label: string | null;
+  /** The set that follows, so resting never hides what comes next. */
+  next?: string | null;
   onAdjust: (deltaSeconds: number) => void;
   onPauseToggle: () => void;
   onDismiss: () => void;
@@ -45,7 +48,7 @@ export function RestTimerBar({
     <div
       role="timer"
       aria-label="Rest timer"
-      className="bg-foreground text-background fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 overflow-hidden rounded-2xl shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
+      className="bg-foreground text-background bottom-above-tabs fixed inset-x-3 z-20 overflow-hidden rounded-2xl shadow-lg lg:inset-x-auto lg:right-8 lg:bottom-8 lg:w-96"
     >
       <div className="flex items-center gap-2 px-4 py-2.5">
         <div className="min-w-0 flex-1">
@@ -56,6 +59,9 @@ export function RestTimerBar({
           <p className="figure mt-0.5 text-3xl" aria-live="off">
             {over ? "Go" : formatClock(remaining)}
           </p>
+          {next ? (
+            <p className="text-background/70 truncate text-xs">Next · {next}</p>
+          ) : null}
         </div>
         {over ? null : (
           <>
