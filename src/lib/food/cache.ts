@@ -14,6 +14,7 @@ import "server-only";
  * empty out a diary.
  */
 
+import { expandLigatures, isArabic } from "@/lib/food/cultural/normalize";
 import { namesDish } from "@/lib/food/cultural/recognise";
 import { createClient } from "@/lib/supabase/server";
 import type { CachedFood, Food, FoodSearchQuery } from "@/lib/food/types";
@@ -41,9 +42,40 @@ function searchTerms(text: string): string[] {
 }
 
 /**
+ * Which column each term is matched against, and with what pattern.
+ *
+ * A Latin-script term is folded the way `foods.search_folded` is — accents
+ * removed, ligatures written out ("œ" → "oe"), lower case — so "oeuf",
+ * "œuf", "OEUF" and "Œuf" all find "Œufs frais" and "oeuf dur", and "cafe"
+ * finds "Café". The column is `unaccent` + `lower` in the database
+ * (migration 20261119000001); this is the same folding on the way in.
+ *
+ * A term with Arabic letters keeps matching the unfolded `search_text`
+ * exactly as before: Arabic has its own normalisation (`normalizeArabic`),
+ * which the database column does not reproduce, so folding it here could
+ * only lose matches.
+ */
+type TermCondition = { column: "search_text" | "search_folded"; pattern: string };
+
+function termConditions(text: string): TermCondition[] {
+  return searchTerms(text).flatMap((term): TermCondition[] => {
+    if (isArabic(term)) return [{ column: "search_text", pattern: `%${term}%` }];
+    const folded = expandLigatures(term)
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase();
+    return folded ? [{ column: "search_folded", pattern: `%${folded}%` }] : [];
+  });
+}
+
+/** Exported for testing the folding in isolation. */
+export const __termConditions = termConditions;
+
+/**
  * Searches the local cache.
  *
- * Uses the generated `foods.search_text` column and its trigram GIN index.
+ * Uses the generated `foods.search_folded` column (and `search_text` for
+ * Arabic terms), each with a trigram GIN index.
  * Custom foods are visible only to their owner, which RLS enforces — this
  * query does not need to filter by user itself.
  */
@@ -51,8 +83,8 @@ export async function searchCache({
   text,
   limit = 15,
 }: FoodSearchQuery): Promise<CachedFood[]> {
-  const terms = searchTerms(text);
-  if (terms.length === 0) return [];
+  const conditions = termConditions(text);
+  if (conditions.length === 0) return [];
 
   const supabase = await createClient();
 
@@ -67,8 +99,8 @@ export async function searchCache({
     );
 
   // Every term must appear somewhere in the text, in any order.
-  for (const term of terms) {
-    query = query.ilike("search_text", `%${term}%`);
+  for (const { column, pattern } of conditions) {
+    query = query.ilike(column, pattern);
   }
 
   // A retired custom food stays readable wherever history points at it, but

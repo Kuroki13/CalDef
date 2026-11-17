@@ -15,7 +15,13 @@
  */
 
 import { type Dish, DISHES, type Variant } from "@/lib/food/cultural/dictionary";
-import { closeEnough, isArabic, wordKey, words } from "@/lib/food/cultural/normalize";
+import {
+  closeEnough,
+  expandLigatures,
+  isArabic,
+  wordKey,
+  words,
+} from "@/lib/food/cultural/normalize";
 
 export type Recognised = {
   dish: Dish;
@@ -42,7 +48,7 @@ type Alias = {
 };
 
 const plain = (word: string) =>
-  word.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  expandLigatures(word).normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 /** Every alias of every dish, keyed once. */
 const INDEX: Alias[] = DISHES.flatMap((dish) => {

@@ -68,6 +68,14 @@ describe("§15.1 Ambiguity — never silently assume", () => {
   });
 });
 
+describe("ligatures fold before the sound key", () => {
+  it("gives bœuf and boeuf, cœur and coeur the same key", () => {
+    expect(latinKey("bœuf")).toBe(latinKey("boeuf"));
+    expect(latinKey("Cœur")).toBe(latinKey("coeur"));
+    expect(latinKey("œuf")).not.toBe("");
+  });
+});
+
 describe("recognition does not overreach", () => {
   it("keeps laban and labneh apart, though they differ by a letter or two", () => {
     expect(latinKey("laban")).not.toBe(latinKey("labneh"));

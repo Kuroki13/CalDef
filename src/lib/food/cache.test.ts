@@ -3,9 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 const createClient = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({ createClient: () => createClient() }));
 
-const { __searchTerms, cacheFood, refreshCachedFood, rowToFood } = await import(
+const { __searchTerms, __termConditions, cacheFood, refreshCachedFood, rowToFood } = await import(
   "@/lib/food/cache"
 );
+
+describe("termConditions — the cache is searched folded", () => {
+  it("matches every spelling of oeuf against the folded column", () => {
+    for (const spelling of ["oeuf", "œuf", "OEUF", "Œuf"]) {
+      expect(__termConditions(spelling), spelling).toEqual([
+        { column: "search_folded", pattern: "%oeuf%" },
+      ]);
+    }
+  });
+  it("folds accents the way unaccent does, term by term", () => {
+    expect(__termConditions("Café crème")).toEqual([
+      { column: "search_folded", pattern: "%cafe%" },
+      { column: "search_folded", pattern: "%creme%" },
+    ]);
+  });
+  it("keeps Arabic terms on the unfolded column, unchanged", () => {
+    expect(__termConditions("لبنة")).toEqual([{ column: "search_text", pattern: "%لبنة%" }]);
+  });
+  it("still strips ilike wildcards before folding", () => {
+    expect(__termConditions("100%_")).toEqual([{ column: "search_folded", pattern: "%100%" }]);
+  });
+});
 
 describe("searchTerms", () => {
   it("splits on whitespace", () => {

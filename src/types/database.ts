@@ -320,7 +320,6 @@ export type Database = {
         Row: {
           amount: number
           carbs_g: number
-
           client_token: string | null
           created_at: string
           fat_g: number
@@ -343,7 +342,6 @@ export type Database = {
         Insert: {
           amount: number
           carbs_g?: number
-
           client_token?: string | null
           created_at?: string
           fat_g?: number
@@ -366,7 +364,6 @@ export type Database = {
         Update: {
           amount?: number
           carbs_g?: number
-
           client_token?: string | null
           created_at?: string
           fat_g?: number
@@ -574,6 +571,7 @@ export type Database = {
           name: string
           notes: string | null
           refreshed_at: string
+          search_folded: string | null
           search_text: string | null
           source: Database["public"]["Enums"]["food_source"]
           source_id: string | null
@@ -594,6 +592,7 @@ export type Database = {
           name: string
           notes?: string | null
           refreshed_at?: string
+          search_folded?: string | null
           search_text?: string | null
           source: Database["public"]["Enums"]["food_source"]
           source_id?: string | null
@@ -614,6 +613,7 @@ export type Database = {
           name?: string
           notes?: string | null
           refreshed_at?: string
+          search_folded?: string | null
           search_text?: string | null
           source?: Database["public"]["Enums"]["food_source"]
           source_id?: string | null
@@ -1189,9 +1189,8 @@ export type Database = {
           ended_at: string | null
           id: number
           name: string
-
-          schedule_id: number | null
           notes: string | null
+          schedule_id: number | null
           start_token: string
           started_at: string
           status: string
@@ -1204,9 +1203,8 @@ export type Database = {
           ended_at?: string | null
           id?: never
           name: string
-
-          schedule_id?: number | null
           notes?: string | null
+          schedule_id?: number | null
           start_token: string
           started_at?: string
           status?: string
@@ -1219,9 +1217,8 @@ export type Database = {
           ended_at?: string | null
           id?: never
           name?: string
-
-          schedule_id?: number | null
           notes?: string | null
+          schedule_id?: number | null
           start_token?: string
           started_at?: string
           status?: string
@@ -1230,6 +1227,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workout_sessions_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "workout_schedule"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workout_sessions_template_id_fkey"
             columns: ["template_id"]

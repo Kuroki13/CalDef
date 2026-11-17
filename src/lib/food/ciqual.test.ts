@@ -44,6 +44,17 @@ describe("searchCiqual", () => {
     expect(searchCiqual("taboule")[0].name).toMatch(/^Taboulé/);
   });
 
+  it("finds Ciqual's 'oeuf' and 'boeuf' however the ligature is typed", () => {
+    // Ciqual writes "oeuf" and "boeuf"; an iPhone's French keyboard writes
+    // "œuf" and "bœuf". Both must reach the same rows, in the same order.
+    const names = (q: string) => searchCiqual(q).map((f) => f.name);
+    expect(names("œuf dur")).toEqual(names("oeuf dur"));
+    expect(names("OEUF dur")).toEqual(names("oeuf dur"));
+    expect(names("Œuf dur").length).toBeGreaterThan(0);
+    expect(names("bœuf côte")).toEqual(names("boeuf cote"));
+    expect(names("bœuf côte")[0]).toMatch(/^Boeuf/);
+  });
+
   it("finds nothing for nonsense, and nothing for nothing", () => {
     expect(searchCiqual("zzqx")).toEqual([]);
     expect(searchCiqual("   ")).toEqual([]);

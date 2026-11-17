@@ -55,9 +55,29 @@ export function arabicKey(word: string): string {
   return normal.length > 3 && normal.startsWith("ال") ? normal.slice(2) : normal;
 }
 
+/**
+ * Latin ligatures written out: "œ" → "oe", "æ" → "ae" (and capitals), "ß" →
+ * "ss".
+ *
+ * Unicode decomposition does not split a ligature, so accent folding alone
+ * left "œuf" and "oeuf" as different words. French keyboards — the iPhone's
+ * among them — turn "oeuf" into "œuf" as you type, while Ciqual spells it
+ * "oeuf" and many packaged products "Œufs": both sides have to meet. The
+ * same expansion is what Postgres `unaccent` does, which the database's
+ * folded search column relies on (migration 20261119000001).
+ */
+export function expandLigatures(text: string): string {
+  return text
+    .replace(/œ/g, "oe")
+    .replace(/Œ/g, "OE")
+    .replace(/æ/g, "ae")
+    .replace(/Æ/g, "AE")
+    .replace(/ß/g, "ss");
+}
+
 /** One Latin-script word, collapsed by sound. */
 export function latinKey(word: string): string {
-  let s = word
+  let s = expandLigatures(word)
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();

@@ -4,6 +4,30 @@ import { fold, hasStrongMatch, terms } from "@/lib/food/text-match";
 
 const named = (...names: string[]) => names.map((name) => ({ name }));
 
+describe("fold — French ligatures (oeuf / œuf / OEUF / Œuf)", () => {
+  it("folds every spelling of oeuf to the same word", () => {
+    for (const spelling of ["oeuf", "œuf", "OEUF", "Œuf", "ŒUF", "Oeuf"]) {
+      expect(fold(spelling), spelling).toBe("oeuf");
+    }
+  });
+  it("writes out ligatures inside words and keeps accent folding", () => {
+    expect(fold("Bœuf bourguignon")).toBe("boeuf bourguignon");
+    expect(fold("Cœur de laitue")).toBe("coeur de laitue");
+    expect(fold("Œufs brouillés")).toBe("oeufs brouilles");
+    expect(fold("Nævus")).toBe("naevus");
+    expect(fold("Crème brûlée")).toBe("creme brulee");
+  });
+  it("leaves Arabic as it was (§13A)", () => {
+    expect(fold("لبنة")).toBe(fold("لبنة"));
+    expect(fold("مقلوبة")).toBe("مقلوبه");
+  });
+  it("meets either spelling in the strong-match test, without loosening it", () => {
+    expect(hasStrongMatch("œuf dur", named("Oeuf dur, cuit"))).toBe(true);
+    expect(hasStrongMatch("oeuf dur", named("Œufs durs bio"))).toBe(true);
+    expect(hasStrongMatch("œuf poché", named("Boeuf haché"))).toBe(false);
+  });
+});
+
 describe("fold", () => {
   it("reduces punctuation providers use and users do not type", () => {
     expect(fold("Chicken, breast, boneless")).toBe("chicken breast boneless");
