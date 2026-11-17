@@ -211,7 +211,7 @@ export function SessionBar({
   const now = useNow(1000);
 
   // The training home and the session screen carry their own way back in.
-  if (!session || pathname === "/training/session" || pathname === "/training") return null;
+  if (!session || ["/training/session", "/training", "/dashboard"].includes(pathname)) return null;
 
   return (
     <Link

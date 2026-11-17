@@ -10,6 +10,7 @@
  * chart should make that hierarchy obvious (ARCHITECTURE §6).
  */
 
+import { formatLongDate } from "@/lib/dates";
 import type { TrendPoint } from "@/lib/tdee/trend";
 
 type Props = {
@@ -20,14 +21,16 @@ type Props = {
   height?: number;
 };
 
-const WIDTH = 720;
-const PADDING = { top: 12, right: 12, bottom: 22, left: 40 };
+// Drawn at about phone width, so its labels stay readable when scaled to a
+// 360 px screen (they were 5 px at 720).
+const WIDTH = 400;
+const PADDING = { top: 10, right: 8, bottom: 22, left: 34 };
 
 export function TrendChart({
   points,
   unitLabel,
   toDisplay,
-  height = 220,
+  height = 190,
 }: Props) {
   if (points.length < 2) {
     return (
@@ -62,12 +65,24 @@ export function TrendChart({
   const ticks = [max, (max + min) / 2, min];
 
   return (
-    <figure className="w-full overflow-x-auto">
+    <figure className="w-full">
+      {/* The legend says how to tell a reading from the trend: by shape,
+          not only by shade. */}
+      <div className="text-muted-foreground mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" aria-hidden>
+        <span className="flex items-center gap-1.5">
+          <span className="bg-foreground h-[3px] w-5 rounded-full" />
+          Trend (smoothed)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="bg-muted-foreground/60 size-2 rounded-full" />
+          Weigh-ins
+        </span>
+      </div>
       <svg
         viewBox={`0 0 ${WIDTH} ${height}`}
-        className="h-auto w-full min-w-[320px]"
+        className="h-auto w-full"
         role="img"
-        aria-label={`Weight trend from ${points[0].date} to ${points[points.length - 1].date}`}
+        aria-label={`Weight from ${formatLongDate(points[0].date)} to ${formatLongDate(points[points.length - 1].date)}: smoothed trend ${toDisplay(points[0].trendKg).toFixed(1)} to ${toDisplay(points[points.length - 1].trendKg).toFixed(1)} ${unitLabel}, with ${points.filter((p) => p.actualKg !== null).length} weigh-ins`}
       >
         {ticks.map((value) => (
           <g key={value}>
@@ -97,7 +112,7 @@ export function TrendChart({
               key={p.date}
               cx={x(i)}
               cy={y(p.actualKg)}
-              r={2.5}
+              r={2.6}
               className="fill-muted-foreground/45"
             />
           ),
@@ -117,7 +132,7 @@ export function TrendChart({
           y={height - 6}
           className="fill-muted-foreground text-[11px]"
         >
-          {points[0].date}
+          {formatLongDate(points[0].date)}
         </text>
         <text
           x={WIDTH - PADDING.right}
@@ -125,12 +140,11 @@ export function TrendChart({
           textAnchor="end"
           className="fill-muted-foreground text-[11px]"
         >
-          {points[points.length - 1].date}
+          {formatLongDate(points[points.length - 1].date)}
         </text>
       </svg>
       <figcaption className="text-muted-foreground mt-2 text-xs">
-        Solid line is the smoothed trend in {unitLabel}; dots are individual
-        weigh-ins. Decisions use the trend, never a single reading.
+        In {unitLabel}. Targets follow the trend, never a single reading.
       </figcaption>
     </figure>
   );

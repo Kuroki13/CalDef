@@ -71,7 +71,7 @@ export function AuthForm({
         />
       </div>
 
-      <PendingButton type="submit" className="w-full" pendingLabel={pendingLabel}>
+      <PendingButton type="submit" variant="volt" size="lg" className="w-full rounded-2xl" pendingLabel={pendingLabel}>
         {submitLabel}
       </PendingButton>
 

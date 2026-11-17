@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { deleteWeighIn } from "@/app/(app)/weight/actions";
-import { WeighInForm } from "@/app/(app)/weight/weigh-in-form";
+import { WeighInButton } from "@/app/(app)/weight/weigh-in-form";
 import { SectionTitle, Slab, Stat } from "@/components/page-header";
 import { FrequencyBars } from "@/components/training/frequency-bars";
 import { TrendChart } from "@/components/trend-chart";
@@ -24,6 +24,11 @@ const WEEKS = 8;
 
 /**
  * Where it is all going: the weight trend, and how often you train.
+ *
+ * Read on opening: a compact band of four figures — the trend, the last
+ * reading and its date, the 28-day rate, the distance to the goal — and the
+ * chart right under it, readings and trend told apart by shape. Recording a
+ * weigh-in is one button; its form opens only when wanted.
  *
  * The two are shown together and kept apart. The weight trend drives the
  * calorie target; training does not, and no figure here pretends
@@ -69,79 +74,99 @@ export default async function WeightPage() {
   }
   const lifts = [...counts.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 6);
 
+  const latestDate = history.entries.at(-1)?.entry_date ?? null;
+  const unit = massUnitLabel(units);
+  const fmt = (kg: number) => kgToDisplay(kg, units).toFixed(1);
+
   return (
     <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
       <div className="lg:col-span-5">
-        <Slab>
-          <h1 className="display text-3xl">Progress</h1>
-          <p className="eyebrow mt-5">Weight trend</p>
-          <p className="mt-3 flex items-end gap-3">
-            <span className="figure text-[6.75rem] leading-[0.8]">
-              {history.latestTrendKg === null
-                ? "—"
-                : kgToDisplay(history.latestTrendKg, units).toFixed(1)}
-            </span>
-            <span className="text-slab-muted pb-1 text-sm leading-tight">
-              {massUnitLabel(units)}
-              <br />
-              smoothed
-            </span>
-          </p>
-          <dl className="border-slab-line mt-6 grid grid-cols-3 gap-4 border-t pt-5">
-            <Stat
-              label="Rate"
-              value={
-                ratePerWeek === null
-                  ? "—"
-                  : `${ratePerWeek > 0 ? "+" : ""}${kgToDisplay(ratePerWeek, units).toFixed(2)}`
-              }
-              unit={ratePerWeek === null ? undefined : `${massUnitLabel(units)}/wk`}
-              hint="Last 28 days"
-            />
-            <Stat
-              label="Latest"
-              value={history.latestKg === null ? "—" : kgToDisplay(history.latestKg, units).toFixed(1)}
-              unit={history.latestKg === null ? undefined : massUnitLabel(units)}
-              hint="One reading"
-            />
-            <Stat
-              label="To goal"
-              value={toGoKg === null ? "—" : kgToDisplay(Math.abs(toGoKg), units).toFixed(1)}
-              unit={toGoKg === null ? undefined : massUnitLabel(units)}
-              hint={goalKg === null ? "No goal set" : `Goal ${formatMass(goalKg, units)}`}
-            />
+        <Slab size="strip">
+          <h1 className="display pt-2 text-3xl">Progress</h1>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+            <div>
+              <dt className="eyebrow">Trend · smoothed</dt>
+              <dd className="mt-1">
+                <span className="figure text-5xl">
+                  {history.latestTrendKg === null ? "—" : fmt(history.latestTrendKg)}
+                </span>
+                <span className="text-slab-muted text-sm"> {unit}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="eyebrow">Last weigh-in</dt>
+              <dd className="mt-1">
+                <span className="figure text-3xl">
+                  {history.latestKg === null ? "—" : fmt(history.latestKg)}
+                </span>
+                <span className="text-slab-muted text-sm"> {unit}</span>
+                <span className="text-slab-muted block text-xs">
+                  {latestDate === null
+                    ? "None yet"
+                    : latestDate === today
+                      ? "Today"
+                      : formatLongDate(latestDate)}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="eyebrow">Rate · 28 days</dt>
+              <dd className="mt-1">
+                {ratePerWeek === null ? (
+                  <span className="text-slab-muted text-sm">Needs more weigh-ins</span>
+                ) : (
+                  <>
+                    <span className="figure text-3xl">
+                      {ratePerWeek > 0 ? "+" : ""}
+                      {kgToDisplay(ratePerWeek, units).toFixed(2)}
+                    </span>
+                    <span className="text-slab-muted text-sm"> {unit}/week</span>
+                  </>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="eyebrow">To your goal</dt>
+              <dd className="mt-1">
+                {toGoKg === null || goalKg === null ? (
+                  <span className="text-slab-muted text-sm">No goal set</span>
+                ) : (
+                  <>
+                    <span className="figure text-3xl">{fmt(Math.abs(toGoKg))}</span>
+                    <span className="text-slab-muted text-sm">
+                      {" "}
+                      {unit} {toGoKg > 0 ? "to lose" : "past it"}
+                    </span>
+                    <span className="text-slab-muted block text-xs">Goal {formatMass(goalKg, units)}</span>
+                  </>
+                )}
+              </dd>
+            </div>
           </dl>
+          <div className="mt-4">
+            <WeighInButton
+              today={today}
+              unitLabel={unit}
+              defaultWeight={history.latestKg === null ? null : Number(fmt(history.latestKg))}
+              recordedToday={latestDate === today}
+              className="w-full sm:w-auto"
+            />
+          </div>
         </Slab>
-
-        <section aria-labelledby="weigh-in-heading" className="bg-card mt-4 rounded-2xl p-5">
-          <h2 id="weigh-in-heading" className="display text-2xl">Weigh in</h2>
-          <p className="text-muted-foreground mt-1 mb-4 text-sm">
-            Same time of day, before eating, gives the cleanest signal.
-          </p>
-          <WeighInForm
-            today={today}
-            unitLabel={massUnitLabel(units)}
-            defaultWeight={
-              history.latestKg === null
-                ? null
-                : Number(kgToDisplay(history.latestKg, units).toFixed(1))
-            }
-          />
-        </section>
       </div>
 
-      <div className="mt-6 space-y-7 lg:col-span-7 lg:mt-10">
+      <div className="mt-5 space-y-7 lg:col-span-7 lg:mt-10">
         <section aria-labelledby="trend-heading">
-          <SectionTitle id="trend-heading">Weight</SectionTitle>
-          <div className="bg-card mt-2 rounded-2xl p-5">
+          <h2 id="trend-heading" className="sr-only">Weight</h2>
+          <div className="bg-card rounded-2xl p-4 sm:p-5">
             <TrendChart
               points={history.trend}
-              unitLabel={massUnitLabel(units)}
+              unitLabel={unit}
               toDisplay={(kg) => kgToDisplay(kg, units)}
             />
             <details className="mt-3 border-t pt-3">
-              <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold">
-                {history.entries.length} weigh-in{history.entries.length === 1 ? "" : "s"} — show and edit
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
+                {history.entries.length} weigh-in{history.entries.length === 1 ? "" : "s"} — see and remove
               </summary>
               {recent.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nothing recorded yet.</p>
@@ -162,7 +187,7 @@ export default async function WeightPage() {
                           type="submit"
                           variant="ghost"
                           className="text-destructive"
-                          aria-label={`Remove weigh-in for ${entry.entry_date}`}
+                          aria-label={`Remove weigh-in for ${formatLongDate(entry.entry_date)}`}
                         >
                           Remove
                         </PendingButton>
@@ -171,6 +196,9 @@ export default async function WeightPage() {
                   ))}
                 </ul>
               )}
+              <p className="text-muted-foreground pt-2 text-xs">
+                To correct a reading, record that day again: it replaces the old one.
+              </p>
             </details>
           </div>
         </section>

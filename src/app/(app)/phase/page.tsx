@@ -185,9 +185,24 @@ export default async function PhasePage() {
                   : `${kgToDisplay(dash.recommendedLowKg, units).toFixed(1)}–${kgToDisplay(dash.recommendedHighKg, units).toFixed(1)} ${unitLabel}`
               }
             />
-            <Stat label="Projected" value={showMass(dash.projectedEndWeightKg)} />
-            <Stat label="Stretch" value={showMass(dash.stretchTargetKg)} />
-            <Stat label="Final goal" value={showMass(dash.finalGoalWeightKg)} />
+            <Stat label="Projected" value={showMass(dash.projectedEndWeightKg)} hint="End of phase, at your rate" />
+            <Stat label="Stretch" value={showMass(dash.stretchTargetKg)} hint="Aspiration only" />
+            <Stat label="Final goal" value={showMass(dash.finalGoalWeightKg)} hint="Beyond this phase" />
+          </dl>
+          {/* Three numbers that are easy to confuse, said once in words. */}
+          <dl className="text-muted-foreground grid gap-1.5 border-t pt-3 text-xs">
+            <div>
+              <dt className="text-foreground inline font-semibold">Next milestone · </dt>
+              <dd className="inline">the weekly step in the table below — where the recommended rate puts you at the end of each week.</dd>
+            </div>
+            <div>
+              <dt className="text-foreground inline font-semibold">Projection · </dt>
+              <dd className="inline">where your actual trend is heading by the last day of this phase, recomputed with every weigh-in.</dd>
+            </div>
+            <div>
+              <dt className="text-foreground inline font-semibold">Final goal · </dt>
+              <dd className="inline">the weight you are working towards overall; it may take more than one phase.</dd>
+            </div>
           </dl>
           <p className="text-muted-foreground text-sm">{dash.projectionNote}</p>
         </CardContent>

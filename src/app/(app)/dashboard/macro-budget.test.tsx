@@ -91,3 +91,26 @@ describe("MacroRemainder — the supporting figures", () => {
     expect(over.className).not.toMatch(/destructive/);
   });
 });
+
+describe("reached and over are not the same full bar", () => {
+  it("classifies the day", async () => {
+    const { budgetState } = await import("@/app/(app)/dashboard/macro-budget");
+    expect(budgetState(1500, 2000)).toBe("under");
+    expect(budgetState(1990, 2000)).toBe("reached");
+    expect(budgetState(2030, 2000)).toBe("reached");
+    expect(budgetState(2300, 2000)).toBe("over");
+  });
+
+  it("says over in words and draws the target as a notch", async () => {
+    const { CalorieBudget } = await import("@/app/(app)/dashboard/macro-budget");
+    render(<CalorieBudget consumed={2300} target={2000} label="Daily target" />);
+    expect(screen.getByText("Over target by 300 kcal")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Calories: 300 kcal over the target" })).toBeInTheDocument();
+  });
+
+  it("says reached when it is", async () => {
+    const { CalorieBudget } = await import("@/app/(app)/dashboard/macro-budget");
+    render(<CalorieBudget consumed={1995} target={2000} label="Daily target" />);
+    expect(screen.getByText("Target reached")).toBeInTheDocument();
+  });
+});

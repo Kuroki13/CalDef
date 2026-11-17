@@ -20,7 +20,11 @@ export type WeightActionState = { error?: string; ok?: boolean };
 
 const schema = z.object({
   entryDate: z.iso.date(),
-  weight: z.coerce.number().positive(),
+  // "88,4" is how a French keyboard writes 88.4.
+  weight: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim().replace(",", ".") : value),
+    z.coerce.number().positive(),
+  ),
   note: z.string().trim().max(280).optional(),
 });
 

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { describeProjection } from "@/lib/tdee/projection-text";
+
 /**
  * Everything the phase screen shows (spec §8.4 and §8.6).
  *
@@ -204,62 +206,6 @@ export async function getPhaseDashboard(
     bestStreakDays,
     phaseTwo,
   };
-}
-
-/**
- * The projection sentence from spec §8.6.
- *
- * States the gap between the current trajectory and the stretch target
- * factually, and never characterises the user for the difference.
- */
-function describeProjection({
-  projectedEndWeightKg,
-  stretchTargetKg,
-  finalGoalWeightKg,
-  daysToFinalGoal,
-  daysRemaining,
-  rate,
-}: {
-  projectedEndWeightKg: number | null;
-  stretchTargetKg: number | null;
-  finalGoalWeightKg: number | null;
-  daysToFinalGoal: number | null;
-  daysRemaining: number;
-  rate: number | null;
-}): string {
-  if (projectedEndWeightKg === null || rate === null) {
-    return "A few more weigh-ins are needed before this phase can be projected.";
-  }
-
-  if (rate >= 0) {
-    return (
-      "Your trend is flat or rising at the moment, so there is no projection " +
-      "to make yet. That is common early in a phase, and often in the week " +
-      "after a change in routine."
-    );
-  }
-
-  const parts = [
-    `At your current rate you are projected to reach approximately ` +
-      `${projectedEndWeightKg} kg by the end of this phase` +
-      (daysRemaining > 0 ? `, ${daysRemaining} days from now.` : "."),
-  ];
-
-  if (stretchTargetKg !== null && projectedEndWeightKg > stretchTargetKg) {
-    parts.push(
-      `${stretchTargetKg} kg would need a faster loss rate than your data ` +
-        "currently supports.",
-    );
-  }
-
-  if (finalGoalWeightKg !== null && daysToFinalGoal !== null) {
-    parts.push(
-      `At this pace ${finalGoalWeightKg} kg is about ` +
-        `${Math.round(daysToFinalGoal / 7)} weeks away.`,
-    );
-  }
-
-  return parts.join(" ");
 }
 
 /** Milestone dates for the phase, for the checkpoint list (spec §8.10). */

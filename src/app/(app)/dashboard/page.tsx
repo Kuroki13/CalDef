@@ -10,6 +10,7 @@ import {
 import { Slab } from "@/components/page-header";
 import { Sparkline } from "@/components/sparkline";
 import { StartWorkoutButton } from "@/components/training/start-button";
+import { mealForHour } from "@/lib/meal-suggestion";
 import { Button } from "@/components/ui/button";
 import { formatLongDate, todayInTimeZone } from "@/lib/dates";
 import { getDiaryDay } from "@/lib/diary";
@@ -63,10 +64,15 @@ export default async function DashboardPage() {
   const goalWeightKg = goal.final_goal_weight_kg;
   const toGoKg = goalWeightKg === null ? null : latestWeightKg - goalWeightKg;
 
-  // The next action: the first meal of the day with nothing in it.
-  const emptyMeal = day.mealTypes.find(
-    (meal) => !day.entries.some((entry) => entry.meal_type_id === meal.id),
+  // "Add food" starts on the meal the user's own clock suggests — not the
+  // first empty meal, which was breakfast at eight in the evening whenever
+  // breakfast was skipped. It is named here and changeable in the tool.
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: profile.timezone })
+      .formatToParts(new Date())
+      .find((part) => part.type === "hour")?.value ?? 12,
   );
+  const suggestedMeal = mealForHour(day.mealTypes, hour);
   const weighedToday = weight.entries.at(-1)?.entry_date === today;
 
   return (
@@ -111,19 +117,15 @@ export default async function DashboardPage() {
       <div className="mt-4 space-y-3 lg:col-span-5 lg:mt-10">
         {/* The one volt action of the screen. */}
         <Link
-          href={emptyMeal ? `/diary?add=${emptyMeal.id}` : "/diary?add=1"}
+          href={suggestedMeal ? `/diary?add=${suggestedMeal.id}` : "/diary?add="}
           className="bg-volt text-volt-foreground flex min-h-[4.5rem] items-center gap-3 rounded-2xl px-5"
         >
           <span className="min-w-0 flex-1">
-            <span className="block text-lg leading-tight font-bold">
-              {emptyMeal ? `Log ${emptyMeal.name.toLowerCase()}` : "Add food"}
-            </span>
+            <span className="block text-lg leading-tight font-bold">Add food</span>
             <span className="block text-sm opacity-75">
-              {day.entries.length === 0
-                ? "Nothing logged today yet"
-                : emptyMeal
-                  ? `${day.entries.length} ${day.entries.length === 1 ? "entry" : "entries"} so far today`
-                  : "Every meal has something in it"}
+              {suggestedMeal
+                ? `To ${suggestedMeal.name.toLowerCase()} · you can change it`
+                : "Choose the meal next"}
             </span>
           </span>
           <Plus className="size-6 shrink-0" aria-hidden />
@@ -149,10 +151,12 @@ export default async function DashboardPage() {
                 : "Training"}
           </h2>
           {training.running ? (
-            // The session bar at the bottom of every screen is the way
-            // back in; saying it twice here would be two buttons for one
-            // thing.
-            <p className="display mt-2 truncate text-3xl">{training.running.name}</p>
+            <div className="mt-2 flex items-center gap-3">
+              <p className="display min-w-0 flex-1 truncate text-3xl">{training.running.name}</p>
+              <Button asChild className="rounded-full px-5">
+                <Link href="/training/session">Resume</Link>
+              </Button>
+            </div>
           ) : training.planned ? (
             <div className="mt-2 flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -164,7 +168,7 @@ export default async function DashboardPage() {
                 scheduleId={training.planned.id}
                 className="rounded-full px-5"
               >
-                Start
+                Start {training.planned.name}
               </StartWorkoutButton>
             </div>
           ) : (
@@ -176,7 +180,7 @@ export default async function DashboardPage() {
               </p>
               <Button asChild variant="outline" className="rounded-full px-5">
                 <Link href="/training">
-                  {training.last ? "Choose a workout" : "Start training"}
+                  Open Training
                 </Link>
               </Button>
             </div>

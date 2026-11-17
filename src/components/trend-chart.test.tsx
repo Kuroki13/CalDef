@@ -82,7 +82,7 @@ describe("TrendChart", () => {
     expect(screen.getByText(/lb/)).toBeInTheDocument();
   });
 
-  it("names the date range for screen readers", () => {
+  it("names the date range and the trend for screen readers", () => {
     render(
       <TrendChart
         points={[point("2026-08-01", 111.8), point("2026-08-28", 109.2)]}
@@ -91,7 +91,7 @@ describe("TrendChart", () => {
       />,
     );
     expect(
-      screen.getByRole("img", { name: /2026-08-01 to 2026-08-28/ }),
+      screen.getByRole("img", { name: /Sat 1 Aug to Fri 28 Aug: smoothed trend .* kg, with 2 weigh-ins/ }),
     ).toBeInTheDocument();
   });
 });
