@@ -78,7 +78,8 @@ src/
     manifest.ts        the web app manifest
     (app)/             authenticated shell
       dashboard/       home: countdown, today, phase card
-      diary/           daily food log
+      diary/           daily food log; diary-add.tsx (the add sheet),
+                       day-nav.tsx (date picker)
       weight/          weigh-ins and trend
       phase/           2-Month Cut mode
       recipes/         recipes and saved meals
@@ -411,6 +412,25 @@ These are load-bearing. Breaking one is a defect even if tests pass.
     workout per day (unique), so planning twice plans once. It cascades
     with its workout and is otherwise independent of it. Nothing reads a
     plan except the screens that show it.
+    - **A session names the plan it carried out** (`workout_sessions.
+      schedule_id`, migration 20261118000003): set by the 5-argument
+      `start_workout` only for the user's own plan, of that workout, not
+      already carried out (unique). `lib/training/plans.ts` reads the link
+      first; sessions from before it match by the old rule and are
+      reported `inferred`, never `linked`.
+
+27. **A food log is written once per opened form.** The add tool makes a
+    `client_token` when it opens and sends it with the entry; a unique
+    index on `(user_id, client_token)` turns a retried submit into "here is
+    the entry already written" (`logCachedFood`). A dropped connection is
+    caught in the form, which keeps what was chosen. Paths without a token
+    (Quick Add, recipes, saved meals, AI review) behave as before.
+
+28. **Where an entry goes is chosen first and shown until it is saved.**
+    The add tool takes a meal and a day from the "+" that opened it, shows
+    both at the top (`components/log-context.tsx`), and the review repeats
+    them beside the kcal. Afterwards the diary of that day opens with the
+    row marked (`?saved=<id>` → `[data-new]`).
 
 26. **The exercise list is paged and light.** PostgREST stops at 1 000
     rows and the catalogue is about that, so `listExercises` reads in

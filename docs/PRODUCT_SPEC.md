@@ -897,3 +897,30 @@ calendar, history with graphs, "Find Alternative" — informed the feature
 list. Its screens were not examined (the store's screenshots carry no
 text), and none of its media, text or catalogue is used.
 
+
+### 16.11 Daily use (owner's brief of 2026-11-17, evening)
+
+Three journeys judge the app: **add a food to the right meal and the right
+day**, **log a set between two exercises**, **understand progress on
+opening the tab**.
+
+- **Nutrition** opens on the meals under one band of figures. Every meal
+  has a "+" that opens the adding tool on that meal and the day on screen;
+  the meal and the day stay visible and changeable until the entry is
+  saved, and the review before saving shows the food, amount, unit, kcal,
+  meal and day. After saving, the day's diary shows the entry, marked. A
+  retried or interrupted submission never writes the entry twice. The date
+  can be picked from a calendar; a future day cannot.
+- **Today** offers "Add food" with the meal the clock suggests, named and
+  changeable — never the first empty meal by itself.
+- **The session** keeps one exercise in focus and the next set one tap
+  away. A planned or suggested figure is never shown as done. "Find an
+  alternative" is available during a session; it says what happens to sets
+  already logged, and it never edits the workout.
+- **A plan is carried out by the session started from it** (§16.9 amended):
+  the session records which planned occurrence it was. Sessions from before
+  this have no such record and are matched as before, marked as inferred.
+- **Progress** opens on the trend, the last reading with its date, the
+  28-day rate, the distance to the goal, and the chart. Readings and trend
+  are told apart by shape. Recording a weigh-in is a button.
+- **Appearance**: light, dark, or follow the phone, chosen per device.

@@ -31,7 +31,7 @@ Last updated: 2026-11-17
 | 13 | Universal / multilingual food intelligence (spec §13) | IN PROGRESS — 13A–13C, 13G–13K live; restaurants (13L/13M) next |
 | 16 | Strength training and visual identity (spec §16) | DONE — second pass 2026-11-17: "Scoreboard" redesign and the full training module, **seen in a real browser** at 360/390/430/1280 px on development. iPhone checks still open; see TODO |
 | 14–19 | Later roadmap (spec §14) | Not permitted before 12 and 13 are stable |
-| UX | Daily-use overhaul (owner's brief of 2026-11-17, evening) | IN PROGRESS — see "CURRENT WORK" just below |
+| UX | Daily-use overhaul (owner's brief of 2026-11-17, evening) | DONE on development and deployed — iPhone checks open; see "CURRENT WORK" |
 
 ---
 
@@ -51,12 +51,16 @@ reverse-applied — the saved diff is the reference).
 | 1 Art direction | DONE — "Ledger" chosen over "Meal tiles" (`direction-a-vs-b.png`); foundations in `7c74442` |
 | 2 Data reliability (plan ↔ session link) | DONE — `54bf4e4`, migration `20261118000003` on development AND production (25), SQL suites pass on both |
 | 3 Nutrition | DONE — `7c74442`; journey driven in a browser (see below) |
-| 4 Live session | next |
-| 5 Training home, catalogue, workouts | todo |
-| 6 Progress | todo |
-| 7 Today and sign-in | todo |
-| 8 Validation | todo |
-| 9 Delivery | todo |
+| 4 Live session | DONE — `df7045e` |
+| 5 Training home, catalogue, workouts | DONE — `3438d41` |
+| 6 Progress | DONE — `2404426` |
+| 7 Today and sign-in | DONE — `2404426` |
+| 8 Validation | DONE in a browser — `132ee4c`; **iPhone not done** |
+| 9 Delivery | DONE — all commits pushed and deployed READY |
+
+**Next action:** the owner's iPhone pass (checklist at the end of this
+section). Then, if wanted: retry tokens for Quick Add / recipes / saved
+meals / the AI review, and password recovery (not built).
 
 ### Phase 0 — audit (2026-11-17)
 
@@ -133,6 +137,93 @@ Machine), new workout, session, progress, phase, login.
 - Found and fixed on the way: a submit with no connection replaced the
   whole diary with the error screen; the sheet could keep an old day if
   the day changed underneath it (now keyed by the day).
+
+### Phases 4–9 (2026-11-17)
+
+- **Session** (`active-session.tsx`, `rest-timer.tsx`): the current
+  exercise open and marked "Now", the others folded to one line, the next
+  one scrolled into view; Last / Plan / done told apart; the next set
+  marked in its table and offered by a docked bar ("Next · set 2 of 4 ·
+  80 × 6 · planned, not logged yet" → Done) that computes exactly what the
+  tick records (a first version announced last time's 82.5 kg while the
+  tick would have saved the typed 80 — caught on screen); the rest timer
+  takes the bar's place and names the next set; the bar hides while a
+  field has the keyboard. "Find an alternative" in the session menu
+  (`alternatives-sheet.tsx`) with reasons, and a confirmation saying what
+  happens to logged sets and that the workout is not edited.
+- **Training home** by state (Resume / Start planned / list / Create my
+  first workout), Free · Exercises · History beside the main action, the
+  week strip only when it has something in it.
+- **Exercise page**: facts first; the cue as steps (`lib/training/
+  instructions.ts`) — Ab Crunch Machine reads Set up (3) / Move / Return
+  with tips apart. **Media: none added.** The two catalogue sources carry
+  no licence for images (spec §16.10), so the page stays text.
+- **Picker**: the selection as removable chips, kept across searches.
+- **Progress**: four figures then the chart (at phone width, legend by
+  shape); weigh-in behind a button, in a sheet, comma accepted, "replaces
+  that day" said. Projection sentence pure and tested (tenths, plurals).
+- **Today**: "Add food · To <meal> · you can change it" from the user's
+  clock; Resume / Start <name> / Open Training. Reached vs over: words,
+  warning colour, a notch.
+- **Sign-in**: slab and tagline; no signup link while closed. **Password
+  recovery does not exist** in the app (no route, no email flow); none is
+  offered. Building it needs the Supabase redirect URLs and a reset page.
+- **Appearance**: System / Light / Dark in Settings (device-local). Dark
+  checked on Nutrition, session and Progress; volt marks moved from
+  `bg-foreground` to `bg-slab` so they stay on ink in dark.
+
+### Test results (2026-11-17, working tree incl. the restaurant WIP)
+
+| Command | Result |
+|---|---|
+| `npm run test` | 99 files, **1071 tests passed** |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 |
+| `npm run build` | exit 0 |
+
+Each commit was also checked on a clean checkout (`git worktree`), without
+the restaurant work: tests pass there (1037 → 1047 as the commits landed).
+SQL: `plan_link.sql`, `training.sql`, `rls_isolation.sql` pass on
+development and on production (rolled back).
+
+**Browser checks (headless Chromium, production build, development data):**
+no horizontal overflow on 14 routes at 360 and 1280 px; on 10 routes the
+last element ends ≥ 23 px above the tab bar / docked bars; journeys:
+nutrition (previous day → Lunch → search → amount → saved and marked),
+offline add and retry (one row), session (log from the bar, correct a
+set, rest, leave, return with the rest still counting, finish, history,
+restart shows the corrected sets as Last), workout creation (accents,
+chips, reorder, saved order).
+
+**Not checked:** a real iPhone (keyboard, safe areas, lock, one hand);
+password recovery (absent); the barcode camera; the AI paths beyond the
+add tool's tabs rendering; production signed in (no account is written
+there); the toast itself (it disappears before a scripted capture).
+
+**Development data left:** the fixture `caldef.studio.verify@example.com`
+(development only) holds the design fixture, two 16 Nov entries, a "Push B
+test" workout and a Push A session in progress. Remove with
+`node .vercel/caldef-ops/studio-fixture.mjs remove` when no longer needed.
+
+### iPhone checklist for this overhaul (expected result after each)
+
+1. Nutrition: tap the date → the phone's calendar opens; pick yesterday →
+   the diary of yesterday, "Back to today" shown.
+2. "+" on Lunch → sheet says Lunch · that day; search, pick, type `135`
+   → the review shows 135 g, its kcal, Lunch and the day; Add → the sheet
+   closes, the row is marked in Lunch, a confirmation names Lunch and the
+   day.
+3. Airplane mode, add again → the form stays, "No connection — nothing was
+   added yet"; network back, Add → one entry, not two.
+4. Session: the docked bar sits above the tab bar, Done logs the set with
+   the thumb; tap a reps field → the keyboard opens, the field is
+   visible, the bar steps aside; `82,5` is accepted.
+5. Rest: lock the phone 30 s → on unlock the remaining time is right and
+   the next set is named under the timer.
+6. Progress: chart visible without scrolling; "Record a weigh-in" → sheet
+   with the decimal keyboard; `88,4` saves.
+7. Installed app (PWA): the top bar and tab bar clear the notch and the
+   home indicator; Settings → Appearance → Dark works.
 
 **Priorities.** (1) Nutrition: compact summary, date picker, "+" per meal,
 context kept to the end, visible result. (2) Session: one active exercise,
