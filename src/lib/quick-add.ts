@@ -11,19 +11,17 @@ import "server-only";
  */
 
 import { type QuickAddInput, checkQuickAdd } from "@/lib/quick-add-input";
-import { createClient, requireUserId } from "@/lib/supabase/server";
+import { writeLogsOnce } from "@/lib/food-log";
 
 export async function quickAdd(
   input: QuickAddInput,
-): Promise<{ ok: true } | { error: string }> {
+  /** The form's operation key: a retried submit is answered, not repeated. */
+  operationKey: string | null = null,
+): Promise<{ ok: true; replayed: boolean } | { error: string }> {
   const problem = checkQuickAdd(input);
   if (problem) return { error: problem };
 
-  const userId = await requireUserId();
-  const supabase = await createClient();
-
-  const { error } = await supabase.from("food_logs").insert({
-    user_id: userId,
+  const written = await writeLogsOnce([{
     log_date: input.logDate,
     meal_type_id: input.mealTypeId,
     amount: 1,
@@ -36,7 +34,7 @@ export async function quickAdd(
     source: "manual",
     notes: input.label,
     is_estimate: true,
-  });
-  if (error) return { error: error.message };
-  return { ok: true };
+  }], operationKey);
+  if ("error" in written) return written;
+  return { ok: true, replayed: written.replayed };
 }

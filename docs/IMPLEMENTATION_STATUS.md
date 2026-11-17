@@ -1349,6 +1349,45 @@ What is left, and **Phase 11 stays open until it is done**:
 
 ## TEST RESULTS
 
+### Data-integrity fixes before CalDef 2.0, 2026-11-19 (Claude Code)
+
+Two independent fixes the owner approved, each its own commit.
+
+**1. Ligatures in food search** (`6077d21`, migration `20261119000001`,
+applied to development and production before the code shipped). "œuf",
+"oeuf", "OEUF" and "Œuf" now find the same foods: `fold()`, the cultural
+key and dish recognition write ligatures out; the database cache, which
+`ilike`-matched the raw name (so "cafe" also missed "Café"), now matches a
+generated `search_folded` column (`unaccent` + `lower`). Correction to the V3
+note: Ciqual writes "oeuf"/"boeuf" (145/90 names, no "œ"); the failing
+direction was the iPhone's "œuf" against Ciqual, and "oeuf" against products
+named "Œufs". Ranking rules unchanged; Arabic unchanged. Verified: eight
+spellings return identical results through `/api/foods/search` on
+development (temporary custom food removed); on production the column, the
+index and the function exist and no row's folded value is null.
+
+**2. Every food-add path written once, whole** (no migration). See
+ARCHITECTURE invariant 27. Results:
+
+- `npm run test`: **100 files, 1100 passed** · `typecheck` 0 · `lint` 0 ·
+  `build` 0.
+- SQL on development: `food_log_operations.sql` (new: batch all-or-nothing
+  on a token clash, per-user tokens, figures kept), `plan_link.sql`,
+  `quick_add.sql`, `rls_isolation.sql` — all pass, all rolled back.
+- Browser replay (production build, development data, fixture account):
+  each form driven once, its real server-action request captured and
+  replayed twice concurrently plus once later, then once with a changed
+  amount under the same key. Quick Add 1 row / +0 / refused · Log again
+  1 / +0 / refused · Saved meal 2 / +0 / refused · Recipe 1 / +0 / refused ·
+  Five Guys parts 2 / +0 / refused. No page errors. All test rows, the test
+  saved meals and recipes removed from development afterwards.
+- Not browser-driven: the AI review (reaching it needs a Gemini parse) and
+  favourites; both go through the same `writeLogsOnce`, unit-tested.
+- Behaviour change: AI review and "log again / copy a meal" are now
+  all-or-nothing — one item that cannot be logged holds the others back and
+  is named, instead of the rest being written.
+
+
 ### Phase 13L/13M — official restaurant data, 2026-11-17 (Claude Code)
 
 Finished and committed separately from the redesign, at the owner's request.

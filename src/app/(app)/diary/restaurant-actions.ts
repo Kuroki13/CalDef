@@ -17,7 +17,8 @@ import { z } from "zod";
 
 import { cacheFood } from "@/lib/food/cache";
 import { restaurantById } from "@/lib/food/restaurant-catalogue";
-import { logCachedFood } from "@/lib/food-log";
+import { type PreparedLog, prepareCachedFoodLog, writeLogsOnce } from "@/lib/food-log";
+import { operationKeyFrom } from "@/lib/operation-key";
 
 export type PartsState = { error?: string; ok?: boolean; notice?: string };
 
@@ -52,14 +53,14 @@ export async function logRestaurantPartsAction(
   if (parts.length === 0) return { error: "Choose at least one part." };
   if (parts.length > MAX_PARTS) return { error: "Too many parts." };
 
-  let logged = 0;
+  const rows: PreparedLog[] = [];
   for (const part of parts) {
     const food = restaurantById(`restaurant:${parsed.data.chain}:${part.slug}`);
     if (!food) return { error: "One of those parts is not on the official sheet." };
     // Saves the reference as the user's own copy (as any restaurant item),
-    // then logs it through the one path that computes figures.
+    // then computes its entry through the one path that computes figures.
     const foodId = await cacheFood(food);
-    const result = await logCachedFood({
+    const result = await prepareCachedFoodLog({
       foodId,
       logDate: parsed.data.logDate,
       mealTypeId: parsed.data.mealTypeId,
@@ -68,11 +69,14 @@ export async function logRestaurantPartsAction(
       servingLabel: food.servings[0].label,
       source: "manual",
     });
-    if ("error" in result) {
-      return { error: `${logged} part${logged === 1 ? "" : "s"} logged, then: ${result.error}` };
-    }
-    logged += 1;
+    if ("error" in result) return { error: `Nothing was logged — ${food.name}: ${result.error}` };
+    rows.push(result.row);
   }
+
+  // The order goes in as one statement under the form's key: whole, once.
+  const written = await writeLogsOnce(rows, operationKeyFrom(formData));
+  if ("error" in written) return { error: written.error };
+  const logged = rows.length;
 
   revalidatePath("/diary");
   revalidatePath("/dashboard");

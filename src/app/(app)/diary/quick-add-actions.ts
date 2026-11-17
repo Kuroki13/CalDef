@@ -4,6 +4,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { operationKeyFrom } from "@/lib/operation-key";
 import { quickAdd } from "@/lib/quick-add";
 import { quickAddSchema } from "@/lib/quick-add-input";
 
@@ -16,7 +17,7 @@ export async function quickAddAction(
   const parsed = quickAddSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const result = await quickAdd(parsed.data);
+  const result = await quickAdd(parsed.data, operationKeyFrom(formData));
   if ("error" in result) return { error: result.error };
 
   revalidatePath("/diary");

@@ -12,8 +12,9 @@
  * press again. Repeating it on purpose means opening it afresh.
  */
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
+import { useKeyedAction } from "@/components/use-keyed-action";
 import {
   repeatEntriesAction,
   type RepeatState,
@@ -68,16 +69,14 @@ export function LogAgainForm({
   /** Today, normally: you repeat a food because you are eating it now. */
   defaultDate: string;
 }) {
-  const [state, formAction] = useActionState<RepeatState, FormData>(
-    repeatEntriesAction,
-    {},
-  );
+  const [state, formAction, , operationKey] = useKeyedAction<RepeatState>(repeatEntriesAction, {});
 
   if (state.ok) return <Done state={state} />;
 
   const id = `again-${entry.id}`;
   return (
     <form action={formAction} className="space-y-3">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <Failure state={state} />
       <input type="hidden" name="includeAll" value="true" />
       <input type="hidden" name="entryId" value={entry.id} />
@@ -151,16 +150,14 @@ export function CopyMealForm({
   mealName: string;
   logDate: string;
 }) {
-  const [state, formAction] = useActionState<RepeatState, FormData>(
-    repeatEntriesAction,
-    {},
-  );
+  const [state, formAction, , operationKey] = useKeyedAction<RepeatState>(repeatEntriesAction, {});
   const [ticked, setTicked] = useState(() => new Set(entries.map((e) => e.id)));
 
   if (state.ok) return <Done state={state} />;
 
   return (
     <form action={formAction} className="space-y-3">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <Failure state={state} />
       <input type="hidden" name="logDate" value={logDate} />
       <input type="hidden" name="mealTypeId" value={mealTypeId} />

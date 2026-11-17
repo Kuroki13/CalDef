@@ -7,19 +7,24 @@ import "server-only";
  * The source entry contributes only *what* was eaten — which food or recipe,
  * which unit, which serving — and the amount comes from the user, who may
  * have changed it. The figures are then computed exactly as they would be
- * for a fresh log: `logCachedFood` re-reads the food's nutrients, and
- * `logRecipe` re-reads the recipe. So an entry logged before a label was
+ * for a fresh log: `prepareCachedFoodLog` re-reads the food's nutrients,
+ * and `prepareRecipeLog` re-reads the recipe. So an entry logged before a label was
  * corrected is repeated with the corrected label, and nothing in an old row
  * — least of all a calorie figure — is carried forward. The one exception
  * is a Quick Add, which has no food to recompute from; see `repeatEstimate`.
  *
  * Source entries are read under RLS, so only the caller's own can be
  * repeated; someone else's id simply is not found.
+ *
+ * All or nothing: every entry is computed first, and only if all of them
+ * can be logged are they written — in one statement, under the form's
+ * operation key, so a retry cannot log the meal twice and a failure cannot
+ * leave half of it in the diary.
  */
 
-import { logCachedFood } from "@/lib/food-log";
-import { logRecipe } from "@/lib/recipes";
-import { createClient, requireUserId } from "@/lib/supabase/server";
+import { type PreparedLog, prepareCachedFoodLog, writeLogsOnce } from "@/lib/food-log";
+import { prepareRecipeLog } from "@/lib/recipes";
+import { createClient } from "@/lib/supabase/server";
 
 export type RepeatItem = {
   entryId: number;
@@ -31,6 +36,8 @@ export type RepeatInput = {
   logDate: string;
   mealTypeId: number;
   items: RepeatItem[];
+  /** The form's operation key: a retried submit is answered, not repeated. */
+  operationKey?: string | null;
 };
 
 export type RepeatOutcome =
@@ -61,12 +68,11 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
 
   const byId = new Map((data ?? []).map((row) => [row.id, row]));
 
-  let logged = 0;
+  const rows: PreparedLog[] = [];
   const failed: { name: string; reason: string }[] = [];
 
-  // In the order given, one at a time: each is an ordinary log, and a
-  // failure part-way names what did not go in rather than leaving the user
-  // to guess from their totals.
+  // Computed in the order given. Nothing is written until every one of
+  // them can be: a failure names what could not go in, and the rest wait.
   for (const item of input.items) {
     const source = byId.get(item.entryId);
     if (!source) {
@@ -81,9 +87,9 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
     }
 
     const result = source.is_estimate
-      ? await repeatEstimate(source, item.amount, input)
+      ? repeatEstimate(source, item.amount, input)
       : source.food_id !== null
-        ? await logCachedFood({
+        ? await prepareCachedFoodLog({
             foodId: source.food_id,
             logDate: input.logDate,
             mealTypeId: input.mealTypeId,
@@ -93,7 +99,7 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
             source: "manual",
           })
         : source.recipe_id !== null
-          ? await logRecipe(source.recipe_id, input.logDate, input.mealTypeId, {
+          ? await prepareRecipeLog(source.recipe_id, input.logDate, input.mealTypeId, {
               amount: item.amount,
               // Grams again when it was logged in grams (a weighed dish).
               unit: source.unit === "g" ? "g" : "serving",
@@ -101,10 +107,14 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
           : { error: "There is nothing behind this entry to log again." };
 
     if ("error" in result) failed.push({ name, reason: result.error });
-    else logged += 1;
+    else rows.push(result.row);
   }
 
-  return { logged, failed };
+  if (failed.length > 0) return { logged: 0, failed };
+
+  const written = await writeLogsOnce(rows, input.operationKey ?? null);
+  if ("error" in written) return { error: written.error };
+  return { logged: rows.length, failed: [] };
 }
 
 /**
@@ -114,7 +124,7 @@ export async function repeatEntries(input: RepeatInput): Promise<RepeatOutcome> 
  * only figures ever carried from an old row, because they were never
  * computed in the first place.
  */
-async function repeatEstimate(
+function repeatEstimate(
   source: {
     notes: string | null;
     kcal: number;
@@ -124,12 +134,9 @@ async function repeatEstimate(
   },
   times: number,
   target: { logDate: string; mealTypeId: number },
-): Promise<{ ok: true } | { error: string }> {
+): { row: PreparedLog } {
   const scale = (value: number) => Math.round(Number(value) * times * 100) / 100;
-  const userId = await requireUserId();
-  const supabase = await createClient();
-  const { error } = await supabase.from("food_logs").insert({
-    user_id: userId,
+  return { row: {
     log_date: target.logDate,
     meal_type_id: target.mealTypeId,
     amount: 1,
@@ -142,6 +149,5 @@ async function repeatEstimate(
     source: "manual",
     notes: source.notes,
     is_estimate: true,
-  });
-  return error ? { error: error.message } : { ok: true };
+  } };
 }

@@ -19,6 +19,7 @@ import {
   recipePortion,
 } from "@/lib/nutrition/recipe-portion";
 import { cacheFood } from "@/lib/food/cache";
+import { type PreparedLog, writeLogsOnce } from "@/lib/food-log";
 import type { Food } from "@/lib/food/types";
 import {
   type MacroTotals,
@@ -331,10 +332,23 @@ export async function logRecipe(
   mealTypeId: number,
   /** A number is servings, as it always was; grams need a weighed dish. */
   portion: number | RecipePortionInput,
-): Promise<{ ok: true } | { error: string }> {
-  const userId = await requireUserId();
-  const supabase = await createClient();
+  /** The form's operation key: a retried submit is answered, not repeated. */
+  operationKey: string | null = null,
+): Promise<{ ok: true; replayed: boolean } | { error: string }> {
+  const prepared = await prepareRecipeLog(recipeId, logDate, mealTypeId, portion);
+  if ("error" in prepared) return prepared;
+  const written = await writeLogsOnce([prepared.row], operationKey);
+  if ("error" in written) return written;
+  return { ok: true, replayed: written.replayed };
+}
 
+/** The diary row for a recipe portion, computed but not written. */
+export async function prepareRecipeLog(
+  recipeId: number,
+  logDate: string,
+  mealTypeId: number,
+  portion: number | RecipePortionInput,
+): Promise<{ row: PreparedLog } | { error: string }> {
   const detail = await getRecipe(recipeId);
   if (!detail) return { error: "That recipe no longer exists." };
   if (detail.ingredients.length === 0) {
@@ -355,8 +369,7 @@ export async function logRecipe(
   );
   if ("error" in resolved) return resolved;
 
-  const { error } = await supabase.from("food_logs").insert({
-    user_id: userId,
+  return { row: {
     log_date: logDate,
     meal_type_id: mealTypeId,
     recipe_id: recipeId,
@@ -369,10 +382,7 @@ export async function logRecipe(
     fat_g: resolved.macros.fat_g,
     source: "recipe" as const,
     notes: detail.recipe.name,
-  });
-  if (error) return { error: error.message };
-
-  return { ok: true };
+  } };
 }
 
 /**

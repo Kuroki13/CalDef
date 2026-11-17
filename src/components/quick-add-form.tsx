@@ -13,8 +13,9 @@
  * second tap cannot log it twice.
  */
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
+import { useKeyedAction } from "@/components/use-keyed-action";
 import {
   quickAddAction,
   type QuickAddState,
@@ -81,10 +82,7 @@ function Inner({
   onCancel,
   onAnother,
 }: Props & { onAnother: () => void }) {
-  const [state, formAction] = useActionState<QuickAddState, FormData>(
-    quickAddAction,
-    {},
-  );
+  const [state, formAction, , operationKey] = useKeyedAction<QuickAddState>(quickAddAction, {});
 
   if (state.ok) {
     return (
@@ -108,6 +106,7 @@ function Inner({
 
   return (
     <form action={formAction} className="space-y-3">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <p className="text-muted-foreground text-sm">
         Your own estimate, for when there is no food to find. It is logged
         as an estimate, not as verified nutrition, and it does not become a

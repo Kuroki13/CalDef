@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { operationKeyFrom } from "@/lib/operation-key";
+
 import { addFavorite, removeFavorite } from "@/lib/favorites";
 import { logCachedFood } from "@/lib/food-log";
 import {
@@ -105,10 +107,12 @@ export async function logRecipeAction(
     parsed.data.logDate,
     parsed.data.mealTypeId,
     { amount: parsed.data.servings, unit: parsed.data.unit },
+    operationKeyFrom(formData),
   );
   if ("error" in result) return { error: result.error };
 
-  if (parsed.data.searchedFor) {
+  // A retried submission learned the choice the first time.
+  if (parsed.data.searchedFor && !result.replayed) {
     await recordChoice(parsed.data.searchedFor, { recipeId: parsed.data.recipeId });
   }
 
@@ -201,6 +205,7 @@ export async function logFavoriteAction(
     amount: parsed.data.grams,
     unit: "g",
     source: "favorite",
+    clientToken: operationKeyFrom(formData),
   });
   if ("error" in result) return { error: result.error };
 
@@ -256,6 +261,7 @@ export async function logSavedMealAction(
     parsed.data.logDate,
     parsed.data.mealTypeId,
     overridesFromForm(formData),
+    operationKeyFrom(formData),
   );
   if ("error" in result) return { error: result.error };
 

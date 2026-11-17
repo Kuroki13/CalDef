@@ -1,29 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rows = vi.fn();
-const logCachedFood = vi.fn();
-const logRecipe = vi.fn();
+const prepareCachedFoodLog = vi.fn();
+const prepareRecipeLog = vi.fn();
+/** Every write: the rows of one operation and its key. */
+const writeLogsOnce = vi.fn();
 
-const inserted = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
-  requireUserId: async () => "user-a",
   createClient: async () => ({
     from: () => {
       const chain: Record<string, unknown> = {
         select: () => chain,
         in: async () => rows(),
-        insert: async (row: unknown) => {
-          inserted(row);
-          return { error: null };
-        },
       };
       return chain;
     },
   }),
 }));
-vi.mock("@/lib/food-log", () => ({ logCachedFood: (i: unknown) => logCachedFood(i) }));
+vi.mock("@/lib/food-log", () => ({
+  prepareCachedFoodLog: (i: unknown) => prepareCachedFoodLog(i),
+  writeLogsOnce: (r: unknown, k: unknown) => writeLogsOnce(r, k),
+}));
 vi.mock("@/lib/recipes", () => ({
-  logRecipe: (...a: unknown[]) => logRecipe(...a),
+  prepareRecipeLog: (...a: unknown[]) => prepareRecipeLog(...a),
 }));
 
 const { repeatEntries, MAX_REPEAT_ITEMS } = await import("@/lib/repeat");
@@ -41,9 +40,11 @@ const stew = {
 beforeEach(() => {
   vi.clearAllMocks();
   rows.mockResolvedValue({ data: [yogurt, stew], error: null });
-  logCachedFood.mockResolvedValue({ ok: true });
-  logRecipe.mockResolvedValue({ ok: true });
+  prepareCachedFoodLog.mockResolvedValue({ row: { food_id: 5 } });
+  prepareRecipeLog.mockResolvedValue({ row: { recipe_id: 9 } });
+  writeLogsOnce.mockImplementation(async (r: unknown[]) => ({ ids: r.map((_, i) => i + 1), replayed: false }));
 });
+const KEY = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
 
 const target = { logDate: "2026-10-07", mealTypeId: 2 };
 
@@ -59,8 +60,8 @@ describe("repeatEntries", () => {
     const outcome = await repeatEntries({ ...target, items: [{ entryId: 13, amount: 0.5 }] });
 
     expect(outcome).toEqual({ logged: 1, failed: [] });
-    expect(logCachedFood).not.toHaveBeenCalled();
-    expect(inserted).toHaveBeenCalledWith(
+    expect(prepareCachedFoodLog).not.toHaveBeenCalled();
+    expect(writeLogsOnce.mock.calls[0][0][0]).toEqual(
       expect.objectContaining({
         is_estimate: true,
         notes: "Dinner out",
@@ -73,11 +74,11 @@ describe("repeatEntries", () => {
     );
   });
 
-  it("logs a food again through logCachedFood, with the new amount and the old serving", async () => {
+  it("computes a food again through the cached-food path, with the new amount and the old serving", async () => {
     const outcome = await repeatEntries({ ...target, items: [{ entryId: 11, amount: 2 }] });
 
     expect(outcome).toEqual({ logged: 1, failed: [] });
-    expect(logCachedFood).toHaveBeenCalledWith({
+    expect(prepareCachedFoodLog).toHaveBeenCalledWith({
       foodId: 5,
       logDate: "2026-10-07",
       mealTypeId: 2,
@@ -90,24 +91,36 @@ describe("repeatEntries", () => {
 
   it("logs a recipe again as servings of the recipe", async () => {
     await repeatEntries({ ...target, items: [{ entryId: 12, amount: 1.5 }] });
-    expect(logRecipe).toHaveBeenCalledWith(9, "2026-10-07", 2, { amount: 1.5, unit: "serving" });
-    expect(logCachedFood).not.toHaveBeenCalled();
+    expect(prepareRecipeLog).toHaveBeenCalledWith(9, "2026-10-07", 2, { amount: 1.5, unit: "serving" });
+    expect(prepareCachedFoodLog).not.toHaveBeenCalled();
   });
 
   it("repeats a weighed recipe in grams when it was logged in grams", async () => {
     rows.mockResolvedValue({ data: [{ ...stew, unit: "g" }], error: null });
     await repeatEntries({ ...target, items: [{ entryId: 12, amount: 450 }] });
-    expect(logRecipe).toHaveBeenCalledWith(9, "2026-10-07", 2, { amount: 450, unit: "g" });
+    expect(prepareRecipeLog).toHaveBeenCalledWith(9, "2026-10-07", 2, { amount: 450, unit: "g" });
   });
 
-  it("names what did not go in, and still logs the rest", async () => {
-    logRecipe.mockResolvedValue({ error: "That recipe no longer exists." });
+  it("writes a meal of several entries once, in one operation, under the form's key", async () => {
+    const outcome = await repeatEntries({
+      ...target,
+      operationKey: KEY,
+      items: [{ entryId: 11, amount: 1 }, { entryId: 12, amount: 1 }],
+    });
+    expect(outcome).toEqual({ logged: 2, failed: [] });
+    expect(writeLogsOnce).toHaveBeenCalledTimes(1);
+    expect(writeLogsOnce).toHaveBeenCalledWith([{ food_id: 5 }, { recipe_id: 9 }], KEY);
+  });
+
+  it("writes nothing when one entry cannot be logged, and names it", async () => {
+    prepareRecipeLog.mockResolvedValue({ error: "That recipe no longer exists." });
     const outcome = await repeatEntries({
       ...target,
       items: [{ entryId: 11, amount: 1 }, { entryId: 12, amount: 1 }, { entryId: 99, amount: 1 }],
     });
+    expect(writeLogsOnce).not.toHaveBeenCalled();
     expect(outcome).toEqual({
-      logged: 1,
+      logged: 0,
       failed: [
         { name: "Lentil stew", reason: "That recipe no longer exists." },
         { name: "An entry", reason: "It is no longer in your diary." },

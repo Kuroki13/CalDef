@@ -10,6 +10,7 @@ import "server-only";
  * structural rather than a convention.
  */
 
+import { writeLogsOnce } from "@/lib/food-log";
 import { type MealOverrides, applyOverrides } from "@/lib/meal-template";
 import { type MacroTotals, scaleNutrients, sumMacros } from "@/lib/nutrition/macros";
 import { createClient, requireUserId } from "@/lib/supabase/server";
@@ -151,10 +152,9 @@ export async function logSavedMeal(
    * saved meal itself is not touched. Null logs it exactly as saved.
    */
   overrides: MealOverrides | null = null,
-): Promise<{ logged: number } | { error: string }> {
-  const userId = await requireUserId();
-  const supabase = await createClient();
-
+  /** The form's operation key: a retried submit is answered, not repeated. */
+  operationKey: string | null = null,
+): Promise<{ logged: number; replayed: boolean } | { error: string }> {
   const detail = await getSavedMeal(savedMealId);
   if (!detail) return { error: "That saved meal no longer exists." };
   if (detail.items.length === 0) return { error: "That saved meal is empty." };
@@ -162,11 +162,10 @@ export async function logSavedMeal(
   const adjusted = applyOverrides(detail.items, overrides);
   if ("error" in adjusted) return adjusted;
 
-  // Still one insert, so a template with changes is as all-or-nothing as
-  // one without.
-  const { error } = await supabase.from("food_logs").insert(
+  // One insert, so a meal is all-or-nothing; one operation key, so a retry
+  // is answered with the rows the first attempt wrote.
+  const written = await writeLogsOnce(
     adjusted.items.map((item) => ({
-      user_id: userId,
       log_date: logDate,
       meal_type_id: mealTypeId,
       food_id: item.foodId,
@@ -180,10 +179,11 @@ export async function logSavedMeal(
       fat_g: item.macros.fat_g,
       source: "saved_meal" as const,
     })),
+    operationKey,
   );
-  if (error) return { error: error.message };
+  if ("error" in written) return written;
 
-  return { logged: adjusted.items.length };
+  return { logged: adjusted.items.length, replayed: written.replayed };
 }
 
 export async function deleteSavedMeal(id: number): Promise<void> {

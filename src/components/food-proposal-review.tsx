@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
-import { logParsedFoods, saveParsedFoods, type AiLogState } from "@/app/(app)/diary/ai-actions";
+import { useId, useState } from "react";
+
+import { useKeyedAction } from "@/components/use-keyed-action";import { logParsedFoods, saveParsedFoods, type AiLogState } from "@/app/(app)/diary/ai-actions";
 import { PendingButton } from "@/components/pending-button";
 import { PortionMacros } from "@/components/portion-macros";
 import type { FoodProposal } from "@/lib/ai/resolve";
@@ -25,7 +26,7 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
   })));
   const [date, setDate] = useState(logDate);
   const [meal, setMeal] = useState(String(mealTypes[0]?.id ?? ""));
-  const [state, action, pending] = useActionState<AiLogState, FormData>(
+  const [state, action, pending, operationKey] = useKeyedAction<AiLogState>(
     mode === "save" ? saveParsedFoods : logParsedFoods, {},
   );
   const locked = pending || Boolean(state.ok);
@@ -60,6 +61,7 @@ export function FoodProposalReview({ proposals, logDate, mealTypes, mode = "log"
       <p className="text-sm font-medium">{mode === "save" ? "Review foods to save" : "Review your meal"}</p>
       <p className="text-muted-foreground text-xs">Check the exact product and portion. Matching is a suggestion; nothing is added until you confirm.</p>
       <input type="hidden" name="payload" value={payload} />
+      <input type="hidden" name="clientToken" value={operationKey} />
       <fieldset disabled={locked} className="min-w-0 space-y-4">
         {rows.map((row, i) => {
           const reference = row.food ? restaurantReference(row.food.description) : null;

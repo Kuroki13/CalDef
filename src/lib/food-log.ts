@@ -15,6 +15,8 @@ import "server-only";
  * rows; both are in their own modules.
  */
 
+import { createHash } from "node:crypto";
+
 import { scaleNutrients } from "@/lib/nutrition/macros";
 import { toGrams } from "@/lib/nutrition/units";
 import { createClient, requireUserId } from "@/lib/supabase/server";
@@ -45,10 +47,30 @@ export type LogCachedFoodInput = {
   clientToken?: string | null;
 };
 
+/** A diary row as computed, before it is given an owner and a key. */
+export type PreparedLog = Omit<
+  Database["public"]["Tables"]["food_logs"]["Insert"],
+  "user_id" | "client_token"
+>;
+
 export async function logCachedFood(
   input: LogCachedFoodInput,
 ): Promise<{ ok: true; entryId: number } | { error: string }> {
-  const userId = await requireUserId();
+  const prepared = await prepareCachedFoodLog(input);
+  if ("error" in prepared) return prepared;
+  const written = await writeLogsOnce([prepared.row], input.clientToken ?? null);
+  if ("error" in written) return written;
+  return { ok: true, entryId: written.ids[0] };
+}
+
+/**
+ * Computes the diary row for a cached food without writing it — the same
+ * figures `logCachedFood` writes, so a meal of several foods can be computed
+ * in full and then written in one statement (`writeLogsOnce`).
+ */
+export async function prepareCachedFoodLog(
+  input: Omit<LogCachedFoodInput, "clientToken">,
+): Promise<{ row: PreparedLog } | { error: string }> {
   const supabase = await createClient();
 
   // Read the nutrients back from the database rather than trusting anything
@@ -97,9 +119,8 @@ export async function logCachedFood(
     grams,
   );
 
-  const { data: inserted, error: insertError } = await supabase.from("food_logs").insert({
-    user_id: userId,
-    client_token: input.clientToken ?? null,
+  return {
+    row: {
     log_date: input.logDate,
     meal_type_id: input.mealTypeId,
     food_id: input.foodId,
@@ -112,22 +133,112 @@ export async function logCachedFood(
     carbs_g: macros.carbs_g,
     fat_g: macros.fat_g,
     source: input.source,
-  }).select("id").single();
-  if (insertError) {
-    // The same submission arrived twice: the first one was written, which
-    // is exactly what was asked for. Answer with that entry.
-    if (insertError.code === "23505" && input.clientToken) {
-      const { data: existing } = await supabase
-        .from("food_logs")
-        .select("id")
-        .eq("client_token", input.clientToken)
-        .maybeSingle();
-      if (existing) return { ok: true, entryId: existing.id };
-    }
-    return { error: insertError.message };
+    },
+  };
+}
+
+/**
+ * The client token of each row of one operation.
+ *
+ * A form makes one operation key when it opens. Each row's token is derived
+ * from the key and the row's position — deterministically, so a retried
+ * submission produces the same tokens and meets the unique index on
+ * `(user_id, client_token)` (migration 20261118000003). A single entry is
+ * position 0 like any other, so an operation's rows always form one family,
+ * however many there are.
+ */
+export function operationTokens(operationKey: string, count: number): string[] {
+  return Array.from({ length: count }, (_, index) => {
+    const hex = createHash("sha256").update(`${operationKey}#${index}`).digest("hex");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  });
+}
+
+/**
+ * Positions read back when an operation arrives twice — beyond the largest
+ * one any form can send (AI review 20, a repeat 30, a parts order 25), so a
+ * retry with fewer or more rows than the first attempt is recognised.
+ */
+const FAMILY = 64;
+
+export const ALREADY_RECORDED_DIFFERENTLY =
+  "This was already added with different details, so nothing new was written. Check the diary, then add it again from a fresh form.";
+
+/** Whether a stored row is the one this operation would write. */
+function sameEntry(
+  stored: {
+    log_date: string;
+    meal_type_id: number;
+    food_id: number | null;
+    recipe_id: number | null;
+    amount: number;
+    unit: string;
+    is_estimate: boolean | null;
+    kcal: number;
+  },
+  wanted: PreparedLog,
+): boolean {
+  return (
+    stored.log_date === wanted.log_date &&
+    stored.meal_type_id === wanted.meal_type_id &&
+    (stored.food_id ?? null) === (wanted.food_id ?? null) &&
+    (stored.recipe_id ?? null) === (wanted.recipe_id ?? null) &&
+    Number(stored.amount) === Number(wanted.amount) &&
+    stored.unit === wanted.unit &&
+    (stored.is_estimate ?? false) === (wanted.is_estimate ?? false) &&
+    // A user's own figures (Quick Add) are the content itself.
+    (!stored.is_estimate || Math.abs(Number(stored.kcal) - Number(wanted.kcal)) < 0.01)
+  );
+}
+
+/**
+ * Writes the rows of one operation once — all of them, or none.
+ *
+ * One `insert` statement, so a meal is atomic: it cannot be half written.
+ * With an operation key, a retried submission is answered with the rows the
+ * first one wrote, and nothing is written twice. A key that comes back with
+ * different contents is refused rather than silently answered with rows the
+ * user did not ask for this time. Without a key it behaves as a plain
+ * insert. Rows are owned by the signed-in user; RLS confines both the write
+ * and the read-back to them.
+ */
+export async function writeLogsOnce(
+  rows: PreparedLog[],
+  operationKey: string | null,
+): Promise<{ ids: number[]; replayed: boolean } | { error: string }> {
+  if (rows.length === 0) return { error: "Nothing to add." };
+  const userId = await requireUserId();
+  const supabase = await createClient();
+  const tokens = operationKey ? operationTokens(operationKey, rows.length) : null;
+
+  const { data, error } = await supabase
+    .from("food_logs")
+    .insert(rows.map((row, index) => ({ ...row, user_id: userId, client_token: tokens?.[index] ?? null })))
+    .select("id, client_token");
+
+  if (!error) {
+    if (!tokens) return { ids: (data ?? []).map((row) => row.id), replayed: false };
+    const byToken = new Map((data ?? []).map((row) => [row.client_token, row.id]));
+    return { ids: tokens.map((token) => byToken.get(token) as number), replayed: false };
   }
 
-  return { ok: true, entryId: inserted.id };
+  if (error.code !== "23505" || !tokens || !operationKey) return { error: error.message };
+
+  // The same operation arrived again. Its rows were written by the first
+  // one, all of them, because they went in as one statement.
+  const { data: stored, error: readError } = await supabase
+    .from("food_logs")
+    .select("id, client_token, log_date, meal_type_id, food_id, recipe_id, amount, unit, is_estimate, kcal")
+    .in("client_token", operationTokens(operationKey, Math.max(FAMILY, rows.length)));
+  if (readError) return { error: readError.message };
+
+  const byToken = new Map((stored ?? []).map((row) => [row.client_token, row]));
+  const matches = (stored ?? []).length === rows.length && tokens.every((token, index) => {
+    const row = byToken.get(token);
+    return row !== undefined && sameEntry(row, rows[index]);
+  });
+  if (!matches) return { error: ALREADY_RECORDED_DIFFERENTLY };
+  return { ids: tokens.map((token) => byToken.get(token)!.id), replayed: true };
 }
 
 export type UpdateEntryPortionInput = {

@@ -14,8 +14,9 @@
  * server logs each part through the normal path and computes it again.
  */
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 
+import { useKeyedAction } from "@/components/use-keyed-action";
 import {
   logRestaurantPartsAction,
   type PartsState,
@@ -76,7 +77,7 @@ function Inner({
   mealTypes: MealType[];
   onAgain: () => void;
 }) {
-  const [state, formAction] = useActionState<PartsState, FormData>(logRestaurantPartsAction, {});
+  const [state, formAction, , operationKey] = useKeyedAction<PartsState>(logRestaurantPartsAction, {});
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   const chosen = parts.filter((p) => (counts[p.slug] ?? 0) > 0);
@@ -111,6 +112,7 @@ function Inner({
 
   return (
     <form action={formAction} className="space-y-3 rounded-lg border p-3">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <div>
         <p className="text-sm font-medium">Build your Five Guys order</p>
         <p className="text-muted-foreground text-xs">

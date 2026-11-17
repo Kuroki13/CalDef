@@ -424,18 +424,38 @@ These are load-bearing. Breaking one is a defect even if tests pass.
       first; sessions from before it match by the old rule and are
       reported `inferred`, never `linked`.
 
-27. **A food log is written once per opened form.** The add tool makes a
-    `client_token` when it opens and sends it with the entry; a unique
-    index on `(user_id, client_token)` turns a retried submit into "here is
-    the entry already written" (`logCachedFood`). A dropped connection is
-    caught in the form, which keeps what was chosen. Paths without a token
-    (Quick Add, recipes, saved meals, AI review) behave as before.
+27. **A food log is written once per opened form — every food-add path.**
+    Each form holds one operation key while it is open (`useKeyedAction` in
+    `components/use-keyed-action.ts`): kept when a request goes unanswered,
+    renewed once the server has answered. The server computes every row of
+    the operation first (`prepareCachedFoodLog`, `prepareRecipeLog`, a Quick
+    Add's own figures) and writes them in **one INSERT** (`writeLogsOnce` in
+    `lib/food-log.ts`), each row under a token derived from the key and its
+    position (`operationTokens`). The unique index on `(user_id,
+    client_token)` (migration 20261118000003) then makes the operation
+    all-or-nothing and once-only: a double tap or a retried request is
+    answered with the rows already written; a key that comes back with
+    different contents, or a different number of rows, is refused and writes
+    nothing; a meal is never half in the diary. Covered: the add tool,
+    favourites, Quick Add, recipes, saved meals, AI review, log again / copy
+    a meal, and restaurant parts. A failure computing any one row writes
+    none of them and names it. Tested: `food-log.test.ts`,
+    `supabase/tests/food_log_operations.sql`, and a browser replay of each
+    form's real request (IMPLEMENTATION_STATUS, TEST RESULTS).
 
 28. **Where an entry goes is chosen first and shown until it is saved.**
     The add tool takes a meal and a day from the "+" that opened it, shows
     both at the top (`components/log-context.tsx`), and the review repeats
     them beside the kcal. Afterwards the diary of that day opens with the
     row marked (`?saved=<id>` → `[data-new]`).
+
+29. **Food text is folded the same way in memory and in the database.**
+    `fold()` (`lib/food/text-match.ts`) lowers case, removes accents and
+    writes ligatures out (œ → oe, æ → ae, ß → ss); Arabic keeps its own
+    normalisation. The cache's `foods.search_folded` column is the same
+    folding in Postgres (`unaccent` + `lower`, migration 20261119000001), and
+    `searchCache` matches Latin terms against it. Changing one side without
+    the other makes cached foods unfindable by spelling.
 
 26. **The exercise list is paged and light.** PostgREST stops at 1 000
     rows and the catalogue is about that, so `listExercises` reads in

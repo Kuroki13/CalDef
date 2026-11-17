@@ -9,6 +9,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { operationKeyFrom } from "@/lib/operation-key";
 import { repeatEntries } from "@/lib/repeat";
 import { parseRepeatForm } from "@/lib/repeat-input";
 
@@ -21,7 +22,7 @@ export async function repeatEntriesAction(
   const parsed = parseRepeatForm(formData);
   if ("error" in parsed) return { error: parsed.error };
 
-  const outcome = await repeatEntries(parsed);
+  const outcome = await repeatEntries({ ...parsed, operationKey: operationKeyFrom(formData) });
   if ("error" in outcome) return { error: outcome.error };
 
   revalidatePath("/diary");
@@ -30,10 +31,9 @@ export async function repeatEntriesAction(
   const added = `Added ${outcome.logged} item${outcome.logged === 1 ? "" : "s"}.`;
   if (outcome.failed.length === 0) return { ok: true, notice: added };
 
-  // Some went in and some did not. Say exactly which, so the user retries
-  // only those — re-sending the whole meal would log the rest twice.
+  // All or nothing: one entry that cannot be logged holds the others back,
+  // so the meal is never half in the diary. Say which, so it can be untick-
+  // ed or fixed, and the rest sent again safely.
   const missing = outcome.failed.map((f) => `${f.name} (${f.reason})`).join("; ");
-  return outcome.logged > 0
-    ? { ok: true, notice: `${added} Not added: ${missing}.` }
-    : { error: `Nothing was added: ${missing}.` };
+  return { error: `Nothing was added: ${missing}.` };
 }

@@ -19,7 +19,13 @@ import { z } from "zod";
 import { cacheFood } from "@/lib/food/cache";
 import { foodPayloadSchema } from "@/lib/food/payload";
 import type { Food } from "@/lib/food/types";
-import { logCachedFood, updateEntryPortion } from "@/lib/food-log";
+import {
+  type PreparedLog,
+  prepareCachedFoodLog,
+  updateEntryPortion,
+  writeLogsOnce,
+} from "@/lib/food-log";
+import { operationKeyFrom } from "@/lib/operation-key";
 import { getUserId } from "@/lib/supabase/server";
 
 export type AiLogState = { error?: string; ok?: boolean; notice?: string };
@@ -54,14 +60,16 @@ export async function logParsedFoods(
   }
 
   const failures: string[] = [];
-  let logged = 0;
+  const rows: PreparedLog[] = [];
 
   // Sequential rather than concurrent: each item caches a food, and two
-  // items naming the same food would otherwise race to insert it.
+  // items naming the same food would otherwise race to insert it. Caching
+  // a food writes no diary entry; the entries are computed here and written
+  // below, all together or not at all.
   for (const item of payload.items) {
     try {
       const foodId = await cacheFood(item.food as Food);
-      const result = await logCachedFood({
+      const result = await prepareCachedFoodLog({
         foodId,
         logDate: payload.logDate,
         mealTypeId: payload.mealTypeId,
@@ -71,28 +79,30 @@ export async function logParsedFoods(
         source: "ai",
       });
       if ("error" in result) failures.push(item.food.name);
-      else logged += 1;
+      else rows.push(result.row);
     } catch {
       failures.push(item.food.name);
     }
   }
 
+  // One that cannot be logged holds the rest back: a meal half in the diary
+  // is short without the user knowing which half. Name it instead.
+  if (failures.length > 0) {
+    return {
+      error: `Nothing was added — could not add ${failures.join(", ")}. Remove ${failures.length === 1 ? "it" : "them"} or pick another match, then add again.`,
+    };
+  }
+
+  // One statement under the form's key: a double tap or a retried request
+  // is answered with the entries already written.
+  const written = await writeLogsOnce(rows, operationKeyFrom(formData));
+  if ("error" in written) return { error: written.error };
+
   revalidatePath("/diary");
   revalidatePath("/dashboard");
   revalidatePath("/assistant");
 
-  if (logged === 0) {
-    return { error: "Nothing could be logged. Add it from the search box." };
-  }
-
-  // A partial success is reported as one: saying "added" while an item was
-  // silently dropped would leave a meal short without the user knowing.
-  return failures.length === 0
-    ? { ok: true, notice: `Added ${logged} item${logged === 1 ? "" : "s"}.` }
-    : {
-        ok: true,
-        notice: `Added ${logged}. Could not add: ${failures.join(", ")}.`,
-      };
+  return { ok: true, notice: `Added ${rows.length} item${rows.length === 1 ? "" : "s"}.` };
 }
 
 /** Save the selected foods without creating any diary entries. */

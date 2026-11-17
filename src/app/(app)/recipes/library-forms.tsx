@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 
+import { useKeyedAction } from "@/components/use-keyed-action";
 import {
   addIngredientsAction,
   createRecipeAction,
@@ -194,10 +195,7 @@ export function LogRecipeForm({
   /** How many servings it makes, for the grams hint. */
   servings?: number | null;
 }) {
-  const [state, formAction] = useActionState<LibraryState, FormData>(
-    logRecipeAction,
-    {},
-  );
+  const [state, formAction, , operationKey] = useKeyedAction<LibraryState>(logRecipeAction, {});
   const weighed = cookedWeightG !== null && cookedWeightG > 0;
   const [unit, setUnit] = useState<"serving" | "g">("serving");
   const perServingG =
@@ -205,6 +203,7 @@ export function LogRecipeForm({
 
   return (
     <form action={formAction} className="space-y-3">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <Feedback state={state} />
       <input type="hidden" name="recipeId" value={recipeId} />
       <input type="hidden" name="logDate" value={logDate} />
@@ -381,10 +380,7 @@ function TemplateForm({
   items?: TemplateRow[];
   onAgain: () => void;
 }) {
-  const [state, formAction] = useActionState<LibraryState, FormData>(
-    logSavedMealAction,
-    {},
-  );
+  const [state, formAction, , operationKey] = useKeyedAction<LibraryState>(logSavedMealAction, {});
   const [ticked, setTicked] = useState(() => new Set(items.map((i) => i.id)));
 
   if (state.ok) {
@@ -400,6 +396,7 @@ function TemplateForm({
 
   return (
     <form action={formAction} className="space-y-3">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <Feedback state={state} />
       <input type="hidden" name="savedMealId" value={savedMealId} />
       <input type="hidden" name="logDate" value={logDate} />
@@ -562,13 +559,11 @@ export function LogFavoriteForm({
   logDate: string;
   mealTypes: MealType[];
 }) {
-  const [state, formAction] = useActionState<LibraryState, FormData>(
-    logFavoriteAction,
-    {},
-  );
+  const [state, formAction, , operationKey] = useKeyedAction<LibraryState>(logFavoriteAction, {});
 
   return (
     <form action={formAction} className="space-y-2">
+      <input type="hidden" name="clientToken" value={operationKey} />
       <Feedback state={state} />
       <input type="hidden" name="foodId" value={foodId} />
       <input type="hidden" name="logDate" value={logDate} />
