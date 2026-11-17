@@ -4,11 +4,60 @@ The reference for the visual system that replaces "Scoreboard". Product
 requirements stay in `PRODUCT_SPEC.md` (§16.1 records the decision);
 `ARCHITECTURE.md` invariant 23 changes when the tokens change in code.
 
-Status: **approved by the account owner on 2026-11-17 (Concept B,
-"Chronograph", with refinements); final visual confirmation of the v2 key
-screens pending. No visual code has changed yet.** Proposal pages:
-version 1 (audit, two concepts) and version 2 (refined key screens) of the
-claude.ai artifact "CalDef 2.0 Direction".
+Status: **direction "Chronograph Refined" approved by the account owner
+(2026-11-17); the final screen designs are not yet approved. V3 — an
+interactive prototype — awaits that approval. No visual code has changed.**
+Proposal pages: versions 1 (audit, two concepts), 2 (refined key screens)
+and 3 (interactive prototype, all states, both themes) of the claude.ai
+artifact "CalDef 2.0 Direction". V3 is kept in the repository as
+`docs/design/2026-11-17-caldef2/v3-prototype.html` (open it in a browser; it
+reads and writes nothing — network, saves and timing are simulated).
+
+## 0. V3 decisions (supersede anything below that disagrees)
+
+**Live workout states.** Set ready → Saving → Resting → Next set ready, plus
+Refused. "Complete set N · weight × reps" exists only in Set ready (and is
+locked while Saving); during Resting the one primary action is "Skip rest"
+(±15 s beside it) — a set can never be completed before it is performed. A
+refused save stops the flow with "Edit and retry" / "Discard". Each set row
+says its state in a word and a shape as well as a colour: Saved (filled
+disc), Saving (spinner), Waiting to sync (hatched/outlined, amber), Not saved
+(warning disc), Now, Planned. Finish appears only once nothing is waiting.
+These map onto the existing `save-queue.ts` behaviour (latest value per set,
+upsert on position, refusal dropped and reported) — no new subsystem.
+
+**Live workout hierarchy.** Exercise name up to two lines; the session clock
+is a small meta line; weight and reps are 56 × 68 steppers whose figure is
+also a typed field (comma accepted); "Reuse 80 kg × 6" replaces "Use"; one
+primary action at a time; the details button opens the exercise page with
+"Back to set N".
+
+**Today.** A Midnight balance card: kcal eaten with "of target" and "left",
+the target marked on the bar, meals logged; protein "of target g"; weight
+trend in kg with its weekly rate. Meals as full rows with calories in their
+own column and "Add this meal" in words (never "Log 640").
+
+**Capsule.** A 52 pt row of the tab bar (never a layer over content): current
+exercise and set, or the rest countdown and next set, or "N sets waiting to
+sync" with an amber dot; hidden while the keyboard is up; returning restores
+the previous tab and scroll position.
+
+**Light mode.** L1 "Open porcelain" is preferred (white top, `default` status
+bar). If the on-device test shows the bar does not follow dark mode, L2 is a
+Midnight cap no taller than the status bar (50 pt), not a band.
+
+**Accessibility (measured).** Smallest text 11 px; planned-set outline
+`#857D94` light (3.9:1) / `#7A7290` dark (4.1:1) — V2's was 1.7:1; all text
+pairs ≥ 4.5:1 in both themes (table in the V3 page).
+
+**Found during V3, to fix separately (not visual):** food search folding
+keeps "œ", so "oeuf" cannot match a Ciqual "Œuf …" in local ranking; the
+remaining retry tokens (Quick Add, recipes, saved meals, AI review). Media
+hand review rejected Everkinetic's only barbell row (reverse grip).
+
+**Unverified on a physical iPhone:** the status-bar behaviour (lab test), the
+real keyboard with the dock, lock-and-resume on the new screens, motion
+smoothness, one-handed reach, video playback; haptics are not promised.
 
 ---
 

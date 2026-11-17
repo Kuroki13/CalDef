@@ -51,14 +51,17 @@ recorded in `docs/DESIGN_DIRECTION.md` and PRODUCT_SPEC §16.1 / §16.10
 |---|---|
 | Audit + two concepts (artifact v1) | DONE |
 | Restaurant work 13L/13M, separately | DONE — `e31090a`, deployed |
-| Refined key screens in both themes (artifact v2) | DONE — **awaiting the owner's final visual confirmation** |
+| Refined key screens in both themes (artifact v2) | DONE — reviewed; the owner approved the direction "Chronograph Refined" but not the screens |
+| V3 interactive prototype (artifact v3; copy in `docs/design/2026-11-17-caldef2/v3-prototype.html`) | DONE — **awaiting the owner's final approval**. Scripted in headless Chrome: all 12 required interactions reached, no console errors, no horizontal overflow at 1280 / 390 px; double tap → one simulated row; offline retry reuses its key → still one row |
 | 0b iOS status-bar test (three temporary static pages) | WAITING for the owner's go-ahead to deploy them |
 | Exercise-media wave 1 list (owner's most-used exercises) | WAITING for the owner's list, or approval of one read-only slug count |
 | 1 tokens · 2 shell + capsule + Today · 3 session/training · 4 nutrition · 5 progress + secondary | NOT STARTED — after confirmation |
 | Media UI | GATED — phases 12–13 stable first; design and build script may be prepared |
 
-**Next action:** wait for the owner's confirmation of the v2 screens; then
-step 0b and step 1. No visual code until then.
+**Next action:** wait for the owner's approval of V3; then step 0b (with
+the owner's go-ahead to deploy the temporary status-bar pages) and step 1.
+No visual code until then. Two small non-visual fixes found during V3 await
+scheduling: "œ" folding in food search, and the remaining retry tokens.
 
 Research done for the design (2026-11-17): exercise-media licences checked
 against the Everkinetic repository licence, the wger API (per-file licence,
